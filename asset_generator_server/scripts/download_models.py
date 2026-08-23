@@ -395,6 +395,9 @@ def _install_pixal3d_python_runtime(
         run(["uv", "venv", "--python", "3.11", str(runtime / ".venv")])
 
     cc, cxx = _select_cuda_host_compilers()
+    build_jobs = os.environ.get(
+        "MAX_JOBS", str(min(2, max(1, (os.cpu_count() or 2) // 2)))
+    )
     build_env = {
         **_cuda_build_environment(architecture),
         "CUDA_HOME": "/usr/local/cuda-12.8",
@@ -402,9 +405,9 @@ def _install_pixal3d_python_runtime(
         "CXX": cxx,
         "CUDAHOSTCXX": cxx,
         "NVCC_CCBIN": cc,
-        "MAX_JOBS": str(max(1, (os.cpu_count() or 2) // 2)),
+        "MAX_JOBS": build_jobs,
         "NATTEN_CUDA_ARCH": architecture,
-        "NATTEN_N_WORKERS": str(max(1, (os.cpu_count() or 2) // 2)),
+        "NATTEN_N_WORKERS": os.environ.get("NATTEN_N_WORKERS", build_jobs),
         "TORCH_HOME": str((runtime / "torch").resolve()),
         "HF_HOME": str((runtime / "huggingface").resolve()),
     }

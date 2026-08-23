@@ -54,6 +54,9 @@ def test_linux_extension_install_uses_absolute_paths(tmp_path, monkeypatch) -> N
 
 def test_pixal3d_runtime_uses_absolute_virtualenv_python(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MAX_JOBS", raising=False)
+    monkeypatch.delenv("NATTEN_N_WORKERS", raising=False)
+    monkeypatch.setattr(download_models.os, "cpu_count", lambda: 32)
     settings = Settings(MODEL_CACHE_DIR=Path("relative-model-cache"))
     calls = []
     monkeypatch.setattr(
@@ -67,11 +70,13 @@ def test_pixal3d_runtime_uses_absolute_virtualenv_python(tmp_path, monkeypatch) 
         lambda: ("/usr/bin/gcc-14", "/usr/bin/g++-14"),
     )
 
-    python, _env = download_models._install_pixal3d_python_runtime(
+    python, env = download_models._install_pixal3d_python_runtime(
         settings, "12.0", False
     )
 
     assert python.is_absolute()
+    assert env["MAX_JOBS"] == "2"
+    assert env["NATTEN_N_WORKERS"] == "2"
     for command, _cwd, _command_env in calls:
         if command[:3] == ["uv", "pip", "install"]:
             assert Path(command[command.index("--python") + 1]).is_absolute()

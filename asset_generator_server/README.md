@@ -205,6 +205,16 @@ weights. This first installation can take a long time. It uses PyTorch SDPA
 instead of FlashAttention and a fixed `0.2` radian camera FOV, avoiding the
 additional MoGe model and its VRAM cost.
 
+Native CUDA compilation defaults to two parallel jobs to limit WSL system-memory
+use. If the installer is killed silently while building CuMesh or FlexGEMM,
+retry with one job:
+
+```bash
+MAX_JOBS=1 NATTEN_N_WORKERS=1 uv run python scripts/download_models.py \
+  --profile wsl-cuda-pixal3d \
+  --accept-licenses
+```
+
 Set the profile in `.env`, then run the server normally:
 
 ```dotenv
