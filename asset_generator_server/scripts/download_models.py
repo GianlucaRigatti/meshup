@@ -188,6 +188,7 @@ def install_windows(settings: Settings, preset: PipelinePreset, force: bool) -> 
         "TORCH_CUDA_ARCH_LIST": "12.0",
     }
     for extension in ("texture_baker", "uv_unwrapper"):
+        extension_path = (settings.sf3d_source_path / extension).resolve()
         command = [
             "uv",
             "pip",
@@ -195,7 +196,7 @@ def install_windows(settings: Settings, preset: PipelinePreset, force: bool) -> 
             "--python",
             sys.executable,
             "--no-build-isolation",
-            str(settings.sf3d_source_path / extension),
+            str(extension_path),
         ]
         _run_in_vs_environment(command, vcvars, settings.sf3d_source_path, env)
 
