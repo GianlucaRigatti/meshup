@@ -1,0 +1,11 @@
+.DS_Store
+.env
+.model_sources/
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+*.py[cod]
+generated_assets/*
+!generated_assets/.gitkeep
+

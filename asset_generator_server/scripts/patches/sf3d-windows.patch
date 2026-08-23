@@ -1,0 +1,68 @@
+diff --git a/texture_baker/setup.py b/texture_baker/setup.py
+index d0fbf09..9530f8e 100644
+--- a/texture_baker/setup.py
++++ b/texture_baker/setup.py
+@@ -43,16 +43,25 @@ def get_extensions():
+             "-O3" if not debug_mode else "-O0",
+         ],
+     }
++    if platform.system() == "Windows":
++        extra_compile_args = {
++            "cxx": ["/O2", "/std:c++17", "/openmp", "/MD"],
++            "nvcc": ["-O3", "-std=c++17", "-Xcompiler=/MD"],
++        }
++        use_native_arch = False
++
+     if debug_mode:
+-        extra_compile_args["cxx"].append("-g")
+         if platform.system() == "Windows":
+             extra_compile_args["cxx"].append("/Z7")
+             extra_compile_args["cxx"].append("/Od")
++            extra_compile_args["nvcc"].append("-G")
+             extra_link_args.extend(["/DEBUG"])
+-        extra_compile_args["cxx"].append("-UNDEBUG")
+-        extra_compile_args["nvcc"].append("-UNDEBUG")
+-        extra_compile_args["nvcc"].append("-g")
+-        extra_link_args.extend(["-O0", "-g"])
++        else:
++            extra_compile_args["cxx"].append("-g")
++            extra_compile_args["cxx"].append("-UNDEBUG")
++            extra_compile_args["nvcc"].append("-UNDEBUG")
++            extra_compile_args["nvcc"].append("-g")
++            extra_link_args.extend(["-O0", "-g"])
+ 
+     define_macros = []
+     extensions = []
+diff --git a/uv_unwrapper/setup.py b/uv_unwrapper/setup.py
+index 7e2dc68..47b8191 100644
+--- a/uv_unwrapper/setup.py
++++ b/uv_unwrapper/setup.py
+@@ -1,5 +1,6 @@
+ import glob
+ import os
++import platform
+ 
+ import torch
+ from setuptools import find_packages, setup
+@@ -32,10 +33,18 @@ def get_extensions():
+         else []
+         + ["-mmacosx-version-min=10.15"] if is_mac else [],
+     }
++    if platform.system() == "Windows":
++        extra_compile_args = {"cxx": ["/O2", "/std:c++17", "/openmp", "/MD"]}
++        use_native_arch = False
++
+     if debug_mode:
+-        extra_compile_args["cxx"].append("-g")
+-        extra_compile_args["cxx"].append("-UNDEBUG")
+-        extra_link_args.extend(["-O0", "-g"])
++        if platform.system() == "Windows":
++            extra_compile_args["cxx"].extend(["/Z7", "/Od"])
++            extra_link_args.extend(["/DEBUG"])
++        else:
++            extra_compile_args["cxx"].append("-g")
++            extra_compile_args["cxx"].append("-UNDEBUG")
++            extra_link_args.extend(["-O0", "-g"])
+ 
+     define_macros = []
+     extensions = []
