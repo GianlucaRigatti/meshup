@@ -30,15 +30,22 @@ WINDOWS_PATCH = PROJECT_ROOT / "scripts" / "patches" / "sf3d-windows.patch"
 def run(
     command: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
 ) -> str:
-    completed = subprocess.run(
-        command,
-        cwd=cwd,
-        env=env,
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            env=env,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    except subprocess.CalledProcessError as error:
+        output = (error.stdout or "").strip()
+        message = f"Command failed with exit code {error.returncode}: {command[0]}"
+        if output:
+            message += f"\n{output}"
+        raise RuntimeError(message) from error
     return completed.stdout.strip()
 
 
@@ -289,6 +296,8 @@ def _find_vcvars64() -> Path:
         [
             str(vswhere),
             "-latest",
+            "-version",
+            "[17.0,18.0)",
             "-products",
             "*",
             "-requires",
@@ -297,6 +306,11 @@ def _find_vcvars64() -> Path:
             "installationPath",
         ]
     )
+    if not installation:
+        raise RuntimeError(
+            "Visual Studio 2022 with the MSVC v143 x64 tools is required; "
+            "no matching installation was found."
+        )
     vcvars = Path(installation) / "VC" / "Auxiliary" / "Build" / "vcvars64.bat"
     if not vcvars.is_file():
         raise RuntimeError("Visual Studio's vcvars64.bat was not found.")
@@ -313,7 +327,11 @@ def _run_in_vs_environment(
 
 def _apply_windows_patch(source: Path) -> None:
     check = subprocess.run(
-        ["git", "apply", "--check", str(WINDOWS_PATCH)], cwd=source, check=False
+        ["git", "apply", "--check", str(WINDOWS_PATCH)],
+        cwd=source,
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     if check.returncode == 0:
         run(["git", "apply", str(WINDOWS_PATCH)], cwd=source)
@@ -322,6 +340,8 @@ def _apply_windows_patch(source: Path) -> None:
         ["git", "apply", "--reverse", "--check", str(WINDOWS_PATCH)],
         cwd=source,
         check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     if reverse.returncode != 0:
         raise RuntimeError("The Stable Fast 3D Windows patch does not apply cleanly.")
