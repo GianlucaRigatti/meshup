@@ -18,6 +18,24 @@ from app.presets import DINOV2_LARGE_REVISION, PipelinePreset
 PIXAL3D_RUNNER = Path(__file__).resolve().parents[1] / "scripts" / "run_pixal3d.py"
 
 
+def _trim_process_heap() -> None:
+    """Return freed CPU pages to Linux before starting a memory-heavy subprocess."""
+    if not sys.platform.startswith("linux"):
+        return
+    try:
+        import ctypes
+
+        libc = ctypes.CDLL(None)
+        malloc_trim = getattr(libc, "malloc_trim", None)
+        if malloc_trim is not None:
+            malloc_trim.argtypes = [ctypes.c_size_t]
+            malloc_trim.restype = ctypes.c_int
+            malloc_trim(0)
+    except (AttributeError, OSError):
+        # malloc_trim is a glibc optimization, not a correctness requirement.
+        return
+
+
 class ImageBackend(Protocol):
     device: str
 
@@ -203,11 +221,13 @@ class DiffusersImageBackend:
     def release_device_memory(self) -> None:
         gc.collect()
         if self._torch is None:
+            _trim_process_heap()
             return
         if self.preset.platform == "macos" and self._torch.backends.mps.is_available():
             self._torch.mps.empty_cache()
         elif self.preset.platform != "macos" and self._torch.cuda.is_available():
             self._torch.cuda.empty_cache()
+        _trim_process_heap()
 
 
 class HunyuanMlxBackend:
