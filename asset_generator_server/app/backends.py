@@ -426,12 +426,17 @@ class Pixal3DBackend:
             cwd=self.settings.pixal3d_source_path,
             env=self._environment,
             check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
             timeout=60,
         )
         if completed.returncode != 0:
-            raise RuntimeError("The Pixal3D runtime failed its readiness check.")
+            tail = completed.stdout[-4000:].strip()
+            message = "The Pixal3D runtime failed its readiness check."
+            if tail:
+                message += f"\n{tail}"
+            raise RuntimeError(message)
 
     def generate(self, image: Image.Image, seed: int, output: Path) -> None:
         self.load()

@@ -235,6 +235,28 @@ def test_pixal3d_backend_reports_each_missing_runtime_file(
     assert "--force" in message
 
 
+def test_pixal3d_readiness_failure_includes_subprocess_output(
+    tmp_path, monkeypatch
+) -> None:
+    settings = Settings(MODEL_CACHE_DIR=tmp_path)
+    for path in settings.pixal3d_required_files:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    backend = Pixal3DBackend(settings, PRESETS["wsl-cuda-pixal3d"])
+    monkeypatch.setattr("app.backends._is_wsl", lambda: True)
+    monkeypatch.setattr("app.backends._require_git_revision", lambda *_args: None)
+    monkeypatch.setattr("app.backends._require_revision", lambda *_args: None)
+    monkeypatch.setattr(
+        "app.backends.subprocess.run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=1, stdout="ModuleNotFoundError: missing dependency"
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="ModuleNotFoundError: missing dependency"):
+        backend.load()
+
+
 def test_unknown_and_unsupported_auto_profiles_are_rejected() -> None:
     with pytest.raises(ValueError, match="Unknown"):
         resolve_profile("anything", platform_name="darwin", machine="arm64")
