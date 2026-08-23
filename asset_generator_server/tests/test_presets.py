@@ -208,6 +208,7 @@ def test_pixal3d_backend_invokes_pinned_low_vram_cli(tmp_path, monkeypatch) -> N
     backend.generate(Image.new("RGBA", (8, 8)), 123, output)
 
     command, kwargs = calls[0]
+    assert command[0] == str(settings.pixal3d_python_path.absolute())
     assert command[command.index("--model_path") + 1] == str(
         settings.asset_model_path.resolve()
     )

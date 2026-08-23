@@ -419,7 +419,7 @@ class Pixal3DBackend:
         )
         completed = subprocess.run(
             [
-                str(self.settings.pixal3d_python_path.resolve()),
+                str(self.settings.pixal3d_python_path.absolute()),
                 str((self.settings.pixal3d_source_path / "inference.py").resolve()),
                 "--help",
             ],
@@ -444,7 +444,7 @@ class Pixal3DBackend:
         image.save(input_path)
         asset = self.preset.asset
         command = [
-            str(self.settings.pixal3d_python_path.resolve()),
+            str(self.settings.pixal3d_python_path.absolute()),
             str((self.settings.pixal3d_source_path / "inference.py").resolve()),
             "--image",
             str(input_path.resolve()),

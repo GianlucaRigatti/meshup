@@ -465,6 +465,7 @@ def _install_pixal3d_extensions(
             NVDIFFRAST_REPOSITORY,
             NVDIFFRAST_SOURCE_REVISION,
             "nvdiffrast",
+            "nvdiffrast.torch",
             False,
         ),
         (
@@ -472,6 +473,7 @@ def _install_pixal3d_extensions(
             CUMESH_REPOSITORY,
             CUMESH_SOURCE_REVISION,
             "CuMesh",
+            "cumesh",
             True,
         ),
         (
@@ -479,10 +481,11 @@ def _install_pixal3d_extensions(
             FLEXGEMM_REPOSITORY,
             FLEXGEMM_SOURCE_REVISION,
             "FlexGEMM",
+            "flex_gemm",
             True,
         ),
     )
-    for destination, repository, revision, label, recursive in extensions:
+    for destination, repository, revision, label, import_name, recursive in extensions:
         install_source(
             destination,
             repository,
@@ -498,10 +501,16 @@ def _install_pixal3d_extensions(
                 "install",
                 "--python",
                 str(python),
+                "--reinstall",
                 "--no-deps",
                 "--no-build-isolation",
                 str(destination.resolve()),
             ],
+            env=env,
+        )
+        run(
+            [str(python), "-c", f"import {import_name}"],
+            cwd=settings.pixal3d_source_path,
             env=env,
         )
 
@@ -512,6 +521,7 @@ def _install_pixal3d_extensions(
             "install",
             "--python",
             str(python),
+            "--reinstall",
             "--no-deps",
             "--no-build-isolation",
             str((settings.trellis2_source_path / "o-voxel").resolve()),
