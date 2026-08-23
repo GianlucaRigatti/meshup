@@ -98,10 +98,33 @@ def install_source(
     print(f"Installed {label} source at {destination}")
 
 
-def download_image_model(settings: Settings, preset: PipelinePreset) -> None:
+def download_image_model(
+    settings: Settings, preset: PipelinePreset, token: str | None = None
+) -> None:
     destination = settings.image_model_path
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if preset.image.backend == "sana-sprint":
+    if preset.image.backend == "stable-diffusion-3.5":
+        allow_patterns = [
+            "LICENSE.md",
+            "README.md",
+            "model_index.json",
+            "scheduler/*",
+            "tokenizer/*",
+            "tokenizer_2/*",
+            "tokenizer_3/*",
+            "text_encoder/config.json",
+            "text_encoder/model.safetensors",
+            "text_encoder_2/config.json",
+            "text_encoder_2/model.safetensors",
+            "text_encoder_3/config.json",
+            "text_encoder_3/model-*.safetensors",
+            "text_encoder_3/model.safetensors.index.json",
+            "transformer/config.json",
+            "transformer/diffusion_pytorch_model.safetensors",
+            "vae/config.json",
+            "vae/diffusion_pytorch_model.safetensors",
+        ]
+    elif preset.image.backend == "sana-sprint":
         allow_patterns = [
             "LICENSE",
             "README.md",
@@ -136,6 +159,7 @@ def download_image_model(settings: Settings, preset: PipelinePreset) -> None:
     snapshot_download(
         repo_id=preset.image.model_id,
         revision=preset.image.revision,
+        token=token,
         local_dir=destination,
         allow_patterns=allow_patterns,
     )
@@ -678,8 +702,8 @@ def _require_hugging_face_token() -> str:
     token = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
     if not token:
         raise RuntimeError(
-            "Set HF_TOKEN to a read token after accepting the Stable Fast 3D "
-            "model terms on Hugging Face."
+            "Set HF_TOKEN to a read token after accepting the selected Stability "
+            "AI model terms on Hugging Face."
         )
     return token
 
@@ -781,6 +805,7 @@ def main() -> None:
             "linux-cuda-fast",
             "linux-cuda-sana",
             "wsl-cuda-pixal3d",
+            "wsl-cuda-sd35-pixal3d",
         ],
     )
     parser.add_argument(
@@ -799,6 +824,8 @@ def main() -> None:
 
     settings = Settings(PIPELINE_PROFILE=args.profile)
     preset = settings.preset
+    if preset.name.startswith("wsl-") and not _is_wsl():
+        raise RuntimeError(f"The {preset.name} profile requires WSL 2.")
     print(
         "Installing models governed by Stability AI and/or Tencent community "
         "licenses. See THIRD_PARTY_NOTICES.md."
@@ -812,9 +839,12 @@ def main() -> None:
         token = _require_hugging_face_token()
     elif preset.platform == "linux":
         architecture = _validate_linux_cuda()
-        if preset.asset.backend == "stable-fast-3d":
+        if (
+            preset.asset.backend == "stable-fast-3d"
+            or preset.image.backend == "stable-diffusion-3.5"
+        ):
             token = _require_hugging_face_token()
-    download_image_model(settings, preset)
+    download_image_model(settings, preset, token)
     download_rembg(settings)
     if preset.platform == "macos":
         install_macos(settings, preset, args.force)

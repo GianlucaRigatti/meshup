@@ -279,3 +279,27 @@ def test_sana_download_includes_sharded_encoder_and_transformer(
     assert (
         settings.image_model_path / ".model-revision"
     ).read_text().strip() == preset.image.revision
+
+
+def test_sd35_download_includes_full_t5_and_uses_token(tmp_path, monkeypatch) -> None:
+    preset = PRESETS["wsl-cuda-sd35-pixal3d"]
+    settings = SimpleNamespace(
+        image_model_path=tmp_path / "models" / preset.image.directory_name
+    )
+    captured = {}
+
+    def snapshot(**kwargs):
+        captured.update(kwargs)
+        Path(kwargs["local_dir"]).mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(download_models, "snapshot_download", snapshot)
+
+    download_models.download_image_model(settings, preset, "hf_test")
+
+    assert captured["repo_id"] == "stabilityai/stable-diffusion-3.5-medium"
+    assert captured["revision"] == preset.image.revision
+    assert captured["token"] == "hf_test"
+    assert "text_encoder_3/model-*.safetensors" in captured["allow_patterns"]
+    assert "transformer/diffusion_pytorch_model.safetensors" in captured[
+        "allow_patterns"
+    ]

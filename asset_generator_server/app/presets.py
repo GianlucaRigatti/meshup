@@ -15,6 +15,7 @@ ProfileName: TypeAlias = Literal[
     "linux-cuda-fast",
     "linux-cuda-sana",
     "wsl-cuda-pixal3d",
+    "wsl-cuda-sd35-pixal3d",
 ]
 
 
@@ -24,12 +25,13 @@ class ImagePreset:
     revision: str
     directory_name: str
     steps: int
-    backend: Literal["auto", "sana-sprint"] = "auto"
+    backend: Literal["auto", "sana-sprint", "stable-diffusion-3.5"] = "auto"
     guidance: float = 0.0
     width: int = 512
     height: int = 512
     dtype: str = "float16"
     variant: str | None = "fp16"
+    quantization: Literal["nf4"] | None = None
 
 
 @dataclass(frozen=True)
@@ -70,6 +72,7 @@ SF3D_MODEL_REVISION = "f0c9a8ffd62cb1bbc8a7a53c9f87a0be1b6be778"
 DINOV2_LARGE_REVISION = "47b73eefe95e8d44ec3623f8890bd894b6ea2d6c"
 PIXAL3D_SOURCE_REVISION = "cdbb2bbffbf4e6f298b5f2af3d1d76a8d823d2af"
 PIXAL3D_MODEL_REVISION = "0b31f9160aa400719af409098bff7936a932f726"
+SD35_MEDIUM_REVISION = "b940f670f0eda2d07fbb75229e779da1ad11eb80"
 
 
 PRESETS: dict[str, PipelinePreset] = {
@@ -250,6 +253,36 @@ PRESETS: dict[str, PipelinePreset] = {
             height=1024,
             dtype="bfloat16",
             variant=None,
+        ),
+        asset=AssetPreset(
+            backend="pixal3d",
+            model_id="TencentARC/Pixal3D",
+            revision=PIXAL3D_MODEL_REVISION,
+            directory_name="pixal3d",
+            source_revision=PIXAL3D_SOURCE_REVISION,
+            output_mode="pbr_texture",
+            texture_resolution=4096,
+            pipeline_resolution=1024,
+            camera_fov=0.2,
+        ),
+    ),
+    "wsl-cuda-sd35-pixal3d": PipelinePreset(
+        name="wsl-cuda-sd35-pixal3d",
+        schema_version=1,
+        platform="linux",
+        device="cuda:0",
+        image=ImagePreset(
+            backend="stable-diffusion-3.5",
+            model_id="stabilityai/stable-diffusion-3.5-medium",
+            revision=SD35_MEDIUM_REVISION,
+            directory_name="stable-diffusion-3.5-medium-nf4",
+            steps=28,
+            guidance=7.0,
+            width=1024,
+            height=1024,
+            dtype="bfloat16",
+            variant=None,
+            quantization="nf4",
         ),
         asset=AssetPreset(
             backend="pixal3d",

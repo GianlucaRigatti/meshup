@@ -40,6 +40,17 @@ license and acceptable-use terms before downloading or using the weights.
 The optional Windows and Linux/WSL Sana presets use the BF16 1024px Diffusers
 checkpoint with its documented two-step inference configuration.
 
+## Stable Diffusion 3.5 Medium
+
+- Model: `stabilityai/stable-diffusion-3.5-medium`
+- Pinned revision: `b940f670f0eda2d07fbb75229e779da1ad11eb80`
+- Model card: <https://huggingface.co/stabilityai/stable-diffusion-3.5-medium>
+- License: Stability AI Community License
+
+The optional WSL SD 3.5/Pixal3D preset uses bitsandbytes NF4 quantization for
+the transformer and T5-XXL encoder. The weights are gated. Accept the model
+terms and review the license before downloading or using them.
+
 ## Stable Fast 3D
 
 - Source: <https://github.com/Stability-AI/stable-fast-3d>

@@ -92,6 +92,40 @@ def test_pixal3d_profile_uses_low_vram_quality_settings() -> None:
     assert preset.asset.camera_fov == 0.2
 
 
+def test_sd35_pixal3d_profile_quantizes_both_large_image_components() -> None:
+    preset = PRESETS["wsl-cuda-sd35-pixal3d"]
+
+    assert preset.platform == "linux"
+    assert preset.image.backend == "stable-diffusion-3.5"
+    assert preset.image.quantization == "nf4"
+    assert preset.image.dtype == "bfloat16"
+    assert preset.image.steps == 28
+    assert preset.image.guidance == 7.0
+    assert (preset.image.width, preset.image.height) == (1024, 1024)
+    assert preset.asset == PRESETS["wsl-cuda-pixal3d"].asset
+
+
+def test_sd35_backend_selects_quantized_loader(tmp_path, monkeypatch) -> None:
+    preset = PRESETS["wsl-cuda-sd35-pixal3d"]
+    model_path = tmp_path / "models" / preset.image.directory_name
+    model_path.mkdir(parents=True)
+    (model_path / ".model-revision").write_text(preset.image.revision + "\n")
+    captured = {}
+    backend = DiffusersImageBackend(
+        SimpleNamespace(image_model_path=model_path), preset
+    )
+    monkeypatch.setattr("app.backends._validate_cuda", lambda _torch: None)
+    monkeypatch.setattr(
+        backend,
+        "_load_quantized_sd35",
+        lambda torch_module, dtype: captured.update(torch=torch_module, dtype=dtype),
+    )
+
+    backend.load()
+
+    assert captured["dtype"].__str__() == "torch.bfloat16"
+
+
 def test_pixal3d_backend_invokes_pinned_low_vram_cli(tmp_path, monkeypatch) -> None:
     preset = PRESETS["wsl-cuda-pixal3d"]
     settings = Settings(MODEL_CACHE_DIR=tmp_path)

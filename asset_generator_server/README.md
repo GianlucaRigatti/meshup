@@ -17,6 +17,7 @@ inference settings reproducible.
 | `linux-cuda-fast` | Linux or WSL 2/NVIDIA | SDXL-Turbo (1 step) → Stable Fast 3D | 1024px UV/PBR GLB |
 | `linux-cuda-sana` | Linux or WSL 2/NVIDIA | Sana-Sprint 1.6B (2 steps, 1024px) → Stable Fast 3D | 2048px UV/PBR GLB |
 | `wsl-cuda-pixal3d` | WSL 2/NVIDIA | Sana-Sprint 1.6B → Pixal3D low-VRAM (1024 cascade) | 4096px UV/PBR GLB |
+| `wsl-cuda-sd35-pixal3d` | WSL 2/NVIDIA | SD 3.5 Medium NF4 (28 steps, 1024px) → Pixal3D low-VRAM | 4096px UV/PBR GLB |
 
 `PIPELINE_PROFILE=auto` selects `macos-mlx` on Apple Silicon and
 `windows-cuda-sana` on supported Windows systems, or `linux-cuda-sana` on
@@ -218,6 +219,27 @@ VRAM is reclaimed when the subprocess exits. This is deliberately safer on a
 The generated debug PNG remains beside the resulting GLB for direct
 image-versus-geometry comparison.
 
+For a higher-quality text-to-image stage, first accept the terms on the
+[Stable Diffusion 3.5 Medium model page](https://huggingface.co/stabilityai/stable-diffusion-3.5-medium),
+then install the second WSL-only preset:
+
+```bash
+export HF_TOKEN="hf_..."
+uv sync
+uv run python scripts/download_models.py \
+  --profile wsl-cuda-sd35-pixal3d \
+  --accept-licenses
+```
+
+Configure `.env` with `PIPELINE_PROFILE=wsl-cuda-sd35-pixal3d`. This preset
+keeps all three SD 3.5 text encoders, but loads both its main transformer and
+T5-XXL encoder in 4-bit NF4 with BF16 computation. Automatic placement is
+capped at 9 GiB GPU memory, leaving roughly 3 GiB of a 12 GB card for
+activations and VAE decoding; overflow can use system RAM. VAE tiling further
+limits the 1024px decode peak. SD is destroyed and CUDA caches are emptied
+before the separate Pixal3D low-VRAM process starts, so their VRAM footprints
+do not overlap.
+
 ### 4. Run WSL server and connect Unity
 
 Inside WSL:
@@ -358,7 +380,8 @@ receives `generator_busy`; cached requests remain available.
 
 - `PIPELINE_PROFILE`: `auto`, `macos-mlx`, `windows-cuda-quality`,
   `windows-cuda-fast`, `windows-cuda-sana`, `linux-cuda-quality`,
-  `linux-cuda-fast`, `linux-cuda-sana`, or `wsl-cuda-pixal3d`
+  `linux-cuda-fast`, `linux-cuda-sana`, `wsl-cuda-pixal3d`, or
+  `wsl-cuda-sd35-pixal3d`
 - `PUBLIC_BASE_URL`: public URL used in responses
 - `ASSET_OUTPUT_DIR`: generated GLB and metadata directory
 - `MODEL_CACHE_DIR`: models, pinned sources, and runtimes

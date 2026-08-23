@@ -80,6 +80,10 @@ class DiffusersImageBackend:
             raise RuntimeError(
                 f"Unsupported image model dtype {self.preset.image.dtype!r}."
             )
+        if self.preset.image.backend == "stable-diffusion-3.5":
+            self._load_quantized_sd35(torch, dtype)
+            return
+
         load_options = {
             "torch_dtype": dtype,
             "local_files_only": True,
@@ -101,6 +105,62 @@ class DiffusersImageBackend:
             self._uses_cpu_offload = True
         else:
             self._pipeline.to(self.device)
+
+    def _load_quantized_sd35(self, torch_module, dtype) -> None:
+        if self.preset.image.quantization != "nf4":
+            raise RuntimeError("The WSL SD 3.5 preset requires NF4 quantization.")
+        if not _is_wsl():
+            raise RuntimeError("The quantized SD 3.5 profile currently requires WSL 2.")
+
+        from diffusers import (
+            BitsAndBytesConfig as DiffusersBitsAndBytesConfig,
+            SD3Transformer2DModel,
+            StableDiffusion3Pipeline,
+        )
+        from transformers import (
+            BitsAndBytesConfig as TransformersBitsAndBytesConfig,
+            T5EncoderModel,
+        )
+
+        transformer_quantization = DiffusersBitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=dtype,
+            bnb_4bit_use_double_quant=True,
+        )
+        text_quantization = TransformersBitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=dtype,
+            bnb_4bit_use_double_quant=True,
+        )
+        model_path = self.settings.image_model_path
+        transformer = SD3Transformer2DModel.from_pretrained(
+            model_path,
+            subfolder="transformer",
+            quantization_config=transformer_quantization,
+            torch_dtype=dtype,
+            local_files_only=True,
+        )
+        text_encoder_3 = T5EncoderModel.from_pretrained(
+            model_path,
+            subfolder="text_encoder_3",
+            quantization_config=text_quantization,
+            torch_dtype=dtype,
+            local_files_only=True,
+        )
+        self._pipeline = StableDiffusion3Pipeline.from_pretrained(
+            model_path,
+            transformer=transformer,
+            text_encoder_3=text_encoder_3,
+            torch_dtype=dtype,
+            local_files_only=True,
+            device_map="auto",
+            max_memory={0: "9GiB", "cpu": "24GiB"},
+        )
+        self._pipeline.enable_vae_tiling()
+        self._pipeline.set_progress_bar_config(disable=True)
+        self._uses_cpu_offload = False
 
     def generate(self, prompt: str, seed: int) -> Image.Image:
         self.load()
