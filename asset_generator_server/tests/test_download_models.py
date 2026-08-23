@@ -221,3 +221,32 @@ def test_cuda_model_config_rewrite_is_idempotent(tmp_path, monkeypatch) -> None:
     assert (
         settings.dinov2_model_path / ".model-revision"
     ).read_text().strip() == DINOV2_LARGE_REVISION
+
+
+def test_sana_download_includes_sharded_encoder_and_transformer(
+    tmp_path, monkeypatch
+) -> None:
+    preset = PRESETS["linux-cuda-sana"]
+    settings = SimpleNamespace(
+        image_model_path=tmp_path / "models" / preset.image.directory_name
+    )
+    captured = {}
+
+    def snapshot(**kwargs):
+        captured.update(kwargs)
+        Path(kwargs["local_dir"]).mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(download_models, "snapshot_download", snapshot)
+
+    download_models.download_image_model(settings, preset)
+
+    assert captured["repo_id"] == preset.image.model_id
+    assert captured["revision"] == preset.image.revision
+    assert "text_encoder/model-*.safetensors" in captured["allow_patterns"]
+    assert (
+        "transformer/diffusion_pytorch_model.safetensors"
+        in captured["allow_patterns"]
+    )
+    assert (
+        settings.image_model_path / ".model-revision"
+    ).read_text().strip() == preset.image.revision

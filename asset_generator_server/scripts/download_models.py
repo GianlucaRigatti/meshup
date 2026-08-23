@@ -73,11 +73,23 @@ def install_source(
 def download_image_model(settings: Settings, preset: PipelinePreset) -> None:
     destination = settings.image_model_path
     destination.parent.mkdir(parents=True, exist_ok=True)
-    snapshot_download(
-        repo_id=preset.image.model_id,
-        revision=preset.image.revision,
-        local_dir=destination,
-        allow_patterns=[
+    if preset.image.backend == "sana-sprint":
+        allow_patterns = [
+            "LICENSE",
+            "README.md",
+            "model_index.json",
+            "scheduler/*",
+            "tokenizer/*",
+            "text_encoder/config.json",
+            "text_encoder/model-*.safetensors",
+            "text_encoder/model.safetensors.index.json",
+            "transformer/config.json",
+            "transformer/diffusion_pytorch_model.safetensors",
+            "vae/config.json",
+            "vae/diffusion_pytorch_model.safetensors",
+        ]
+    else:
+        allow_patterns = [
             "LICENSE.md",
             "README.md",
             "model_index.json",
@@ -92,7 +104,12 @@ def download_image_model(settings: Settings, preset: PipelinePreset) -> None:
             "unet/diffusion_pytorch_model.fp16.safetensors",
             "vae/config.json",
             "vae/diffusion_pytorch_model.fp16.safetensors",
-        ],
+        ]
+    snapshot_download(
+        repo_id=preset.image.model_id,
+        revision=preset.image.revision,
+        local_dir=destination,
+        allow_patterns=allow_patterns,
     )
     (destination / ".model-revision").write_text(
         preset.image.revision + "\n", encoding="utf-8"
@@ -487,8 +504,10 @@ def main() -> None:
             "macos-mlx",
             "windows-cuda-quality",
             "windows-cuda-fast",
+            "windows-cuda-sana",
             "linux-cuda-quality",
             "linux-cuda-fast",
+            "linux-cuda-sana",
         ],
     )
     parser.add_argument(

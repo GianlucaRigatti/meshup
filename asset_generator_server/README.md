@@ -12,12 +12,14 @@ inference settings reproducible.
 | `macos-mlx` | Apple Silicon | SD-Turbo → Hunyuan3D 2 Mini MLX | Vertex-colored GLB |
 | `windows-cuda-quality` | Windows/NVIDIA | SDXL-Turbo (4 steps) → Stable Fast 3D | 2048px UV/PBR GLB |
 | `windows-cuda-fast` | Windows/NVIDIA | SDXL-Turbo (1 step) → Stable Fast 3D | 1024px UV/PBR GLB |
+| `windows-cuda-sana` | Windows/NVIDIA | Sana-Sprint 1.6B (2 steps, 1024px) → Stable Fast 3D | 2048px UV/PBR GLB |
 | `linux-cuda-quality` | Linux or WSL 2/NVIDIA | SDXL-Turbo (4 steps) → Stable Fast 3D | 2048px UV/PBR GLB |
 | `linux-cuda-fast` | Linux or WSL 2/NVIDIA | SDXL-Turbo (1 step) → Stable Fast 3D | 1024px UV/PBR GLB |
+| `linux-cuda-sana` | Linux or WSL 2/NVIDIA | Sana-Sprint 1.6B (2 steps, 1024px) → Stable Fast 3D | 2048px UV/PBR GLB |
 
 `PIPELINE_PROFILE=auto` selects `macos-mlx` on Apple Silicon and
-`windows-cuda-quality` on supported Windows systems, or `linux-cuda-quality`
-on x86-64 Linux and WSL 2. Selecting a profile for the wrong platform is an
+`windows-cuda-sana` on supported Windows systems, or `linux-cuda-sana` on
+x86-64 Linux and WSL 2. Selecting a profile for the wrong platform is an
 error. ARM Linux, DirectML, ROCm, and CPU fallback are not supported.
 
 The CUDA profiles target exactly one Ampere-or-newer NVIDIA GPU with at least
@@ -170,9 +172,11 @@ uv sync
 uv run python scripts/download_models.py --profile auto --accept-licenses
 ```
 
-`auto` selects `linux-cuda-quality`. To install explicitly, use
-`--profile linux-cuda-quality` or `--profile linux-cuda-fast`. Both profiles
-share the same downloaded weights; only their generation settings differ.
+`auto` selects `linux-cuda-sana`. To install explicitly, use
+`--profile linux-cuda-quality`, `--profile linux-cuda-fast`, or
+`--profile linux-cuda-sana`. The quality and fast profiles share SDXL-Turbo
+weights; the Sana profile downloads its separate 1024px image model. All three
+use the same Stable Fast 3D weights.
 
 ### 4. Run WSL server and connect Unity
 
@@ -240,8 +244,8 @@ run `wsl --shutdown`, restart Ubuntu, and review the WSL networking link above.
 
 ## Native Ubuntu Linux installation
 
-Native x86-64 Ubuntu uses the same `linux-cuda-quality` and
-`linux-cuda-fast` profiles. Install a supported NVIDIA Linux driver and CUDA
+Native x86-64 Ubuntu uses the same `linux-cuda-quality`, `linux-cuda-fast`, and
+`linux-cuda-sana` profiles. Install a supported NVIDIA Linux driver and CUDA
 Toolkit 12.8 using NVIDIA's
 [Linux installation guide](https://docs.nvidia.com/cuda/archive/12.8.0/cuda-installation-guide-linux/),
 then install the build packages and project as shown in the WSL sections above.
@@ -265,7 +269,7 @@ curl --fail http://127.0.0.1:8000/readyz
 
 The readiness response includes both the configured and resolved profiles.
 
-The following example is from the Linux quality profile:
+The following example is from the default Linux Sana profile:
 
 ```json
 {
@@ -273,7 +277,7 @@ The following example is from the Linux quality profile:
   "ready": true,
   "busy": false,
   "configured_profile": "auto",
-  "profile": "linux-cuda-quality",
+  "profile": "linux-cuda-sana",
   "device": "cuda:0",
   "output_mode": "pbr_texture"
 }
@@ -313,7 +317,8 @@ receives `generator_busy`; cached requests remain available.
 ## Configuration
 
 - `PIPELINE_PROFILE`: `auto`, `macos-mlx`, `windows-cuda-quality`,
-  `windows-cuda-fast`, `linux-cuda-quality`, or `linux-cuda-fast`
+  `windows-cuda-fast`, `windows-cuda-sana`, `linux-cuda-quality`,
+  `linux-cuda-fast`, or `linux-cuda-sana`
 - `PUBLIC_BASE_URL`: public URL used in responses
 - `ASSET_OUTPUT_DIR`: generated GLB and metadata directory
 - `MODEL_CACHE_DIR`: models, pinned sources, and runtimes

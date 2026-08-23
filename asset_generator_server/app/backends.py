@@ -59,7 +59,7 @@ class DiffusersImageBackend:
         _require_revision(self.settings.image_model_path, self.preset.image.revision)
 
         import torch
-        from diffusers import AutoPipelineForText2Image
+        from diffusers import AutoPipelineForText2Image, SanaSprintPipeline
 
         if self.preset.platform == "macos":
             if not torch.backends.mps.is_available():
@@ -70,13 +70,30 @@ class DiffusersImageBackend:
             _validate_cuda(torch)
 
         self._torch = torch
-        self._pipeline = AutoPipelineForText2Image.from_pretrained(
+        pipeline_class = (
+            SanaSprintPipeline
+            if self.preset.image.backend == "sana-sprint"
+            else AutoPipelineForText2Image
+        )
+        dtype = getattr(torch, self.preset.image.dtype, None)
+        if dtype is None:
+            raise RuntimeError(
+                f"Unsupported image model dtype {self.preset.image.dtype!r}."
+            )
+        load_options = {
+            "torch_dtype": dtype,
+            "local_files_only": True,
+        }
+        if self.preset.image.backend == "auto":
+            load_options.update(
+                safety_checker=None,
+                requires_safety_checker=False,
+            )
+        if self.preset.image.variant is not None:
+            load_options["variant"] = self.preset.image.variant
+        self._pipeline = pipeline_class.from_pretrained(
             self.settings.image_model_path,
-            torch_dtype=torch.float16,
-            variant=self.preset.image.variant,
-            local_files_only=True,
-            safety_checker=None,
-            requires_safety_checker=False,
+            **load_options,
         )
         self._pipeline.set_progress_bar_config(disable=True)
         if self.preset.platform != "macos":

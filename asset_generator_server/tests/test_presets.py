@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import diffusers
 import numpy as np
 import pytest
 import trimesh
@@ -18,11 +21,11 @@ def test_auto_profile_resolution() -> None:
     )
     assert (
         resolve_profile("auto", platform_name="win32", machine="AMD64").name
-        == "windows-cuda-quality"
+        == "windows-cuda-sana"
     )
     assert (
         resolve_profile("auto", platform_name="linux", machine="x86_64").name
-        == "linux-cuda-quality"
+        == "linux-cuda-sana"
     )
     assert (
         resolve_profile("linux-cuda-fast", platform_name="linux", machine="AMD64").name
@@ -61,6 +64,20 @@ def test_linux_profiles_match_windows_pipeline_settings(variant: str) -> None:
     assert linux.asset == windows.asset
     assert linux.device == windows.device
     assert linux.platform == "linux"
+
+
+def test_sana_profiles_match_and_use_native_settings() -> None:
+    windows = PRESETS["windows-cuda-sana"]
+    linux = PRESETS["linux-cuda-sana"]
+
+    assert linux.image == windows.image
+    assert linux.asset == windows.asset
+    assert windows.image.backend == "sana-sprint"
+    assert windows.image.dtype == "bfloat16"
+    assert windows.image.variant is None
+    assert (windows.image.width, windows.image.height) == (1024, 1024)
+    assert windows.image.steps == 2
+    assert windows.image.guidance == 4.5
 
 
 def test_unknown_and_unsupported_auto_profiles_are_rejected() -> None:
@@ -112,6 +129,39 @@ def test_linux_image_backend_releases_cuda_memory(tmp_path) -> None:
     backend._torch = type("FakeTorch", (), {"cuda": _Cuda})
     backend.release_device_memory()
     assert events == ["empty_cache"]
+
+
+def test_sana_backend_uses_sprint_pipeline_and_bfloat16(tmp_path, monkeypatch) -> None:
+    preset = PRESETS["linux-cuda-sana"]
+    model_path = tmp_path / "models" / preset.image.directory_name
+    model_path.mkdir(parents=True)
+    (model_path / ".model-revision").write_text(preset.image.revision + "\n")
+    captured = {}
+
+    class _Pipeline:
+        @staticmethod
+        def from_pretrained(path, **kwargs):
+            captured.update(path=path, kwargs=kwargs)
+            return _Pipeline()
+
+        def set_progress_bar_config(self, **_kwargs) -> None:
+            return
+
+        def enable_model_cpu_offload(self, **_kwargs) -> None:
+            return
+
+    monkeypatch.setattr(diffusers, "SanaSprintPipeline", _Pipeline)
+    monkeypatch.setattr("app.backends._validate_cuda", lambda _torch: None)
+    backend = DiffusersImageBackend(
+        SimpleNamespace(image_model_path=model_path), preset
+    )
+
+    backend.load()
+
+    assert captured["path"] == model_path
+    assert captured["kwargs"]["torch_dtype"].__str__() == "torch.bfloat16"
+    assert "variant" not in captured["kwargs"]
+    assert "safety_checker" not in captured["kwargs"]
 
 
 def test_windows_texture_failure_leaves_no_output(tmp_path) -> None:

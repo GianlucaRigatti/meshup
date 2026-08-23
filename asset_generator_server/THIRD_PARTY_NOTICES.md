@@ -30,6 +30,16 @@ Read and accept the model license before you download or use the model.
 Commercial use may require a Stability AI license. Review the current model
 license and acceptable-use terms before downloading or using the weights.
 
+## Sana-Sprint 1.6B
+
+- Model: `Efficient-Large-Model/Sana_Sprint_1.6B_1024px_diffusers`
+- Pinned revision: `19683c58b7ea290e55cedd8950ae1d86ada7ef96`
+- Model card: <https://huggingface.co/Efficient-Large-Model/Sana_Sprint_1.6B_1024px_diffusers>
+- License: Apache 2.0
+
+The optional Windows and Linux/WSL Sana presets use the BF16 1024px Diffusers
+checkpoint with its documented two-step inference configuration.
+
 ## Stable Fast 3D
 
 - Source: <https://github.com/Stability-AI/stable-fast-3d>
