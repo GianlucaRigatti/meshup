@@ -510,8 +510,10 @@ def _require_revision(model_path: Path, expected: str) -> None:
         else None
     )
     if installed != expected:
+        actual = repr(installed) if installed is not None else "a missing marker"
         raise RuntimeError(
-            f"Model revision mismatch at {model_path}; rerun the model installer."
+            f"Model revision mismatch at {model_path}: expected {expected!r}, "
+            f"found {actual}. Rerun the model installer."
         )
 
 
