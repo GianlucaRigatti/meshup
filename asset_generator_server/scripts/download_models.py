@@ -433,8 +433,26 @@ def _run_in_vs_environment(
     command: list[str], vcvars: Path, cwd: Path, env: dict[str, str]
 ) -> None:
     quoted_command = subprocess.list2cmdline(command)
-    shell_command = f'call "{vcvars}" && {quoted_command}'
-    run(["cmd.exe", "/d", "/s", "/c", shell_command], cwd=cwd, env=env)
+
+    batch_file = (cwd / ".build_with_vs.bat").resolve()
+
+    batch_file.write_text(
+        "@echo off\n"
+        f'call "{vcvars.resolve()}"\n'
+        "if errorlevel 1 exit /b %errorlevel%\n"
+        f"{quoted_command}\n"
+        "exit /b %errorlevel%\n",
+        encoding="utf-8",
+    )
+
+    try:
+        run(
+            ["cmd.exe", "/d", "/c", str(batch_file)],
+            cwd=cwd,
+            env=env,
+        )
+    finally:
+        batch_file.unlink(missing_ok=True)
 
 
 def _apply_windows_patch(source: Path) -> None:
