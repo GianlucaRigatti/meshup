@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.config import Settings
 from app.presets import DINOV2_LARGE_REVISION, PRESETS
 from scripts import download_models
 
@@ -49,6 +50,31 @@ def test_linux_extension_install_uses_absolute_paths(tmp_path, monkeypatch) -> N
     assert len(calls) == 2
     assert all(Path(command[-1]).is_absolute() for command, _, _ in calls)
     assert all(cwd == settings.sf3d_source_path for _, cwd, _ in calls)
+
+
+def test_pixal3d_runtime_uses_absolute_virtualenv_python(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    settings = Settings(MODEL_CACHE_DIR=Path("relative-model-cache"))
+    calls = []
+    monkeypatch.setattr(
+        download_models,
+        "run",
+        lambda command, cwd=None, env=None: calls.append((command, cwd, env)) or "",
+    )
+    monkeypatch.setattr(
+        download_models,
+        "_select_cuda_host_compilers",
+        lambda: ("/usr/bin/gcc-14", "/usr/bin/g++-14"),
+    )
+
+    python, _env = download_models._install_pixal3d_python_runtime(
+        settings, "12.0", False
+    )
+
+    assert python.is_absolute()
+    for command, _cwd, _command_env in calls:
+        if command[:3] == ["uv", "pip", "install"]:
+            assert Path(command[command.index("--python") + 1]).is_absolute()
 
 
 def test_linux_install_does_not_use_visual_studio_or_windows_patch(

@@ -386,10 +386,10 @@ def install_windows(
 def _install_pixal3d_python_runtime(
     settings: Settings, architecture: str, force: bool
 ) -> tuple[Path, dict[str, str]]:
-    runtime = settings.pixal3d_runtime_path
+    runtime = settings.pixal3d_runtime_path.absolute()
     if runtime.exists() and force:
         shutil.rmtree(runtime)
-    python = settings.pixal3d_python_path
+    python = runtime / ".venv" / "bin" / "python"
     if not python.is_file():
         runtime.mkdir(parents=True, exist_ok=True)
         run(["uv", "venv", "--python", "3.11", str(runtime / ".venv")])
