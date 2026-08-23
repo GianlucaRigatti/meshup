@@ -226,6 +226,8 @@ Each reconstruction runs in a short-lived subprocess. The server unloads Sana
 first, Pixal3D uses upstream `--low_vram --resolution 1024`, and all Pixal3D
 VRAM is reclaimed when the subprocess exits. This is deliberately safer on a
 12 GB card, but reloads the reconstruction models on every uncached request.
+The server passes its already segmented RGBA image through a lightweight runner,
+so Pixal3D does not instantiate its redundant gated RMBG-2.0 model.
 The generated debug PNG remains beside the resulting GLB for direct
 image-versus-geometry comparison.
 

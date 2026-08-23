@@ -9,7 +9,7 @@ import pytest
 import trimesh
 from PIL import Image
 
-from app.backends import DiffusersImageBackend, Pixal3DBackend
+from app.backends import PIXAL3D_RUNNER, DiffusersImageBackend, Pixal3DBackend
 from app.config import Settings
 from app.generator import AssetGenerator, GenerationError
 from app.presets import PRESETS, resolve_profile
@@ -209,6 +209,7 @@ def test_pixal3d_backend_invokes_pinned_low_vram_cli(tmp_path, monkeypatch) -> N
 
     command, kwargs = calls[0]
     assert command[0] == str(settings.pixal3d_python_path.absolute())
+    assert command[1] == str(PIXAL3D_RUNNER)
     assert command[command.index("--model_path") + 1] == str(
         settings.asset_model_path.resolve()
     )

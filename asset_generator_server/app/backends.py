@@ -15,6 +15,9 @@ from app.config import Settings
 from app.presets import DINOV2_LARGE_REVISION, PipelinePreset
 
 
+PIXAL3D_RUNNER = Path(__file__).resolve().parents[1] / "scripts" / "run_pixal3d.py"
+
+
 class ImageBackend(Protocol):
     device: str
 
@@ -420,7 +423,7 @@ class Pixal3DBackend:
         completed = subprocess.run(
             [
                 str(self.settings.pixal3d_python_path.absolute()),
-                str((self.settings.pixal3d_source_path / "inference.py").resolve()),
+                str(PIXAL3D_RUNNER),
                 "--help",
             ],
             cwd=self.settings.pixal3d_source_path,
@@ -445,7 +448,7 @@ class Pixal3DBackend:
         asset = self.preset.asset
         command = [
             str(self.settings.pixal3d_python_path.absolute()),
-            str((self.settings.pixal3d_source_path / "inference.py").resolve()),
+            str(PIXAL3D_RUNNER),
             "--image",
             str(input_path.resolve()),
             "--output",
