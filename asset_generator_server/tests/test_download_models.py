@@ -80,6 +80,7 @@ def test_pixal3d_runtime_uses_absolute_virtualenv_python(tmp_path, monkeypatch) 
     for command, _cwd, _command_env in calls:
         if command[:3] == ["uv", "pip", "install"]:
             assert Path(command[command.index("--python") + 1]).is_absolute()
+    assert any("einops==0.8.2" in command for command, _cwd, _env in calls)
 
 
 def test_linux_install_does_not_use_visual_studio_or_windows_patch(

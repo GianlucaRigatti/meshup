@@ -442,6 +442,7 @@ def _install_pixal3d_python_runtime(
             "imageio-ffmpeg==0.6.0",
             "tqdm==4.67.1",
             "easydict==1.13",
+            "einops==0.8.2",
             "opencv-python-headless==4.12.0.88",
             "trimesh==4.10.1",
             "transformers==4.57.3",
