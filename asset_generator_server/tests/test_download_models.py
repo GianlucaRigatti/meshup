@@ -313,6 +313,28 @@ def test_sana_download_includes_sharded_encoder_and_transformer(
     ).read_text().strip() == preset.image.revision
 
 
+def test_missing_required_snapshot_file_is_force_downloaded(
+    tmp_path, monkeypatch
+) -> None:
+    captured = {}
+
+    def download(**kwargs):
+        captured.update(kwargs)
+        destination = Path(kwargs["local_dir"]) / kwargs["filename"]
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("{}")
+
+    monkeypatch.setattr(download_models, "hf_hub_download", download)
+
+    destination = download_models.ensure_snapshot_file(
+        "example/model", "revision", tmp_path, "pipeline.json"
+    )
+
+    assert destination == tmp_path / "pipeline.json"
+    assert captured["force_download"] is True
+    assert captured["revision"] == "revision"
+
+
 def test_sd35_download_includes_full_t5_and_uses_token(tmp_path, monkeypatch) -> None:
     preset = PRESETS["wsl-cuda-sd35-pixal3d"]
     settings = SimpleNamespace(

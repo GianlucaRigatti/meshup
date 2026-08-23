@@ -397,14 +397,17 @@ class Pixal3DBackend:
     def load(self) -> None:
         if not _is_wsl():
             raise RuntimeError("The Pixal3D profile currently requires WSL 2.")
-        required = [
-            self.settings.pixal3d_python_path,
-            self.settings.pixal3d_source_path / "inference.py",
-            self.settings.asset_model_path / "pipeline.json",
+        missing = [
+            path.resolve()
+            for path in self.settings.pixal3d_required_files
+            if not path.is_file()
         ]
-        if not all(path.exists() for path in required):
+        if missing:
             raise FileNotFoundError(
-                "The Pixal3D runtime is incomplete; rerun the model installer."
+                "The Pixal3D runtime is incomplete. Missing files:\n- "
+                + "\n- ".join(str(path) for path in missing)
+                + "\nRerun the model installer with --force to rebuild source and "
+                "runtime artifacts. Existing model weights will be reused."
             )
         _require_git_revision(
             self.settings.pixal3d_source_path,

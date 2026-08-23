@@ -219,6 +219,22 @@ def test_pixal3d_backend_invokes_pinned_low_vram_cli(tmp_path, monkeypatch) -> N
     assert kwargs["env"]["HF_HUB_OFFLINE"] == "1"
 
 
+def test_pixal3d_backend_reports_each_missing_runtime_file(
+    tmp_path, monkeypatch
+) -> None:
+    settings = Settings(MODEL_CACHE_DIR=tmp_path)
+    backend = Pixal3DBackend(settings, PRESETS["wsl-cuda-pixal3d"])
+    monkeypatch.setattr("app.backends._is_wsl", lambda: True)
+
+    with pytest.raises(FileNotFoundError) as error:
+        backend.load()
+
+    message = str(error.value)
+    for path in settings.pixal3d_required_files:
+        assert str(path.resolve()) in message
+    assert "--force" in message
+
+
 def test_unknown_and_unsupported_auto_profiles_are_rejected() -> None:
     with pytest.raises(ValueError, match="Unknown"):
         resolve_profile("anything", platform_name="darwin", machine="arm64")

@@ -78,3 +78,11 @@ class Settings(BaseSettings):
     @property
     def pixal3d_python_path(self) -> Path:
         return self.pixal3d_runtime_path / ".venv" / "bin" / "python"
+
+    @property
+    def pixal3d_required_files(self) -> tuple[Path, ...]:
+        return (
+            self.pixal3d_python_path,
+            self.pixal3d_source_path / "inference.py",
+            self.asset_model_path / "pipeline.json",
+        )

@@ -67,6 +67,26 @@ def run(
     return completed.stdout.strip()
 
 
+def ensure_snapshot_file(
+    repo_id: str, revision: str, local_dir: Path, filename: str
+) -> Path:
+    destination = local_dir / filename
+    if destination.is_file():
+        return destination
+    hf_hub_download(
+        repo_id=repo_id,
+        revision=revision,
+        filename=filename,
+        local_dir=local_dir,
+        force_download=True,
+    )
+    if not destination.is_file():
+        raise RuntimeError(
+            f"The {repo_id} snapshot is missing required file {filename!r}."
+        )
+    return destination
+
+
 def install_source(
     destination: Path,
     repository: str,
@@ -521,6 +541,12 @@ def _download_pixal3d_models(
         revision=preset.asset.revision,
         local_dir=settings.asset_model_path,
     )
+    ensure_snapshot_file(
+        preset.asset.model_id,
+        preset.asset.revision,
+        settings.asset_model_path,
+        "pipeline.json",
+    )
     (settings.asset_model_path / ".model-revision").write_text(
         preset.asset.revision + "\n", encoding="utf-8"
     )
@@ -583,6 +609,14 @@ def install_pixal3d(
     python, env = _install_pixal3d_python_runtime(settings, architecture, force)
     _install_pixal3d_extensions(settings, python, env, force)
     _download_pixal3d_models(settings, preset, python, env)
+    missing = [
+        path.resolve() for path in settings.pixal3d_required_files if not path.is_file()
+    ]
+    if missing:
+        raise RuntimeError(
+            "Pixal3D installation did not create the required files:\n- "
+            + "\n- ".join(str(path) for path in missing)
+        )
     run(
         [
             str(python),
