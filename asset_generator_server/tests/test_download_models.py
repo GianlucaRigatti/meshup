@@ -135,6 +135,38 @@ def test_linux_preflight_reports_missing_build_tools(monkeypatch) -> None:
         download_models._validate_linux_cuda()
 
 
+def test_cuda_host_compiler_falls_back_from_gcc_15_to_gcc_14(monkeypatch) -> None:
+    available = {
+        "gcc": "/usr/bin/gcc",
+        "g++": "/usr/bin/g++",
+        "gcc-14": "/usr/bin/gcc-14",
+        "g++-14": "/usr/bin/g++-14",
+    }
+    monkeypatch.setattr(download_models.shutil, "which", available.get)
+    monkeypatch.setattr(
+        download_models,
+        "run",
+        lambda command: "14.2.0" if command[0].endswith("-14") else "15.1.0",
+    )
+
+    assert download_models._select_cuda_host_compilers() == (
+        "/usr/bin/gcc-14",
+        "/usr/bin/g++-14",
+    )
+
+
+def test_cuda_host_compiler_rejects_gcc_15_only(monkeypatch) -> None:
+    monkeypatch.setattr(
+        download_models.shutil,
+        "which",
+        lambda tool: f"/usr/bin/{tool}" if tool in {"gcc", "g++"} else None,
+    )
+    monkeypatch.setattr(download_models, "run", lambda _command: "15.1.0")
+
+    with pytest.raises(RuntimeError, match=r"gcc-14 g\+\+-14"):
+        download_models._select_cuda_host_compilers()
+
+
 def test_missing_hugging_face_token_is_rejected(monkeypatch) -> None:
     monkeypatch.delenv("HF_TOKEN", raising=False)
     monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)

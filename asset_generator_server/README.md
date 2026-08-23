@@ -295,14 +295,24 @@ Run these checks inside Ubuntu:
 nvidia-smi
 nvcc --version
 command -v gcc g++ git cmake ninja
+gcc --version
 uv run python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 curl --fail http://127.0.0.1:8000/readyz
 ```
 
 Expected PyTorch CUDA version: `12.8`. If Hugging Face returns `401` or `403`,
 confirm the model terms were accepted by the same account that created
-`HF_TOKEN`. If Windows cannot reach the service, first test it inside WSL, then
-run `wsl --shutdown`, restart Ubuntu, and review the WSL networking link above.
+`HF_TOKEN`. CUDA 12.8 cannot compile extensions with GCC 15. If `gcc --version`
+reports 15, install a supported side-by-side compiler; the installer will
+select it automatically:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y gcc-14 g++-14
+```
+
+If Windows cannot reach the service, first test it inside WSL, then run
+`wsl --shutdown`, restart Ubuntu, and review the WSL networking link above.
 
 ## Native Ubuntu Linux installation
 

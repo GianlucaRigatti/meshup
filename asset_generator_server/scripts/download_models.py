@@ -374,9 +374,14 @@ def _install_pixal3d_python_runtime(
         runtime.mkdir(parents=True, exist_ok=True)
         run(["uv", "venv", "--python", "3.11", str(runtime / ".venv")])
 
+    cc, cxx = _select_cuda_host_compilers()
     build_env = {
         **_cuda_build_environment(architecture),
         "CUDA_HOME": "/usr/local/cuda-12.8",
+        "CC": cc,
+        "CXX": cxx,
+        "CUDAHOSTCXX": cxx,
+        "NVCC_CCBIN": cc,
         "MAX_JOBS": str(max(1, (os.cpu_count() or 2) // 2)),
         "NATTEN_CUDA_ARCH": architecture,
         "NATTEN_N_WORKERS": str(max(1, (os.cpu_count() or 2) // 2)),
@@ -688,6 +693,30 @@ def _validate_linux_cuda() -> str:
     return _validate_cuda("Linux")
 
 
+def _select_cuda_host_compilers() -> tuple[str, str]:
+    candidates = [("gcc", "g++")]
+    candidates.extend((f"gcc-{major}", f"g++-{major}") for major in range(14, 9, -1))
+    for cc_name, cxx_name in candidates:
+        cc = shutil.which(cc_name)
+        cxx = shutil.which(cxx_name)
+        if cc is None or cxx is None:
+            continue
+        try:
+            cc_major = int(run([cc, "-dumpfullversion", "-dumpversion"]).split(".")[0])
+            cxx_major = int(
+                run([cxx, "-dumpfullversion", "-dumpversion"]).split(".")[0]
+            )
+        except (RuntimeError, ValueError):
+            continue
+        if cc_major == cxx_major and 10 <= cc_major <= 14:
+            return cc, cxx
+    raise RuntimeError(
+        "CUDA Toolkit 12.8 requires GCC/G++ 14 or older for native extensions. "
+        "Install a matching pair such as `sudo apt-get install gcc-14 g++-14`, "
+        "then rerun the installer."
+    )
+
+
 def _is_wsl() -> bool:
     if sys.platform != "linux":
         return False
@@ -839,6 +868,8 @@ def main() -> None:
         token = _require_hugging_face_token()
     elif preset.platform == "linux":
         architecture = _validate_linux_cuda()
+        if preset.asset.backend == "pixal3d":
+            _select_cuda_host_compilers()
         if (
             preset.asset.backend == "stable-fast-3d"
             or preset.image.backend == "stable-diffusion-3.5"
