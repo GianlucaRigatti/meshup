@@ -158,7 +158,7 @@ class DiffusersImageBackend:
             device_map="balanced",
             max_memory={0: "9GiB", "cpu": "24GiB"},
         )
-        self._pipeline.enable_vae_tiling()
+        self._pipeline.vae.enable_tiling()
         self._pipeline.set_progress_bar_config(disable=True)
         self._uses_cpu_offload = False
 

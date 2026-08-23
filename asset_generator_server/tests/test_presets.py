@@ -141,13 +141,18 @@ def test_sd35_quantized_loader_uses_supported_balanced_device_map(
             return object()
 
     class FakePipeline:
+        vae_tiling_enabled = False
+
+        def __init__(self):
+            self.vae = SimpleNamespace(enable_tiling=self._enable_vae_tiling)
+
+        def _enable_vae_tiling(self):
+            self.vae_tiling_enabled = True
+
         @classmethod
         def from_pretrained(cls, *_args, **kwargs):
             pipeline_options.update(kwargs)
             return cls()
-
-        def enable_vae_tiling(self):
-            pass
 
         def set_progress_bar_config(self, **_kwargs):
             pass
@@ -171,6 +176,7 @@ def test_sd35_quantized_loader_uses_supported_balanced_device_map(
 
     assert pipeline_options["device_map"] == "balanced"
     assert pipeline_options["max_memory"] == {0: "9GiB", "cpu": "24GiB"}
+    assert backend._pipeline.vae_tiling_enabled is True
 
 
 def test_pixal3d_backend_invokes_pinned_low_vram_cli(tmp_path, monkeypatch) -> None:
