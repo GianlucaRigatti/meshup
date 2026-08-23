@@ -104,6 +104,15 @@ def test_metadata_does_not_store_prompt(app_parts) -> None:
     assert "prompt" not in metadata
 
 
+def test_generation_saves_preprocessed_input_image(app_parts) -> None:
+    _, generator, _, settings = app_parts
+    asset_id, _, _ = generator.generate("a debug object")
+
+    image_path = settings.asset_output_dir / f"{asset_id}.png"
+    assert image_path.is_file()
+    assert image_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+
 def test_missing_models_fail_readiness(tmp_path) -> None:
     settings = Settings(
         ASSET_OUTPUT_DIR=tmp_path / "assets",

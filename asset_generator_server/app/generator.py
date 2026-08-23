@@ -111,6 +111,7 @@ class AssetGenerator:
         prompt = " ".join(prompt.split())
         asset_id = self._asset_id(prompt)
         asset_path = self.output_dir / f"{asset_id}.glb"
+        image_path = self.output_dir / f"{asset_id}.png"
         metadata_path = self.output_dir / f"{asset_id}.json"
         if asset_path.is_file() and metadata_path.is_file():
             return asset_id, True, 0
@@ -145,6 +146,10 @@ class AssetGenerator:
             stage = time.perf_counter()
             image = self._remove_background(image)
             timings["preprocess_ms"] = self._elapsed_ms(stage)
+
+            temporary_image_path = image_path.with_suffix(".png.tmp")
+            image.save(temporary_image_path, format="PNG")
+            os.replace(temporary_image_path, image_path)
 
             with tempfile.TemporaryDirectory(
                 dir=self.output_dir.parent, prefix="asset-generator-"
@@ -194,6 +199,8 @@ class AssetGenerator:
         except Exception as exc:
             LOGGER.exception("Asset generation failed for asset %s", asset_id)
             asset_path.unlink(missing_ok=True)
+            image_path.unlink(missing_ok=True)
+            image_path.with_suffix(".png.tmp").unlink(missing_ok=True)
             metadata_path.unlink(missing_ok=True)
             metadata_path.with_suffix(".json.tmp").unlink(missing_ok=True)
             raise GenerationError from exc

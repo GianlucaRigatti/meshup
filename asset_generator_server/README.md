@@ -300,6 +300,9 @@ The request API is unchanged:
 }
 ```
 
+Each uncached generation also saves the preprocessed, background-removed image
+passed to the 3D model as `generated_assets/<asset-id>.png` for debugging.
+
 Prompts are limited to 500 characters and normalized before hashing. Model
 revisions, the resolved preset, and all output-affecting settings are part of
 the cache identity. The original prompt is never written to metadata.
