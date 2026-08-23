@@ -59,3 +59,18 @@ source directly. Neither installer changes the model weights.
 Stable Fast 3D uses `facebook/dinov2-large` as an image encoder. Its files are
 downloaded locally by the Windows and Linux/WSL CUDA installers. Review its
 Hugging Face model card and upstream license before use.
+
+## Pixal3D and TRELLIS.2
+
+- Pixal3D source: <https://github.com/TencentARC/Pixal3D>
+- Pinned Pixal3D source revision: `cdbb2bbffbf4e6f298b5f2af3d1d76a8d823d2af`
+- Pixal3D weights: <https://huggingface.co/TencentARC/Pixal3D>
+- Pinned weight revision: `0b31f9160aa400719af409098bff7936a932f726`
+- TRELLIS.2 source: <https://github.com/microsoft/TRELLIS.2>
+- Pinned TRELLIS.2 revision: `75fbf0183001ed9876c8dbb35de6b68552ee08bd`
+
+The optional `wsl-cuda-pixal3d` preset also downloads or builds NATTEN,
+CuMesh, FlexGEMM, nvdiffrast, O-Voxel, utils3d, DINOv3, and NAF. Pixal3D and
+TRELLIS.2 source are MIT-licensed. Their third-party components and model
+weights remain under their own terms; review the linked repositories and model
+cards before downloading or distributing them.

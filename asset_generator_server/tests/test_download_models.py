@@ -96,6 +96,35 @@ def test_linux_install_does_not_use_visual_studio_or_windows_patch(
     assert events == ["source", "extensions", "models", "verify"]
 
 
+def test_linux_pixal3d_install_dispatches_without_hugging_face_token(
+    tmp_path, monkeypatch
+) -> None:
+    settings = _settings(tmp_path)
+    captured = {}
+    monkeypatch.setattr(download_models.sys, "platform", "linux")
+    monkeypatch.setattr(download_models.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(
+        download_models,
+        "install_pixal3d",
+        lambda *args: captured.update(args=args),
+    )
+    monkeypatch.setattr(
+        download_models,
+        "_require_hugging_face_token",
+        lambda: pytest.fail("Pixal3D unexpectedly required a gated-model token"),
+    )
+
+    preset = PRESETS["wsl-cuda-pixal3d"]
+    download_models.install_linux(
+        settings,
+        preset,
+        False,
+        architecture="8.9",
+    )
+
+    assert captured["args"] == (settings, preset, False, "8.9")
+
+
 def test_linux_preflight_reports_missing_build_tools(monkeypatch) -> None:
     monkeypatch.setattr(
         download_models.shutil,

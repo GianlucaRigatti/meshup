@@ -16,6 +16,7 @@ inference settings reproducible.
 | `linux-cuda-quality` | Linux or WSL 2/NVIDIA | SDXL-Turbo (4 steps) → Stable Fast 3D | 2048px UV/PBR GLB |
 | `linux-cuda-fast` | Linux or WSL 2/NVIDIA | SDXL-Turbo (1 step) → Stable Fast 3D | 1024px UV/PBR GLB |
 | `linux-cuda-sana` | Linux or WSL 2/NVIDIA | Sana-Sprint 1.6B (2 steps, 1024px) → Stable Fast 3D | 2048px UV/PBR GLB |
+| `wsl-cuda-pixal3d` | WSL 2/NVIDIA | Sana-Sprint 1.6B → Pixal3D low-VRAM (1024 cascade) | 4096px UV/PBR GLB |
 
 `PIPELINE_PROFILE=auto` selects `macos-mlx` on Apple Silicon and
 `windows-cuda-sana` on supported Windows systems, or `linux-cuda-sana` on
@@ -178,6 +179,45 @@ uv run python scripts/download_models.py --profile auto --accept-licenses
 weights; the Sana profile downloads its separate 1024px image model. All three
 use the same Stable Fast 3D weights.
 
+### Try Pixal3D in WSL
+
+Pixal3D is an opt-in experiment for a 12 GB GPU. It trades substantially more
+latency and system-memory use for a higher-detail 1024-stage geometry and
+texture cascade. Upstream describes low-VRAM mode as approximately 10–12 GB
+peak VRAM, so 12 GB is the boundary rather than generous headroom. Close other
+GPU applications before testing it.
+
+Install it from the same WSL checkout; its public weights do not require the
+Stable Fast 3D Hugging Face token:
+
+```bash
+uv sync
+uv run python scripts/download_models.py \
+  --profile wsl-cuda-pixal3d \
+  --accept-licenses
+```
+
+The installer creates an isolated runtime under
+`.model_sources/runtime/pixal3d`, compiles the pinned CUDA extensions for the
+detected GPU architecture, and downloads the pinned Pixal3D, DINOv3, and NAF
+weights. This first installation can take a long time. It uses PyTorch SDPA
+instead of FlashAttention and a fixed `0.2` radian camera FOV, avoiding the
+additional MoGe model and its VRAM cost.
+
+Set the profile in `.env`, then run the server normally:
+
+```dotenv
+PIPELINE_PROFILE=wsl-cuda-pixal3d
+PIXAL3D_TIMEOUT_SECONDS=1800
+```
+
+Each reconstruction runs in a short-lived subprocess. The server unloads Sana
+first, Pixal3D uses upstream `--low_vram --resolution 1024`, and all Pixal3D
+VRAM is reclaimed when the subprocess exits. This is deliberately safer on a
+12 GB card, but reloads the reconstruction models on every uncached request.
+The generated debug PNG remains beside the resulting GLB for direct
+image-versus-geometry comparison.
+
 ### 4. Run WSL server and connect Unity
 
 Inside WSL:
@@ -318,11 +358,12 @@ receives `generator_busy`; cached requests remain available.
 
 - `PIPELINE_PROFILE`: `auto`, `macos-mlx`, `windows-cuda-quality`,
   `windows-cuda-fast`, `windows-cuda-sana`, `linux-cuda-quality`,
-  `linux-cuda-fast`, or `linux-cuda-sana`
+  `linux-cuda-fast`, `linux-cuda-sana`, or `wsl-cuda-pixal3d`
 - `PUBLIC_BASE_URL`: public URL used in responses
 - `ASSET_OUTPUT_DIR`: generated GLB and metadata directory
 - `MODEL_CACHE_DIR`: models, pinned sources, and runtimes
 - `HUNYUAN_TIMEOUT_SECONDS`: macOS Hunyuan subprocess timeout
+- `PIXAL3D_TIMEOUT_SECONDS`: WSL Pixal3D subprocess timeout (default: 1800)
 - `LOG_LEVEL`: server log level
 
 The former `GENERATION_DEVICE`, `HUNYUAN_STEPS`,

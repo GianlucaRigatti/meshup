@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import diffusers
@@ -8,7 +9,7 @@ import pytest
 import trimesh
 from PIL import Image
 
-from app.backends import DiffusersImageBackend
+from app.backends import DiffusersImageBackend, Pixal3DBackend
 from app.config import Settings
 from app.generator import AssetGenerator, GenerationError
 from app.presets import PRESETS, resolve_profile
@@ -78,6 +79,57 @@ def test_sana_profiles_match_and_use_native_settings() -> None:
     assert (windows.image.width, windows.image.height) == (1024, 1024)
     assert windows.image.steps == 2
     assert windows.image.guidance == 4.5
+
+
+def test_pixal3d_profile_uses_low_vram_quality_settings() -> None:
+    preset = PRESETS["wsl-cuda-pixal3d"]
+
+    assert preset.platform == "linux"
+    assert preset.image.backend == "sana-sprint"
+    assert preset.asset.backend == "pixal3d"
+    assert preset.asset.pipeline_resolution == 1024
+    assert preset.asset.texture_resolution == 4096
+    assert preset.asset.camera_fov == 0.2
+
+
+def test_pixal3d_backend_invokes_pinned_low_vram_cli(tmp_path, monkeypatch) -> None:
+    preset = PRESETS["wsl-cuda-pixal3d"]
+    settings = Settings(MODEL_CACHE_DIR=tmp_path)
+    settings.pixal3d_python_path.parent.mkdir(parents=True)
+    settings.pixal3d_python_path.touch()
+    settings.pixal3d_source_path.mkdir(parents=True)
+    (settings.pixal3d_source_path / "inference.py").touch()
+    settings.asset_model_path.mkdir(parents=True)
+    (settings.asset_model_path / "pipeline.json").touch()
+    (settings.asset_model_path / ".model-revision").write_text(
+        preset.asset.revision + "\n"
+    )
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append((command, kwargs))
+        output = Path(command[command.index("--output") + 1])
+        output.write_bytes(b"glTF")
+        return SimpleNamespace(returncode=0, stdout="")
+
+    monkeypatch.setattr("app.backends.subprocess.run", run)
+    backend = Pixal3DBackend(settings, preset)
+    monkeypatch.setattr(backend, "load", lambda: None)
+    output = tmp_path / "job" / "asset.glb"
+    output.parent.mkdir()
+
+    backend.generate(Image.new("RGBA", (8, 8)), 123, output)
+
+    command, kwargs = calls[0]
+    assert command[command.index("--model_path") + 1] == str(
+        settings.asset_model_path.resolve()
+    )
+    assert command[command.index("--resolution") + 1] == "1024"
+    assert command[command.index("--fov") + 1] == "0.2"
+    assert command[command.index("--seed") + 1] == "123"
+    assert "--low_vram" in command
+    assert kwargs["env"]["ATTN_BACKEND"] == "sdpa"
+    assert kwargs["env"]["HF_HUB_OFFLINE"] == "1"
 
 
 def test_unknown_and_unsupported_auto_profiles_are_rejected() -> None:

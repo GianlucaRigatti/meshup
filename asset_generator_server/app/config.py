@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     )
     pipeline_profile: str = Field(default="auto", alias="PIPELINE_PROFILE")
     hunyuan_timeout_seconds: int = Field(default=300, alias="HUNYUAN_TIMEOUT_SECONDS")
+    pixal3d_timeout_seconds: int = Field(default=1800, alias="PIXAL3D_TIMEOUT_SECONDS")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     @property
@@ -61,3 +62,19 @@ class Settings(BaseSettings):
     @property
     def dinov2_model_path(self) -> Path:
         return self.model_cache_dir / "models" / "dinov2-large"
+
+    @property
+    def pixal3d_source_path(self) -> Path:
+        return self.model_cache_dir / "sources" / "Pixal3D"
+
+    @property
+    def trellis2_source_path(self) -> Path:
+        return self.model_cache_dir / "sources" / "TRELLIS.2"
+
+    @property
+    def pixal3d_runtime_path(self) -> Path:
+        return self.model_cache_dir / "runtime" / "pixal3d"
+
+    @property
+    def pixal3d_python_path(self) -> Path:
+        return self.pixal3d_runtime_path / ".venv" / "bin" / "python"

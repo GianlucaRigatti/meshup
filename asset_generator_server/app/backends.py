@@ -125,6 +125,11 @@ class DiffusersImageBackend:
             # the existing 16 GB Apple Silicon memory lifecycle.
             self._pipeline = None
             self._uses_cpu_offload = False
+        elif self.preset.asset.backend == "pixal3d":
+            # Pixal3D keeps a large collection of low-VRAM stages in system
+            # memory. Drop Sana completely before starting its subprocess.
+            self._pipeline = None
+            self._uses_cpu_offload = False
         elif self._uses_cpu_offload:
             free_hooks = getattr(self._pipeline, "maybe_free_model_hooks", None)
             if free_hooks:
@@ -321,12 +326,116 @@ class StableFast3DBackend:
             self._torch.cuda.empty_cache()
 
 
+class Pixal3DBackend:
+    output_mode = "pbr_texture"
+
+    def __init__(self, settings: Settings, preset: PipelinePreset) -> None:
+        self.settings = settings
+        self.preset = preset
+        self.device = "cuda:0"
+
+    def load(self) -> None:
+        if not _is_wsl():
+            raise RuntimeError("The Pixal3D profile currently requires WSL 2.")
+        required = [
+            self.settings.pixal3d_python_path,
+            self.settings.pixal3d_source_path / "inference.py",
+            self.settings.asset_model_path / "pipeline.json",
+        ]
+        if not all(path.exists() for path in required):
+            raise FileNotFoundError(
+                "The Pixal3D runtime is incomplete; rerun the model installer."
+            )
+        _require_git_revision(
+            self.settings.pixal3d_source_path,
+            self.preset.asset.source_revision,
+        )
+        _require_revision(
+            self.settings.asset_model_path,
+            self.preset.asset.revision,
+        )
+        completed = subprocess.run(
+            [
+                str(self.settings.pixal3d_python_path.resolve()),
+                str((self.settings.pixal3d_source_path / "inference.py").resolve()),
+                "--help",
+            ],
+            cwd=self.settings.pixal3d_source_path,
+            env=self._environment,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=60,
+        )
+        if completed.returncode != 0:
+            raise RuntimeError("The Pixal3D runtime failed its readiness check.")
+
+    def generate(self, image: Image.Image, seed: int, output: Path) -> None:
+        self.load()
+        input_path = output.with_name("input.png")
+        image.save(input_path)
+        asset = self.preset.asset
+        command = [
+            str(self.settings.pixal3d_python_path.resolve()),
+            str((self.settings.pixal3d_source_path / "inference.py").resolve()),
+            "--image",
+            str(input_path.resolve()),
+            "--output",
+            str(output.resolve()),
+            "--seed",
+            str(seed),
+            "--model_path",
+            str(self.settings.asset_model_path.resolve()),
+            "--low_vram",
+            "--resolution",
+            str(asset.pipeline_resolution),
+        ]
+        if asset.camera_fov is not None:
+            command += ["--fov", str(asset.camera_fov)]
+        completed = subprocess.run(
+            command,
+            cwd=self.settings.pixal3d_source_path,
+            env=self._environment,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=self.settings.pixal3d_timeout_seconds,
+        )
+        if completed.returncode != 0 or not output.is_file():
+            tail = completed.stdout[-4000:].strip()
+            message = "Pixal3D generation failed."
+            if tail:
+                message += f"\n{tail}"
+            raise RuntimeError(message)
+
+    @property
+    def _environment(self) -> dict[str, str]:
+        runtime = self.settings.pixal3d_runtime_path.resolve()
+        return {
+            **os.environ,
+            "ATTN_BACKEND": "sdpa",
+            "HF_HOME": str(runtime / "huggingface"),
+            "HF_HUB_OFFLINE": "1",
+            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+            "TORCH_HOME": str(runtime / "torch"),
+        }
+
+    def move_to_cpu(self) -> None:
+        return
+
+    def release_device_memory(self) -> None:
+        return
+
+
 def create_backends(
     settings: Settings, preset: PipelinePreset
 ) -> tuple[ImageBackend, AssetBackend]:
     image = DiffusersImageBackend(settings, preset)
     if preset.asset.backend == "hunyuan-mlx":
         return image, HunyuanMlxBackend(settings, preset)
+    if preset.asset.backend == "pixal3d":
+        return image, Pixal3DBackend(settings, preset)
     return image, StableFast3DBackend(settings, preset)
 
 
@@ -382,6 +491,16 @@ def _validate_cuda(torch_module) -> None:
         raise RuntimeError(
             "The installed PyTorch CUDA build does not support this GPU."
         ) from exc
+
+
+def _is_wsl() -> bool:
+    if sys.platform != "linux":
+        return False
+    try:
+        release = Path("/proc/sys/kernel/osrelease").read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return "microsoft" in release.lower()
 
 
 def _add_vertex_colors(path: Path, image: Image.Image) -> None:

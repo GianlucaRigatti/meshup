@@ -14,6 +14,7 @@ ProfileName: TypeAlias = Literal[
     "linux-cuda-quality",
     "linux-cuda-fast",
     "linux-cuda-sana",
+    "wsl-cuda-pixal3d",
 ]
 
 
@@ -33,7 +34,7 @@ class ImagePreset:
 
 @dataclass(frozen=True)
 class AssetPreset:
-    backend: Literal["hunyuan-mlx", "stable-fast-3d"]
+    backend: Literal["hunyuan-mlx", "stable-fast-3d", "pixal3d"]
     model_id: str
     revision: str
     directory_name: str
@@ -45,6 +46,8 @@ class AssetPreset:
     texture_resolution: int | None = None
     foreground_ratio: float = 0.85
     remesh: str = "none"
+    pipeline_resolution: int | None = None
+    camera_fov: float | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +68,8 @@ HUNYUAN_MLX_REVISION = "b7536809d38ad13fe6a9b7769a41fd5d42e520df"
 SF3D_SOURCE_REVISION = "ff21fc491b4dc5314bf6734c7c0dabd86b5f5bb2"
 SF3D_MODEL_REVISION = "f0c9a8ffd62cb1bbc8a7a53c9f87a0be1b6be778"
 DINOV2_LARGE_REVISION = "47b73eefe95e8d44ec3623f8890bd894b6ea2d6c"
+PIXAL3D_SOURCE_REVISION = "cdbb2bbffbf4e6f298b5f2af3d1d76a8d823d2af"
+PIXAL3D_MODEL_REVISION = "0b31f9160aa400719af409098bff7936a932f726"
 
 
 PRESETS: dict[str, PipelinePreset] = {
@@ -227,6 +232,35 @@ PRESETS: dict[str, PipelinePreset] = {
             source_revision=SF3D_SOURCE_REVISION,
             output_mode="pbr_texture",
             texture_resolution=2048,
+        ),
+    ),
+    "wsl-cuda-pixal3d": PipelinePreset(
+        name="wsl-cuda-pixal3d",
+        schema_version=1,
+        platform="linux",
+        device="cuda:0",
+        image=ImagePreset(
+            backend="sana-sprint",
+            model_id="Efficient-Large-Model/Sana_Sprint_1.6B_1024px_diffusers",
+            revision=SANA_SPRINT_REVISION,
+            directory_name="sana-sprint-1.6b-1024px",
+            steps=2,
+            guidance=4.5,
+            width=1024,
+            height=1024,
+            dtype="bfloat16",
+            variant=None,
+        ),
+        asset=AssetPreset(
+            backend="pixal3d",
+            model_id="TencentARC/Pixal3D",
+            revision=PIXAL3D_MODEL_REVISION,
+            directory_name="pixal3d",
+            source_revision=PIXAL3D_SOURCE_REVISION,
+            output_mode="pbr_texture",
+            texture_resolution=4096,
+            pipeline_resolution=1024,
+            camera_fov=0.2,
         ),
     ),
 }

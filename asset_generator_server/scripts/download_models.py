@@ -18,12 +18,30 @@ from app.config import Settings
 from app.presets import (
     DINOV2_LARGE_REVISION,
     HUNYUAN_SWIFT_REVISION,
+    PIXAL3D_SOURCE_REVISION,
     SF3D_SOURCE_REVISION,
     PipelinePreset,
 )
 
 HUNYUAN_REPOSITORY = "https://github.com/ZimengXiong/Hunyuan3D-Swift.git"
 SF3D_REPOSITORY = "https://github.com/Stability-AI/stable-fast-3d.git"
+PIXAL3D_REPOSITORY = "https://github.com/TencentARC/Pixal3D.git"
+TRELLIS2_REPOSITORY = "https://github.com/microsoft/TRELLIS.2.git"
+CUMESH_REPOSITORY = "https://github.com/JeffreyXiang/CuMesh.git"
+FLEXGEMM_REPOSITORY = "https://github.com/JeffreyXiang/FlexGEMM.git"
+NVDIFFRAST_REPOSITORY = "https://github.com/NVlabs/nvdiffrast.git"
+NAF_REPOSITORY = "https://github.com/valeoai/NAF.git"
+TRELLIS2_SOURCE_REVISION = "75fbf0183001ed9876c8dbb35de6b68552ee08bd"
+CUMESH_SOURCE_REVISION = "12289e1062f0603f2f0d0771b02e1395d247f26f"
+FLEXGEMM_SOURCE_REVISION = "6dd94a859c26ee8246888502eada3dd8ad85532e"
+NVDIFFRAST_SOURCE_REVISION = "253ac4fcea7de5f396371124af597e6cc957bfae"
+NAF_SOURCE_REVISION = "37f2dfc180f2de53d98bd601109c0da0dd6b0f43"
+PIXAL3D_DINO_REPOSITORY = "camenduru/dinov3-vitl16-pretrain-lvd1689m"
+PIXAL3D_DINO_REVISION = "3c276edd87d6f6e569ff0c4400e086807d0f3881"
+UTILS3D_WHEEL = (
+    "https://github.com/LDYang694/Storages/releases/download/20260430/"
+    "utils3d-0.0.2-py3-none-any.whl"
+)
 WINDOWS_PATCH = PROJECT_ROOT / "scripts" / "patches" / "sf3d-windows.patch"
 
 
@@ -50,7 +68,13 @@ def run(
 
 
 def install_source(
-    destination: Path, repository: str, revision: str, label: str, force: bool
+    destination: Path,
+    repository: str,
+    revision: str,
+    label: str,
+    force: bool,
+    *,
+    recursive: bool = False,
 ) -> None:
     if destination.exists() and force:
         shutil.rmtree(destination)
@@ -61,12 +85,16 @@ def install_source(
                 f"{destination} contains {label} revision {installed}; use --force "
                 "to replace that profile's source checkout."
             )
+        if recursive:
+            run(["git", "submodule", "update", "--init", "--recursive"], cwd=destination)
         print(f"{label} source is present at {destination}")
         return
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     run(["git", "clone", "--no-checkout", repository, str(destination)])
     run(["git", "checkout", "--detach", revision], cwd=destination)
+    if recursive:
+        run(["git", "submodule", "update", "--init", "--recursive"], cwd=destination)
     print(f"Installed {label} source at {destination}")
 
 
@@ -311,6 +339,237 @@ def install_windows(
     _verify_cuda_extensions(settings, env)
 
 
+def _install_pixal3d_python_runtime(
+    settings: Settings, architecture: str, force: bool
+) -> tuple[Path, dict[str, str]]:
+    runtime = settings.pixal3d_runtime_path
+    if runtime.exists() and force:
+        shutil.rmtree(runtime)
+    python = settings.pixal3d_python_path
+    if not python.is_file():
+        runtime.mkdir(parents=True, exist_ok=True)
+        run(["uv", "venv", "--python", "3.11", str(runtime / ".venv")])
+
+    build_env = {
+        **_cuda_build_environment(architecture),
+        "CUDA_HOME": "/usr/local/cuda-12.8",
+        "MAX_JOBS": str(max(1, (os.cpu_count() or 2) // 2)),
+        "NATTEN_CUDA_ARCH": architecture,
+        "NATTEN_N_WORKERS": str(max(1, (os.cpu_count() or 2) // 2)),
+        "TORCH_HOME": str((runtime / "torch").resolve()),
+        "HF_HOME": str((runtime / "huggingface").resolve()),
+    }
+    run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            "--index-url",
+            "https://download.pytorch.org/whl/cu128",
+            "torch==2.7.1",
+            "torchvision==0.22.1",
+        ],
+        env=build_env,
+    )
+    run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            "setuptools==69.5.1",
+            "wheel==0.45.1",
+            "ninja==1.13.0",
+            "packaging==25.0",
+            "numpy==2.2.6",
+            "pillow==12.0.0",
+            "imageio==2.37.2",
+            "imageio-ffmpeg==0.6.0",
+            "tqdm==4.67.1",
+            "easydict==1.13",
+            "opencv-python-headless==4.12.0.88",
+            "trimesh==4.10.1",
+            "transformers==4.57.3",
+            "zstandard==0.25.0",
+            "kornia==0.8.2",
+            "timm==1.0.22",
+            "diffusers==0.37.1",
+            "accelerate==1.13.0",
+            "plyfile==1.1.3",
+            UTILS3D_WHEEL,
+        ],
+        env=build_env,
+    )
+    return python, build_env
+
+
+def _install_pixal3d_extensions(
+    settings: Settings, python: Path, env: dict[str, str], force: bool
+) -> None:
+    source_root = settings.model_cache_dir / "sources"
+    extensions = (
+        (
+            source_root / "nvdiffrast",
+            NVDIFFRAST_REPOSITORY,
+            NVDIFFRAST_SOURCE_REVISION,
+            "nvdiffrast",
+            False,
+        ),
+        (
+            source_root / "CuMesh",
+            CUMESH_REPOSITORY,
+            CUMESH_SOURCE_REVISION,
+            "CuMesh",
+            True,
+        ),
+        (
+            source_root / "FlexGEMM",
+            FLEXGEMM_REPOSITORY,
+            FLEXGEMM_SOURCE_REVISION,
+            "FlexGEMM",
+            True,
+        ),
+    )
+    for destination, repository, revision, label, recursive in extensions:
+        install_source(
+            destination,
+            repository,
+            revision,
+            label,
+            force,
+            recursive=recursive,
+        )
+        run(
+            [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                str(python),
+                "--no-deps",
+                "--no-build-isolation",
+                str(destination.resolve()),
+            ],
+            env=env,
+        )
+
+    run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            "--no-deps",
+            "--no-build-isolation",
+            str((settings.trellis2_source_path / "o-voxel").resolve()),
+        ],
+        env=env,
+    )
+    run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            "--no-deps",
+            "--no-build-isolation",
+            "natten==0.21.0",
+        ],
+        env=env,
+    )
+
+
+def _download_pixal3d_models(
+    settings: Settings, preset: PipelinePreset, python: Path, env: dict[str, str]
+) -> None:
+    snapshot_download(
+        repo_id=preset.asset.model_id,
+        revision=preset.asset.revision,
+        local_dir=settings.asset_model_path,
+    )
+    (settings.asset_model_path / ".model-revision").write_text(
+        preset.asset.revision + "\n", encoding="utf-8"
+    )
+    dino_snapshot = Path(
+        snapshot_download(
+            repo_id=PIXAL3D_DINO_REPOSITORY,
+            cache_dir=settings.pixal3d_runtime_path / "huggingface" / "hub",
+        )
+    )
+    if dino_snapshot.name != PIXAL3D_DINO_REVISION:
+        raise RuntimeError(
+            "The Pixal3D DINOv3 dependency changed upstream; update and verify "
+            "its pinned revision before installing."
+        )
+
+    naf_source = settings.pixal3d_runtime_path / "torch" / "hub" / "valeoai_NAF_main"
+    install_source(
+        naf_source,
+        NAF_REPOSITORY,
+        NAF_SOURCE_REVISION,
+        "NAF",
+        False,
+    )
+    run(
+        [
+            str(python),
+            "-c",
+            (
+                "import torch; torch.hub.load('valeoai/NAF', 'naf', "
+                "pretrained=True, device='cpu', trust_repo=True)"
+            ),
+        ],
+        env=env,
+    )
+
+
+def install_pixal3d(
+    settings: Settings,
+    preset: PipelinePreset,
+    force: bool,
+    architecture: str,
+) -> None:
+    if not _is_wsl():
+        raise RuntimeError("The wsl-cuda-pixal3d profile requires WSL 2.")
+    install_source(
+        settings.pixal3d_source_path,
+        PIXAL3D_REPOSITORY,
+        PIXAL3D_SOURCE_REVISION,
+        "Pixal3D",
+        force,
+    )
+    install_source(
+        settings.trellis2_source_path,
+        TRELLIS2_REPOSITORY,
+        TRELLIS2_SOURCE_REVISION,
+        "TRELLIS.2",
+        force,
+        recursive=True,
+    )
+    python, env = _install_pixal3d_python_runtime(settings, architecture, force)
+    _install_pixal3d_extensions(settings, python, env, force)
+    _download_pixal3d_models(settings, preset, python, env)
+    run(
+        [
+            str(python),
+            "-c",
+            (
+                "import torch, natten, flex_gemm, cumesh, o_voxel, nvdiffrast.torch; "
+                "assert torch.cuda.is_available(); torch.zeros(1, device='cuda'); "
+                "import pixal3d"
+            ),
+        ],
+        cwd=settings.pixal3d_source_path,
+        env=env,
+    )
+    print(f"Installed and verified Pixal3D at {settings.asset_model_path}")
+
+
 def install_linux(
     settings: Settings,
     preset: PipelinePreset,
@@ -325,6 +584,9 @@ def install_linux(
     }:
         raise RuntimeError("Linux CUDA profiles require 64-bit x86 Linux.")
     architecture = architecture or _validate_linux_cuda()
+    if preset.asset.backend == "pixal3d":
+        install_pixal3d(settings, preset, force, architecture)
+        return
     token = token or _require_hugging_face_token()
     install_source(
         settings.sf3d_source_path,
@@ -400,6 +662,16 @@ def _validate_linux_cuda() -> str:
             + ", ".join(missing)
         )
     return _validate_cuda("Linux")
+
+
+def _is_wsl() -> bool:
+    if sys.platform != "linux":
+        return False
+    try:
+        release = Path("/proc/sys/kernel/osrelease").read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return "microsoft" in release.lower()
 
 
 def _require_hugging_face_token() -> str:
@@ -508,6 +780,7 @@ def main() -> None:
             "linux-cuda-quality",
             "linux-cuda-fast",
             "linux-cuda-sana",
+            "wsl-cuda-pixal3d",
         ],
     )
     parser.add_argument(
@@ -539,7 +812,8 @@ def main() -> None:
         token = _require_hugging_face_token()
     elif preset.platform == "linux":
         architecture = _validate_linux_cuda()
-        token = _require_hugging_face_token()
+        if preset.asset.backend == "stable-fast-3d":
+            token = _require_hugging_face_token()
     download_image_model(settings, preset)
     download_rembg(settings)
     if preset.platform == "macos":

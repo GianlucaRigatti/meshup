@@ -228,7 +228,7 @@ class AssetGenerator:
         if not self.settings.image_model_path.is_dir() or not rembg.is_file():
             raise FileNotFoundError(
                 "Models are missing. Run `uv run python scripts/download_models.py "
-                "--profile auto --accept-licenses`."
+                f"--profile {self.preset.name} --accept-licenses`."
             )
 
     def _load_background_removal(self) -> None:
