@@ -23,6 +23,7 @@ dependencies = [
     "pydantic-settings>=2.7,<3",
     "rembg>=2.0.61,<3",
     "safetensors>=0.4,<1",
+    "sentencepiece>=0.2,<1; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "setuptools==69.5.1; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",
     "torch==2.5.1; sys_platform == 'darwin'",
     "torch==2.7.1; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",

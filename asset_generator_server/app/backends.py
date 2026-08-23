@@ -146,7 +146,7 @@ class DiffusersImageBackend:
             model_path,
             subfolder="text_encoder_3",
             quantization_config=text_quantization,
-            torch_dtype=dtype,
+            dtype=dtype,
             local_files_only=True,
         )
         self._pipeline = StableDiffusion3Pipeline.from_pretrained(
