@@ -126,6 +126,53 @@ def test_sd35_backend_selects_quantized_loader(tmp_path, monkeypatch) -> None:
     assert captured["dtype"].__str__() == "torch.bfloat16"
 
 
+def test_sd35_quantized_loader_uses_supported_balanced_device_map(
+    tmp_path, monkeypatch
+) -> None:
+    preset = PRESETS["wsl-cuda-sd35-pixal3d"]
+    settings = SimpleNamespace(image_model_path=tmp_path / "sd35")
+    settings.image_model_path.mkdir()
+    backend = DiffusersImageBackend(settings, preset)
+    pipeline_options = {}
+
+    class FakeModel:
+        @classmethod
+        def from_pretrained(cls, *_args, **_kwargs):
+            return object()
+
+    class FakePipeline:
+        @classmethod
+        def from_pretrained(cls, *_args, **kwargs):
+            pipeline_options.update(kwargs)
+            return cls()
+
+        def enable_vae_tiling(self):
+            pass
+
+        def set_progress_bar_config(self, **_kwargs):
+            pass
+
+    class FakeQuantizationConfig:
+        def __init__(self, **_kwargs):
+            pass
+
+    monkeypatch.setattr("app.backends._is_wsl", lambda: True)
+    monkeypatch.setattr(
+        "diffusers.BitsAndBytesConfig", FakeQuantizationConfig
+    )
+    monkeypatch.setattr("diffusers.SD3Transformer2DModel", FakeModel)
+    monkeypatch.setattr("diffusers.StableDiffusion3Pipeline", FakePipeline)
+    monkeypatch.setattr(
+        "transformers.BitsAndBytesConfig", FakeQuantizationConfig
+    )
+    monkeypatch.setattr("transformers.T5EncoderModel", FakeModel)
+
+    backend._load_quantized_sd35(SimpleNamespace(), "bfloat16")
+
+    assert pipeline_options["device_map"] == "balanced"
+    assert pipeline_options["max_memory"] == {0: "9GiB", "cpu": "24GiB"}
+
+
 def test_pixal3d_backend_invokes_pinned_low_vram_cli(tmp_path, monkeypatch) -> None:
     preset = PRESETS["wsl-cuda-pixal3d"]
     settings = Settings(MODEL_CACHE_DIR=tmp_path)

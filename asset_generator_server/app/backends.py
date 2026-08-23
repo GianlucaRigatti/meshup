@@ -155,7 +155,7 @@ class DiffusersImageBackend:
             text_encoder_3=text_encoder_3,
             torch_dtype=dtype,
             local_files_only=True,
-            device_map="auto",
+            device_map="balanced",
             max_memory={0: "9GiB", "cpu": "24GiB"},
         )
         self._pipeline.enable_vae_tiling()
