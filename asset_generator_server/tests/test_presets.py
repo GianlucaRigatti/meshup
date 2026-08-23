@@ -5,6 +5,7 @@ import pytest
 import trimesh
 from PIL import Image
 
+from app.backends import DiffusersImageBackend
 from app.config import Settings
 from app.generator import AssetGenerator, GenerationError
 from app.presets import PRESETS, resolve_profile
@@ -19,11 +20,24 @@ def test_auto_profile_resolution() -> None:
         resolve_profile("auto", platform_name="win32", machine="AMD64").name
         == "windows-cuda-quality"
     )
+    assert (
+        resolve_profile("auto", platform_name="linux", machine="x86_64").name
+        == "linux-cuda-quality"
+    )
+    assert (
+        resolve_profile("linux-cuda-fast", platform_name="linux", machine="AMD64").name
+        == "linux-cuda-fast"
+    )
 
 
 @pytest.mark.parametrize(
     ("profile", "host"),
-    [("macos-mlx", "win32"), ("windows-cuda-fast", "darwin")],
+    [
+        ("macos-mlx", "win32"),
+        ("windows-cuda-fast", "darwin"),
+        ("linux-cuda-fast", "win32"),
+        ("windows-cuda-quality", "linux"),
+    ],
 )
 def test_wrong_platform_profile_is_rejected(profile: str, host: str) -> None:
     with pytest.raises(ValueError, match="requires"):
@@ -34,11 +48,26 @@ def test_wrong_platform_profile_is_rejected(profile: str, host: str) -> None:
         )
 
 
+def test_linux_profiles_require_x86_64() -> None:
+    with pytest.raises(ValueError, match="64-bit x86 Linux"):
+        resolve_profile("linux-cuda-quality", platform_name="linux", machine="aarch64")
+
+
+@pytest.mark.parametrize("variant", ["quality", "fast"])
+def test_linux_profiles_match_windows_pipeline_settings(variant: str) -> None:
+    windows = PRESETS[f"windows-cuda-{variant}"]
+    linux = PRESETS[f"linux-cuda-{variant}"]
+    assert linux.image == windows.image
+    assert linux.asset == windows.asset
+    assert linux.device == windows.device
+    assert linux.platform == "linux"
+
+
 def test_unknown_and_unsupported_auto_profiles_are_rejected() -> None:
     with pytest.raises(ValueError, match="Unknown"):
         resolve_profile("anything", platform_name="darwin", machine="arm64")
     with pytest.raises(ValueError, match="does not support"):
-        resolve_profile("auto", platform_name="linux", machine="x86_64")
+        resolve_profile("auto", platform_name="linux", machine="aarch64")
 
 
 def test_cache_identity_changes_with_preset(tmp_path) -> None:
@@ -56,6 +85,33 @@ def test_cache_identity_changes_with_preset(tmp_path) -> None:
         preset=PRESETS["windows-cuda-quality"],
     )
     assert mac._asset_id("chair") != windows._asset_id("chair")
+    linux = AssetGenerator(
+        settings,
+        image_backend=_ImageBackend(),
+        asset_backend=_AssetBackend("pbr_texture"),
+        preset=PRESETS["linux-cuda-quality"],
+    )
+    assert linux._asset_id("chair") != windows._asset_id("chair")
+
+
+def test_linux_image_backend_releases_cuda_memory(tmp_path) -> None:
+    events: list[str] = []
+
+    class _Cuda:
+        @staticmethod
+        def is_available() -> bool:
+            return True
+
+        @staticmethod
+        def empty_cache() -> None:
+            events.append("empty_cache")
+
+    backend = DiffusersImageBackend(
+        Settings(MODEL_CACHE_DIR=tmp_path), PRESETS["linux-cuda-quality"]
+    )
+    backend._torch = type("FakeTorch", (), {"cuda": _Cuda})
+    backend.release_device_memory()
+    assert events == ["empty_cache"]
 
 
 def test_windows_texture_failure_leaves_no_output(tmp_path) -> None:

@@ -127,7 +127,7 @@ class AssetGenerator:
 
             seed = int(asset_id[:16], 16) % (2**31)
             timings: dict[str, int] = {}
-            if self.preset.platform == "windows":
+            if self.preset.platform != "macos":
                 import torch
 
                 torch.cuda.reset_peak_memory_stats(0)
@@ -277,19 +277,17 @@ class AssetGenerator:
         if self.output_mode == "pbr_texture":
             textured = [mesh for mesh in geometries if mesh.visual.kind == "texture"]
             if not textured:
-                raise RuntimeError(
-                    "The Windows GLB does not contain texture coordinates."
-                )
+                raise RuntimeError("The CUDA GLB does not contain texture coordinates.")
             if not any(_has_base_color_texture(mesh) for mesh in textured):
                 raise RuntimeError(
-                    "The Windows GLB does not contain a base-color texture."
+                    "The CUDA GLB does not contain a base-color texture."
                 )
             required = self.preset.asset.texture_resolution
             if required and (required, required) not in {
                 size for mesh in textured for size in _texture_sizes(mesh)
             }:
                 raise RuntimeError(
-                    f"The Windows GLB does not contain its required {required}px texture."
+                    f"The CUDA GLB does not contain its required {required}px texture."
                 )
 
     def _asset_id(self, prompt: str) -> str:

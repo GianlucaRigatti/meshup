@@ -40,11 +40,12 @@ license and acceptable-use terms before downloading or using the weights.
 Stable Fast 3D includes the `texture_baker` and `uv_unwrapper` native
 extensions. The weights are gated and governed by the Stability AI Community
 License. Commercial users above the license's revenue threshold must obtain an
-enterprise license. The Windows build applies a local compatibility patch to
-the pinned source without changing the model weights.
+enterprise license. The native Windows CUDA installer applies a local
+compatibility patch to the pinned source; Linux and WSL use the pinned upstream
+source directly. Neither installer changes the model weights.
 
 ## DINOv2
 
 Stable Fast 3D uses `facebook/dinov2-large` as an image encoder. Its files are
-downloaded locally by the Windows installer. Review its Hugging Face model card
-and upstream license before use.
+downloaded locally by the Windows and Linux/WSL CUDA installers. Review its
+Hugging Face model card and upstream license before use.

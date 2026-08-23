@@ -92,6 +92,36 @@ def hardware_value(command: list[str], fallback: str = "unknown") -> str:
         return fallback
 
 
+def system_metadata() -> dict[str, str]:
+    system = {
+        "os": platform.platform(),
+        "architecture": platform.machine(),
+        "python": sys.version.split()[0],
+        "torch": torch.__version__,
+    }
+    if platform.system() == "Darwin":
+        system.update(
+            chip=hardware_value(["sysctl", "-n", "machdep.cpu.brand_string"]),
+            memory_bytes=hardware_value(["sysctl", "-n", "hw.memsize"]),
+        )
+    elif platform.system() in {"Windows", "Linux"}:
+        system.update(
+            gpu=hardware_value(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader", "--id=0"]
+            ),
+            driver=hardware_value(
+                [
+                    "nvidia-smi",
+                    "--query-gpu=driver_version",
+                    "--format=csv,noheader",
+                    "--id=0",
+                ]
+            ),
+            cuda=str(torch.version.cuda),
+        )
+    return system
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Measure warm API generation times.")
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
@@ -134,32 +164,7 @@ def main() -> None:
         cached_response.raise_for_status()
         cached_ms = round((time.perf_counter() - cached_started) * 1000)
 
-    system: dict[str, str] = {
-        "os": platform.platform(),
-        "architecture": platform.machine(),
-        "python": sys.version.split()[0],
-        "torch": torch.__version__,
-    }
-    if platform.system() == "Darwin":
-        system.update(
-            chip=hardware_value(["sysctl", "-n", "machdep.cpu.brand_string"]),
-            memory_bytes=hardware_value(["sysctl", "-n", "hw.memsize"]),
-        )
-    elif platform.system() == "Windows":
-        system.update(
-            gpu=hardware_value(
-                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader", "--id=0"]
-            ),
-            driver=hardware_value(
-                [
-                    "nvidia-smi",
-                    "--query-gpu=driver_version",
-                    "--format=csv,noheader",
-                    "--id=0",
-                ]
-            ),
-            cuda=str(torch.version.cuda),
-        )
+    system = system_metadata()
 
     report = {
         "system": {

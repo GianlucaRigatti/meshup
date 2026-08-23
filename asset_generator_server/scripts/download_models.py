@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from huggingface_hub import snapshot_download
+from huggingface_hub import hf_hub_download, snapshot_download
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -174,51 +174,25 @@ def install_macos(settings: Settings, preset: PipelinePreset, force: bool) -> No
     print(f"Installed the Hunyuan MLX runtime at {runtime}")
 
 
-def install_windows(settings: Settings, preset: PipelinePreset, force: bool) -> None:
-    if sys.platform != "win32" or platform.machine().lower() not in {"amd64", "x86_64"}:
-        raise RuntimeError("Windows CUDA profiles require native 64-bit Windows.")
-    _validate_windows_cuda()
-    vcvars = _find_vcvars64()
-    install_source(
-        settings.sf3d_source_path,
-        SF3D_REPOSITORY,
-        SF3D_SOURCE_REVISION,
-        "Stable Fast 3D",
-        force,
-    )
-    _apply_windows_patch(settings.sf3d_source_path)
-    env = {
-        **os.environ,
-        "DISTUTILS_USE_SDK": "1",
-        "USE_CUDA": "1",
-        "USE_NATIVE_ARCH": "0",
-        "TORCH_CUDA_ARCH_LIST": "12.0",
-    }
-    for extension in ("texture_baker", "uv_unwrapper"):
-        extension_path = (settings.sf3d_source_path / extension).resolve()
-        command = [
-            "uv",
-            "pip",
-            "install",
-            "--python",
-            sys.executable,
-            "--no-build-isolation",
-            str(extension_path),
-        ]
-        _run_in_vs_environment(command, vcvars, settings.sf3d_source_path, env)
-
-    token = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
-    if not token:
-        raise RuntimeError(
-            "Set HF_TOKEN to a read token after accepting the Stable Fast 3D "
-            "model terms on Hugging Face."
-        )
+def _install_cuda_models(
+    settings: Settings, preset: PipelinePreset, token: str
+) -> None:
     snapshot_download(
         repo_id=preset.asset.model_id,
         revision=preset.asset.revision,
         token=token,
         local_dir=settings.asset_model_path,
         allow_patterns=["LICENSE.md", "README.md", "config.yaml", "model.safetensors"],
+    )
+    # Always restore the tiny upstream config before making its DINOv2 reference
+    # local. This keeps reruns and cache moves between Windows and WSL idempotent.
+    hf_hub_download(
+        repo_id=preset.asset.model_id,
+        filename="config.yaml",
+        revision=preset.asset.revision,
+        token=token,
+        local_dir=settings.asset_model_path,
+        force_download=True,
     )
     (settings.asset_model_path / ".model-revision").write_text(
         preset.asset.revision + "\n", encoding="utf-8"
@@ -244,6 +218,31 @@ def install_windows(settings: Settings, preset: PipelinePreset, force: bool) -> 
         ),
         encoding="utf-8",
     )
+
+
+def _install_cuda_extensions(
+    settings: Settings,
+    env: dict[str, str],
+    vcvars: Path | None = None,
+) -> None:
+    for extension in ("texture_baker", "uv_unwrapper"):
+        extension_path = (settings.sf3d_source_path / extension).resolve()
+        command = [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            sys.executable,
+            "--no-build-isolation",
+            str(extension_path),
+        ]
+        if vcvars is None:
+            run(command, cwd=settings.sf3d_source_path, env=env)
+        else:
+            _run_in_vs_environment(command, vcvars, settings.sf3d_source_path, env)
+
+
+def _verify_cuda_extensions(settings: Settings, env: dict[str, str]) -> None:
     run(
         [
             sys.executable,
@@ -258,29 +257,142 @@ def install_windows(settings: Settings, preset: PipelinePreset, force: bool) -> 
     print(f"Installed and verified Stable Fast 3D at {settings.asset_model_path}")
 
 
-def _validate_windows_cuda() -> None:
+def _cuda_build_environment(architecture: str) -> dict[str, str]:
+    return {
+        **os.environ,
+        "USE_CUDA": "1",
+        "USE_NATIVE_ARCH": "0",
+        "TORCH_CUDA_ARCH_LIST": architecture,
+    }
+
+
+def install_windows(
+    settings: Settings,
+    preset: PipelinePreset,
+    force: bool,
+    *,
+    token: str | None = None,
+    architecture: str | None = None,
+    vcvars: Path | None = None,
+) -> None:
+    if sys.platform != "win32" or platform.machine().lower() not in {"amd64", "x86_64"}:
+        raise RuntimeError("Windows CUDA profiles require native 64-bit Windows.")
+    architecture = architecture or _validate_windows_cuda()
+    vcvars = vcvars or _find_vcvars64()
+    token = token or _require_hugging_face_token()
+    install_source(
+        settings.sf3d_source_path,
+        SF3D_REPOSITORY,
+        SF3D_SOURCE_REVISION,
+        "Stable Fast 3D",
+        force,
+    )
+    _apply_windows_patch(settings.sf3d_source_path)
+    env = {**_cuda_build_environment(architecture), "DISTUTILS_USE_SDK": "1"}
+    _install_cuda_extensions(settings, env, vcvars)
+    _install_cuda_models(settings, preset, token)
+    _verify_cuda_extensions(settings, env)
+
+
+def install_linux(
+    settings: Settings,
+    preset: PipelinePreset,
+    force: bool,
+    *,
+    token: str | None = None,
+    architecture: str | None = None,
+) -> None:
+    if sys.platform != "linux" or platform.machine().lower() not in {
+        "amd64",
+        "x86_64",
+    }:
+        raise RuntimeError("Linux CUDA profiles require 64-bit x86 Linux.")
+    architecture = architecture or _validate_linux_cuda()
+    token = token or _require_hugging_face_token()
+    install_source(
+        settings.sf3d_source_path,
+        SF3D_REPOSITORY,
+        SF3D_SOURCE_REVISION,
+        "Stable Fast 3D",
+        force,
+    )
+    env = _cuda_build_environment(architecture)
+    _install_cuda_extensions(settings, env)
+    _install_cuda_models(settings, preset, token)
+    _verify_cuda_extensions(settings, env)
+
+
+def _validate_cuda(platform_label: str) -> str:
     if shutil.which("nvcc") is None:
         raise RuntimeError("CUDA Toolkit 12.8 and nvcc must be installed and on PATH.")
     nvcc_version = run(["nvcc", "--version"])
     if "release 12.8" not in nvcc_version:
-        raise RuntimeError("The Windows Blackwell profile requires CUDA Toolkit 12.8.")
+        raise RuntimeError(
+            f"The {platform_label} CUDA profiles require CUDA Toolkit 12.8."
+        )
     import torch
 
     if not torch.cuda.is_available():
         raise RuntimeError("The installed PyTorch build cannot access CUDA.")
     if torch.cuda.device_count() != 1:
-        raise RuntimeError("The Windows profiles require exactly one NVIDIA GPU.")
+        raise RuntimeError(
+            f"The {platform_label} CUDA profiles require exactly one NVIDIA GPU."
+        )
     if torch.version.cuda is None or tuple(
         map(int, torch.version.cuda.split(".")[:2])
-    ) < (12, 8):
-        raise RuntimeError("Use a PyTorch build compiled for CUDA 12.8 or newer.")
+    ) != (
+        12,
+        8,
+    ):
+        raise RuntimeError("Use the pinned PyTorch build compiled for CUDA 12.8.")
     properties = torch.cuda.get_device_properties(0)
     if properties.total_memory < 10 * 1024**3:
-        raise RuntimeError("The Windows quality presets require at least 10 GiB VRAM.")
+        raise RuntimeError(
+            f"The {platform_label} CUDA profiles require at least 10 GiB VRAM."
+        )
     if properties.major < 8:
-        raise RuntimeError("The Windows quality presets require Ampere or newer.")
+        raise RuntimeError(
+            f"The {platform_label} CUDA profiles require Ampere or newer."
+        )
     if not torch.cuda.is_bf16_supported():
-        raise RuntimeError("The Windows profiles require CUDA BF16 support.")
+        raise RuntimeError(
+            f"The {platform_label} CUDA profiles require CUDA BF16 support."
+        )
+    try:
+        torch.zeros(1, device="cuda")
+    except Exception as exc:
+        raise RuntimeError(
+            "The installed PyTorch build cannot allocate a CUDA tensor."
+        ) from exc
+    return f"{properties.major}.{properties.minor}"
+
+
+def _validate_windows_cuda() -> str:
+    return _validate_cuda("Windows")
+
+
+def _validate_linux_cuda() -> str:
+    missing = [
+        tool
+        for tool in ("gcc", "g++", "git", "cmake", "ninja")
+        if shutil.which(tool) is None
+    ]
+    if missing:
+        raise RuntimeError(
+            "The Linux CUDA profiles require these build tools on PATH: "
+            + ", ".join(missing)
+        )
+    return _validate_cuda("Linux")
+
+
+def _require_hugging_face_token() -> str:
+    token = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+    if not token:
+        raise RuntimeError(
+            "Set HF_TOKEN to a read token after accepting the Stable Fast 3D "
+            "model terms on Hugging Face."
+        )
+    return token
 
 
 def _find_vcvars64() -> Path:
@@ -352,7 +464,14 @@ def main() -> None:
     parser.add_argument(
         "--profile",
         default="auto",
-        choices=["auto", "macos-mlx", "windows-cuda-quality", "windows-cuda-fast"],
+        choices=[
+            "auto",
+            "macos-mlx",
+            "windows-cuda-quality",
+            "windows-cuda-fast",
+            "linux-cuda-quality",
+            "linux-cuda-fast",
+        ],
     )
     parser.add_argument(
         "--accept-licenses",
@@ -374,19 +493,37 @@ def main() -> None:
         "Installing models governed by Stability AI and/or Tencent community "
         "licenses. See THIRD_PARTY_NOTICES.md."
     )
+    token: str | None = None
+    architecture: str | None = None
+    vcvars: Path | None = None
     if preset.platform == "windows":
-        _validate_windows_cuda()
-        _find_vcvars64()
-        if not (os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")):
-            raise RuntimeError(
-                "Set HF_TOKEN after accepting the Stable Fast 3D model terms."
-            )
+        architecture = _validate_windows_cuda()
+        vcvars = _find_vcvars64()
+        token = _require_hugging_face_token()
+    elif preset.platform == "linux":
+        architecture = _validate_linux_cuda()
+        token = _require_hugging_face_token()
     download_image_model(settings, preset)
     download_rembg(settings)
     if preset.platform == "macos":
         install_macos(settings, preset, args.force)
+    elif preset.platform == "windows":
+        install_windows(
+            settings,
+            preset,
+            args.force,
+            token=token,
+            architecture=architecture,
+            vcvars=vcvars,
+        )
     else:
-        install_windows(settings, preset, args.force)
+        install_linux(
+            settings,
+            preset,
+            args.force,
+            token=token,
+            architecture=architecture,
+        )
 
 
 if __name__ == "__main__":

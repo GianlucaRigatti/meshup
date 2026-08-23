@@ -79,7 +79,7 @@ class DiffusersImageBackend:
             requires_safety_checker=False,
         )
         self._pipeline.set_progress_bar_config(disable=True)
-        if self.preset.platform == "windows":
+        if self.preset.platform != "macos":
             self._pipeline.enable_model_cpu_offload(device="cuda")
             self._uses_cpu_offload = True
         else:
@@ -121,7 +121,7 @@ class DiffusersImageBackend:
             return
         if self.preset.platform == "macos" and self._torch.backends.mps.is_available():
             self._torch.mps.empty_cache()
-        elif self.preset.platform == "windows" and self._torch.cuda.is_available():
+        elif self.preset.platform != "macos" and self._torch.cuda.is_available():
             self._torch.cuda.empty_cache()
 
 
@@ -349,20 +349,16 @@ def _require_git_revision(source_path: Path, expected: str) -> None:
 
 def _validate_cuda(torch_module) -> None:
     if not torch_module.cuda.is_available():
-        raise RuntimeError("The selected Windows profile requires CUDA.")
+        raise RuntimeError("The selected CUDA profile requires CUDA.")
     if torch_module.cuda.device_count() != 1:
-        raise RuntimeError("The selected Windows profile requires exactly one GPU.")
+        raise RuntimeError("The selected CUDA profile requires exactly one GPU.")
     properties = torch_module.cuda.get_device_properties(0)
     if properties.total_memory < 10 * 1024**3:
-        raise RuntimeError(
-            "The selected Windows profile requires at least 10 GiB VRAM."
-        )
+        raise RuntimeError("The selected CUDA profile requires at least 10 GiB VRAM.")
     if properties.major < 8:
-        raise RuntimeError(
-            "The selected Windows profile requires an Ampere or newer GPU."
-        )
+        raise RuntimeError("The selected CUDA profile requires an Ampere or newer GPU.")
     if not torch_module.cuda.is_bf16_supported():
-        raise RuntimeError("The selected Windows profile requires CUDA BF16 support.")
+        raise RuntimeError("The selected CUDA profile requires CUDA BF16 support.")
     try:
         torch_module.zeros(1, device="cuda")
     except Exception as exc:

@@ -10,6 +10,8 @@ ProfileName: TypeAlias = Literal[
     "macos-mlx",
     "windows-cuda-quality",
     "windows-cuda-fast",
+    "linux-cuda-quality",
+    "linux-cuda-fast",
 ]
 
 
@@ -46,7 +48,7 @@ class AssetPreset:
 class PipelinePreset:
     name: str
     schema_version: int
-    platform: Literal["macos", "windows"]
+    platform: Literal["macos", "windows", "linux"]
     device: str
     image: ImagePreset
     asset: AssetPreset
@@ -127,6 +129,48 @@ PRESETS: dict[str, PipelinePreset] = {
             texture_resolution=1024,
         ),
     ),
+    "linux-cuda-quality": PipelinePreset(
+        name="linux-cuda-quality",
+        schema_version=1,
+        platform="linux",
+        device="cuda:0",
+        image=ImagePreset(
+            model_id="stabilityai/sdxl-turbo",
+            revision=SDXL_TURBO_REVISION,
+            directory_name="sdxl-turbo",
+            steps=4,
+        ),
+        asset=AssetPreset(
+            backend="stable-fast-3d",
+            model_id="stabilityai/stable-fast-3d",
+            revision=SF3D_MODEL_REVISION,
+            directory_name="stable-fast-3d",
+            source_revision=SF3D_SOURCE_REVISION,
+            output_mode="pbr_texture",
+            texture_resolution=2048,
+        ),
+    ),
+    "linux-cuda-fast": PipelinePreset(
+        name="linux-cuda-fast",
+        schema_version=1,
+        platform="linux",
+        device="cuda:0",
+        image=ImagePreset(
+            model_id="stabilityai/sdxl-turbo",
+            revision=SDXL_TURBO_REVISION,
+            directory_name="sdxl-turbo",
+            steps=1,
+        ),
+        asset=AssetPreset(
+            backend="stable-fast-3d",
+            model_id="stabilityai/stable-fast-3d",
+            revision=SF3D_MODEL_REVISION,
+            directory_name="stable-fast-3d",
+            source_revision=SF3D_SOURCE_REVISION,
+            output_mode="pbr_texture",
+            texture_resolution=1024,
+        ),
+    ),
 }
 
 
@@ -143,6 +187,8 @@ def resolve_profile(
             configured = "macos-mlx"
         elif platform_name == "win32" and machine in {"amd64", "x86_64"}:
             configured = "windows-cuda-quality"
+        elif platform_name == "linux" and machine in {"amd64", "x86_64"}:
+            configured = "linux-cuda-quality"
         else:
             raise ValueError(
                 f"PIPELINE_PROFILE=auto does not support {platform_name}/{machine}."
@@ -156,7 +202,9 @@ def resolve_profile(
             f"Unknown PIPELINE_PROFILE={configured!r}; choose {choices}."
         ) from exc
 
-    expected = "darwin" if preset.platform == "macos" else "win32"
+    expected = {"macos": "darwin", "windows": "win32", "linux": "linux"}[
+        preset.platform
+    ]
     if platform_name != expected:
         raise ValueError(
             f"Pipeline profile {preset.name!r} requires {preset.platform}, "
@@ -166,4 +214,6 @@ def resolve_profile(
         raise ValueError("The macos-mlx profile requires Apple Silicon.")
     if preset.platform == "windows" and machine not in {"amd64", "x86_64"}:
         raise ValueError("Windows CUDA profiles require 64-bit x86 Windows.")
+    if preset.platform == "linux" and machine not in {"amd64", "x86_64"}:
+        raise ValueError("Linux CUDA profiles require 64-bit x86 Linux.")
     return preset
