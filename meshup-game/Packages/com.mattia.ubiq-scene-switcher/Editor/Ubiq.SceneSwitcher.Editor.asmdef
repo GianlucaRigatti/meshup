@@ -1,0 +1,12 @@
+{
+  "name": "Ubiq.SceneSwitcher.Editor",
+  "rootNamespace": "Ubiq.SceneSwitcher.Editor",
+  "references": [
+    "Ubiq.SceneSwitcher",
+    "Ubiq",
+    "UnityEngine.UI"
+  ],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true,
+  "noEngineReferences": false
+}

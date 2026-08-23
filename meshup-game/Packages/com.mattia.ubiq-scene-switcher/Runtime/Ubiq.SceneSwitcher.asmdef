@@ -1,0 +1,10 @@
+{
+  "name": "Ubiq.SceneSwitcher",
+  "rootNamespace": "Ubiq.SceneSwitcher",
+  "references": [
+    "Ubiq",
+    "UnityEngine.UI"
+  ],
+  "autoReferenced": true,
+  "noEngineReferences": false
+}
