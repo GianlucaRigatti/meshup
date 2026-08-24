@@ -807,6 +807,8 @@ class TrellisCppBackend:
             "off",
             "--require-gpu",
         ]
+        if asset.box_uv:
+            command.append("--box-uv")
         try:
             completed = subprocess.run(
                 command,

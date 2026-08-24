@@ -20,6 +20,8 @@ ProfileName: TypeAlias = Literal[
     "wsl-cuda-sd35-trellis2-q8",
     "wsl-cuda-zimage-q4-trellis2-q4",
     "wsl-cuda-zimage-q6-trellis2-q4",
+    "wsl-cuda-zimage-q4-trellis2-fast",
+    "wsl-cuda-zimage-q3-trellis2-turbo",
 ]
 
 
@@ -37,7 +39,7 @@ class ImagePreset:
     height: int = 512
     dtype: str = "float16"
     variant: str | None = "fp16"
-    quantization: Literal["nf4", "q4", "q6"] | None = None
+    quantization: Literal["nf4", "q3", "q4", "q6"] | None = None
     runtime_revision: str | None = None
 
 
@@ -58,6 +60,7 @@ class AssetPreset:
     pipeline_resolution: int | None = None
     max_tokens: int | None = None
     camera_fov: float | None = None
+    box_uv: bool = False
 
 
 @dataclass(frozen=True)
@@ -106,16 +109,21 @@ SD35_MEDIUM_NF4 = ImagePreset(
 )
 
 
-def z_image_turbo(quantization: Literal["q4", "q6"]) -> ImagePreset:
+def z_image_turbo(
+    quantization: Literal["q3", "q4", "q6"],
+    *,
+    steps: int = 8,
+    resolution: int = 1024,
+) -> ImagePreset:
     return ImagePreset(
         backend="z-image-cpp",
         model_id="leejet/Z-Image-Turbo-GGUF",
         revision=Z_IMAGE_TURBO_GGUF_REVISION,
         directory_name=f"z-image-turbo-{quantization}",
-        steps=8,
+        steps=steps,
         guidance=1.0,
-        width=1024,
-        height=1024,
+        width=resolution,
+        height=resolution,
         dtype="gguf",
         variant=None,
         quantization=quantization,
@@ -406,6 +414,45 @@ PRESETS: dict[str, PipelinePreset] = {
             texture_resolution=2048,
             pipeline_resolution=1024,
             max_tokens=49152,
+        ),
+    ),
+    "wsl-cuda-zimage-q4-trellis2-fast": PipelinePreset(
+        name="wsl-cuda-zimage-q4-trellis2-fast",
+        schema_version=1,
+        platform="linux",
+        device="cuda:0",
+        image=z_image_turbo("q4"),
+        asset=AssetPreset(
+            backend="trellis-cpp",
+            model_id="ilintar/trellis2-gguf",
+            revision=TRELLIS_CPP_MODEL_REVISION,
+            directory_name="trellis2-gguf-q4",
+            source_revision=TRELLIS_CPP_SOURCE_REVISION,
+            output_mode="pbr_texture",
+            quantization="q4",
+            texture_resolution=1024,
+            pipeline_resolution=512,
+            max_tokens=49152,
+        ),
+    ),
+    "wsl-cuda-zimage-q3-trellis2-turbo": PipelinePreset(
+        name="wsl-cuda-zimage-q3-trellis2-turbo",
+        schema_version=1,
+        platform="linux",
+        device="cuda:0",
+        image=z_image_turbo("q3", steps=6, resolution=768),
+        asset=AssetPreset(
+            backend="trellis-cpp",
+            model_id="ilintar/trellis2-gguf",
+            revision=TRELLIS_CPP_MODEL_REVISION,
+            directory_name="trellis2-gguf-q4",
+            source_revision=TRELLIS_CPP_SOURCE_REVISION,
+            output_mode="pbr_texture",
+            quantization="q4",
+            texture_resolution=1024,
+            pipeline_resolution=512,
+            max_tokens=49152,
+            box_uv=True,
         ),
     ),
 }

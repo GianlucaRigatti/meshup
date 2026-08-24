@@ -126,6 +126,7 @@ class Settings(BaseSettings):
     @property
     def z_image_diffusion_path(self) -> Path:
         filenames = {
+            "q3": "z_image_turbo-Q3_K.gguf",
             "q4": "z_image_turbo-Q4_K.gguf",
             "q6": "z_image_turbo-Q6_K.gguf",
         }

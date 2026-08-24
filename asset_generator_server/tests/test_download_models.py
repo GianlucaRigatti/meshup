@@ -213,16 +213,18 @@ def test_linux_zimage_trellis_install_dispatches_to_both_native_runtimes(
 
 
 @pytest.mark.parametrize(
-    ("quantization", "filename"),
+    ("profile", "filename"),
     [
-        ("q4", "z_image_turbo-Q4_K.gguf"),
-        ("q6", "z_image_turbo-Q6_K.gguf"),
+        ("wsl-cuda-zimage-q3-trellis2-turbo", "z_image_turbo-Q3_K.gguf"),
+        ("wsl-cuda-zimage-q4-trellis2-q4", "z_image_turbo-Q4_K.gguf"),
+        ("wsl-cuda-zimage-q6-trellis2-q4", "z_image_turbo-Q6_K.gguf"),
     ],
 )
 def test_zimage_download_selects_quant_and_shared_components(
-    tmp_path, monkeypatch, quantization: str, filename: str
+    tmp_path, monkeypatch, profile: str, filename: str
 ) -> None:
-    preset = PRESETS[f"wsl-cuda-zimage-{quantization}-trellis2-q4"]
+    preset = PRESETS[profile]
+    quantization = preset.image.quantization
     settings = SimpleNamespace(
         image_model_path=tmp_path / f"z-image-{quantization}",
         z_image_components_path=tmp_path / "components",

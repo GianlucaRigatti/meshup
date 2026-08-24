@@ -22,6 +22,8 @@ inference settings reproducible.
 | `wsl-cuda-sd35-trellis2-q8` | WSL 2/NVIDIA | SD 3.5 Medium NF4 → TRELLIS.2 GGUF Q8 (1024 cascade) | 2048px UV/PBR GLB |
 | `wsl-cuda-zimage-q4-trellis2-q4` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q4 (8 steps, 1024px) → TRELLIS.2 GGUF Q4 | 2048px UV/PBR GLB |
 | `wsl-cuda-zimage-q6-trellis2-q4` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q6 (8 steps, 1024px) → TRELLIS.2 GGUF Q4 | 2048px UV/PBR GLB |
+| `wsl-cuda-zimage-q4-trellis2-fast` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q4 (8 steps, 1024px) → TRELLIS.2 Q4 light path | 1024px UV/PBR GLB |
+| `wsl-cuda-zimage-q3-trellis2-turbo` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q3 (6 steps, 768px) → TRELLIS.2 Q4 light path | 1024px box-UV/PBR GLB |
 
 `PIPELINE_PROFILE=auto` selects `macos-mlx` on Apple Silicon and
 `windows-cuda-sana` on supported Windows systems, or `linux-cuda-sana` on
@@ -345,6 +347,35 @@ If the Z-Image subprocess reports CUDA allocation failures, switch to
 `wsl-cuda-zimage-q4-trellis2-q4`. The generated reference PNG remains beside
 the GLB, which makes comparisons with SD 3.5 straightforward.
 
+#### Lower-latency Z-Image/TRELLIS presets
+
+If Q4/Q4 quality is higher than required, install the conservative fast preset
+first. It keeps the validated Q4 image at 1024px and eight steps, but switches
+TRELLIS.2 from the 1024 cascade to its 512 light path and reduces the atlas to
+1024px:
+
+```bash
+uv run python scripts/download_models.py \
+  --profile wsl-cuda-zimage-q4-trellis2-fast \
+  --accept-licenses
+```
+
+For a larger latency tradeoff, the turbo preset uses Z-Image Q3 at 768px and
+six steps. Its TRELLIS.2 stage uses the 512 light path, a 1024px atlas, and
+faster box-projected UVs:
+
+```bash
+uv run python scripts/download_models.py \
+  --profile wsl-cuda-zimage-q3-trellis2-turbo \
+  --accept-licenses
+```
+
+Both reuse the existing stable-diffusion.cpp and trellis.cpp builds, shared
+Qwen3 encoder, VAE, and TRELLIS.2 Q4 files. The fast preset needs no additional
+model download if the original Z-Image Q4 preset is already installed. The
+turbo preset downloads only the approximately 3.14 GB Z-Image Q3 diffusion
+file. Select either profile in `.env` and restart the server.
+
 ### 4. Run WSL server and connect Unity
 
 Inside WSL:
@@ -497,8 +528,9 @@ receives `generator_busy`; cached requests remain available.
   `windows-cuda-fast`, `windows-cuda-sana`, `linux-cuda-quality`,
   `linux-cuda-fast`, `linux-cuda-sana`, `wsl-cuda-pixal3d`, or
   `wsl-cuda-sd35-pixal3d`, `wsl-cuda-sd35-trellis2-q4`,
-  `wsl-cuda-sd35-trellis2-q8`, `wsl-cuda-zimage-q4-trellis2-q4`, or
-  `wsl-cuda-zimage-q6-trellis2-q4`
+  `wsl-cuda-sd35-trellis2-q8`, `wsl-cuda-zimage-q4-trellis2-q4`,
+  `wsl-cuda-zimage-q6-trellis2-q4`, `wsl-cuda-zimage-q4-trellis2-fast`, or
+  `wsl-cuda-zimage-q3-trellis2-turbo`
 - `PUBLIC_BASE_URL`: public URL used in responses
 - `ASSET_OUTPUT_DIR`: generated GLB and metadata directory
 - `MODEL_CACHE_DIR`: models, pinned sources, and runtimes

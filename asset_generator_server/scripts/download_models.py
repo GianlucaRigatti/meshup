@@ -207,13 +207,14 @@ def download_image_model(
 
 def _download_z_image_models(settings: Settings, preset: PipelinePreset) -> None:
     filenames = {
+        "q3": "z_image_turbo-Q3_K.gguf",
         "q4": "z_image_turbo-Q4_K.gguf",
         "q6": "z_image_turbo-Q6_K.gguf",
     }
     try:
         diffusion_filename = filenames[preset.image.quantization]
     except KeyError as exc:
-        raise RuntimeError("The Z-Image preset must select Q4 or Q6 weights.") from exc
+        raise RuntimeError("The Z-Image preset must select Q3, Q4, or Q6 weights.") from exc
 
     settings.image_model_path.mkdir(parents=True, exist_ok=True)
     hf_hub_download(
@@ -1176,6 +1177,8 @@ def main() -> None:
             "wsl-cuda-sd35-trellis2-q8",
             "wsl-cuda-zimage-q4-trellis2-q4",
             "wsl-cuda-zimage-q6-trellis2-q4",
+            "wsl-cuda-zimage-q4-trellis2-fast",
+            "wsl-cuda-zimage-q3-trellis2-turbo",
         ],
     )
     parser.add_argument(

@@ -112,7 +112,7 @@ before redistribution.
 - Pinned VAE revision: `08d04455279082882deaabc8d0d09fc914c071e1`
 - Original model: <https://huggingface.co/Tongyi-MAI/Z-Image-Turbo>
 
-The optional WSL Z-Image Q4 and Q6 presets build the MIT-licensed
+The optional WSL Z-Image Q3, Q4, and Q6 presets build the MIT-licensed
 stable-diffusion.cpp runtime against the local CUDA 12.8 toolkit. Z-Image Turbo
 and the referenced model repositories identify their weights as Apache 2.0.
 Review each linked model card and the runtime's bundled third-party components

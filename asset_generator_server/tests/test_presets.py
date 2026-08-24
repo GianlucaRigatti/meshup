@@ -140,6 +140,29 @@ def test_zimage_trellis2_profiles_use_native_quantized_image_runtime(
     assert preset.asset == PRESETS["wsl-cuda-sd35-trellis2-q4"].asset
 
 
+def test_zimage_fast_profile_only_reduces_trellis_quality() -> None:
+    preset = PRESETS["wsl-cuda-zimage-q4-trellis2-fast"]
+    quality = PRESETS["wsl-cuda-zimage-q4-trellis2-q4"]
+
+    assert preset.image == quality.image
+    assert preset.asset.pipeline_resolution == 512
+    assert preset.asset.texture_resolution == 1024
+    assert preset.asset.box_uv is False
+
+
+def test_zimage_turbo_profile_uses_aggressive_latency_settings() -> None:
+    preset = PRESETS["wsl-cuda-zimage-q3-trellis2-turbo"]
+
+    assert preset.image.backend == "z-image-cpp"
+    assert preset.image.quantization == "q3"
+    assert preset.image.steps == 6
+    assert (preset.image.width, preset.image.height) == (768, 768)
+    assert preset.asset.quantization == "q4"
+    assert preset.asset.pipeline_resolution == 512
+    assert preset.asset.texture_resolution == 1024
+    assert preset.asset.box_uv is True
+
+
 def test_sd35_backend_selects_quantized_loader(tmp_path, monkeypatch) -> None:
     preset = PRESETS["wsl-cuda-sd35-pixal3d"]
     model_path = tmp_path / "models" / preset.image.directory_name
@@ -329,6 +352,38 @@ def test_trellis_cpp_backend_invokes_pinned_quality_cli(tmp_path, monkeypatch) -
     assert command[command.index("--seed") + 1] == "123"
     assert "--require-gpu" in command
     assert str(executable.parent.resolve()) in kwargs["env"]["LD_LIBRARY_PATH"]
+
+
+def test_trellis_cpp_turbo_backend_uses_light_path_and_box_uv(
+    tmp_path, monkeypatch
+) -> None:
+    preset = PRESETS["wsl-cuda-zimage-q3-trellis2-turbo"]
+    executable = tmp_path / "runtime" / "trellis-cli"
+    settings = SimpleNamespace(
+        trellis_cpp_executable_path=executable,
+        trellis_cpp_model_path=tmp_path / "models" / "q4",
+        trellis_cpp_build_path=executable.parent,
+        trellis_timeout_seconds=1800,
+    )
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        Path(command[2]).write_bytes(b"glTF")
+        return SimpleNamespace(returncode=0, stdout="")
+
+    backend = TrellisCppBackend(settings, preset)
+    monkeypatch.setattr(backend, "load", lambda: None)
+    monkeypatch.setattr("app.backends.subprocess.run", run)
+    output = tmp_path / "job" / "asset.glb"
+    output.parent.mkdir()
+
+    backend.generate(Image.new("RGBA", (16, 16)), 123, output)
+
+    command = calls[0]
+    assert command[command.index("--res") + 1] == "512"
+    assert command[command.index("--atlas") + 1] == "1024"
+    assert "--box-uv" in command
 
 
 def test_isolated_sd35_backend_passes_private_request_over_stdin(
