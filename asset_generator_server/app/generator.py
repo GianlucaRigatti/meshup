@@ -96,8 +96,10 @@ class AssetGenerator:
         self.ready = True
         self.load_error = None
         LOGGER.info(
-            "Loaded profile %s in %.2f seconds (image=%s, asset=%s, output=%s)",
-            self.preset.name,
+            "Loaded image=%s and 3d=%s in %.2f seconds "
+            "(image_device=%s, asset_device=%s, output=%s)",
+            self.settings.image_generator,
+            self.settings.model_3d,
             time.perf_counter() - started,
             self.text_device,
             self.model_device,
@@ -133,7 +135,8 @@ class AssetGenerator:
             ):
                 import torch
 
-                torch.cuda.reset_peak_memory_stats(0)
+                if torch.cuda.is_available():
+                    torch.cuda.reset_peak_memory_stats(0)
 
             stage = time.perf_counter()
             image = self.image_backend.generate(prompt + PROMPT_SUFFIX, seed)
@@ -174,8 +177,8 @@ class AssetGenerator:
                     "asset_id": asset_id,
                     "prompt_hash": hashlib.sha256(prompt.encode()).hexdigest(),
                     "seed": seed,
-                    "configured_profile": self.settings.pipeline_profile,
-                    "pipeline_profile": self.preset.name,
+                    "image_generator": self.settings.image_generator,
+                    "model_3d": self.settings.model_3d,
                     "pipeline_version": self._version,
                     "models": {
                         "image": {
@@ -238,7 +241,8 @@ class AssetGenerator:
         if not self.settings.image_model_path.is_dir() or not rembg.is_file():
             raise FileNotFoundError(
                 "Models are missing. Run `uv run python scripts/download_models.py "
-                f"--profile {self.preset.name} --accept-licenses`."
+                f"--image-generator {self.settings.image_generator} "
+                f"--model-3d {self.settings.model_3d} --accept-licenses`."
             )
 
     def _load_background_removal(self) -> None:
@@ -336,7 +340,7 @@ class AssetGenerator:
                 "peak_torch_allocated_bytes": torch.cuda.max_memory_allocated(0),
                 "peak_torch_reserved_bytes": torch.cuda.max_memory_reserved(0),
             }
-        except (ImportError, RuntimeError):
+        except (AttributeError, ImportError, RuntimeError):
             return {}
 
     @staticmethod

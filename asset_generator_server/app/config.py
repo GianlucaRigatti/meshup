@@ -5,7 +5,13 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.presets import PipelinePreset, resolve_profile
+from app.presets import (
+    DEFAULT_IMAGE_GENERATOR,
+    DEFAULT_MODEL_3D,
+    PipelinePreset,
+    resolve_models,
+    resolve_profile,
+)
 
 
 class Settings(BaseSettings):
@@ -22,7 +28,13 @@ class Settings(BaseSettings):
     model_cache_dir: Path = Field(
         default=Path(".model_sources"), alias="MODEL_CACHE_DIR"
     )
-    pipeline_profile: str = Field(default="auto", alias="PIPELINE_PROFILE")
+    image_generator: str = Field(
+        default=DEFAULT_IMAGE_GENERATOR, alias="IMAGE_GENERATOR"
+    )
+    model_3d: str = Field(default=DEFAULT_MODEL_3D, alias="MODEL_3D")
+    # Deprecated internal compatibility switch. New launch/install CLIs do not
+    # expose legacy platform profiles.
+    pipeline_profile: str | None = Field(default=None, alias="PIPELINE_PROFILE")
     hunyuan_timeout_seconds: int = Field(default=300, alias="HUNYUAN_TIMEOUT_SECONDS")
     image_timeout_seconds: int = Field(default=600, alias="IMAGE_TIMEOUT_SECONDS")
     pixal3d_timeout_seconds: int = Field(default=1800, alias="PIXAL3D_TIMEOUT_SECONDS")
@@ -34,7 +46,9 @@ class Settings(BaseSettings):
 
     @property
     def preset(self) -> PipelinePreset:
-        return resolve_profile(self.pipeline_profile)
+        if self.pipeline_profile is not None:
+            return resolve_profile(self.pipeline_profile)
+        return resolve_models(self.image_generator, self.model_3d)
 
     @property
     def image_model_path(self) -> Path:

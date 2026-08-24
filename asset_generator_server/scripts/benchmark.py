@@ -169,8 +169,8 @@ def main() -> None:
     report = {
         "system": {
             **system,
-            "configured_profile": settings.pipeline_profile,
-            "resolved_profile": ready_body["profile"],
+            "image_generator": ready_body["image_generator"],
+            "model_3d": ready_body["model_3d"],
             "device": ready_body["device"],
         },
         "results_ms": {

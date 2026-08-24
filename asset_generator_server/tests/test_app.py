@@ -18,9 +18,9 @@ def test_health_and_ready(client: TestClient) -> None:
         "status": "ready",
         "ready": True,
         "busy": False,
-        "configured_profile": "auto",
-        "profile": "macos-mlx",
-        "device": "mps+mlx-metal",
+        "image_generator": "zimage-q4",
+        "model_3d": "trellis2-fast",
+        "device": "cuda:0",
         "output_mode": "vertex_color",
     }
 

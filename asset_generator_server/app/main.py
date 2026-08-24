@@ -66,8 +66,8 @@ def create_app(
             "status": "ready" if service.ready else "not_ready",
             "ready": service.ready,
             "busy": service.busy,
-            "configured_profile": settings.pipeline_profile,
-            "profile": service.preset.name,
+            "image_generator": settings.image_generator,
+            "model_3d": settings.model_3d,
             "device": service.preset.device,
             "output_mode": service.output_mode,
         }

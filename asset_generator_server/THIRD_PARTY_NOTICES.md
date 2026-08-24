@@ -37,7 +37,7 @@ license and acceptable-use terms before downloading or using the weights.
 - Model card: <https://huggingface.co/Efficient-Large-Model/Sana_Sprint_1.6B_1024px_diffusers>
 - License: Apache 2.0
 
-The optional Windows and Linux/WSL Sana presets use the BF16 1024px Diffusers
+The optional `sana-sprint` image selection uses the BF16 1024px Diffusers
 checkpoint with its documented two-step inference configuration.
 
 ## Stable Diffusion 3.5 Medium
@@ -80,7 +80,7 @@ Hugging Face model card and upstream license before use.
 - TRELLIS.2 source: <https://github.com/microsoft/TRELLIS.2>
 - Pinned TRELLIS.2 revision: `75fbf0183001ed9876c8dbb35de6b68552ee08bd`
 
-The optional `wsl-cuda-pixal3d` preset also downloads or builds NATTEN,
+The optional `pixal3d` 3D selection also downloads or builds NATTEN,
 CuMesh, FlexGEMM, nvdiffrast, O-Voxel, utils3d, DINOv3, and NAF. Pixal3D and
 TRELLIS.2 source are MIT-licensed. Their third-party components and model
 weights remain under their own terms; review the linked repositories and model
@@ -94,7 +94,7 @@ cards before downloading or distributing them.
 - Pinned weight revision: `a57397bd3d351599d9729fc144b3f87c3f87d65b`
 - Original model: <https://huggingface.co/microsoft/TRELLIS.2-4B>
 
-The optional WSL Q4 and Q8 presets build the MIT-licensed trellis.cpp runtime
+The optional TRELLIS.2 selections build the MIT-licensed trellis.cpp runtime
 against the local CUDA 12.8 toolkit and download only the selected GGUF weight
 folder. The original Microsoft TRELLIS.2 model is MIT-licensed. Review the
 runtime's bundled third-party components and the quantized-weight repository
@@ -112,7 +112,7 @@ before redistribution.
 - Pinned VAE revision: `08d04455279082882deaabc8d0d09fc914c071e1`
 - Original model: <https://huggingface.co/Tongyi-MAI/Z-Image-Turbo>
 
-The optional WSL Z-Image Q3, Q4, and Q6 presets build the MIT-licensed
+The optional Z-Image Q3, Q4, and Q6 selections build the MIT-licensed
 stable-diffusion.cpp runtime against the local CUDA 12.8 toolkit. Z-Image Turbo
 and the referenced model repositories identify their weights as Apache 2.0.
 Review each linked model card and the runtime's bundled third-party components
@@ -128,7 +128,7 @@ before redistribution.
 - Zero123++ pipeline: <https://huggingface.co/sudo-ai/zero123plus-pipeline>
 - DINO ViT-B/16 encoder: <https://huggingface.co/facebook/dino-vitb16>
 
-The optional `wsl-cuda-zimage-q4-instantmesh-fast` preset installs InstantMesh
+The optional `instantmesh-fast` 3D selection installs InstantMesh
 and its dependencies in an isolated runtime. InstantMesh identifies its source
 and model repository as Apache 2.0. Zero123++ identifies its weights under the
 CreativeML Open RAIL-M license. nvdiffrast and some bundled NVIDIA source files

@@ -1,130 +1,73 @@
 # Local 3D Asset Generator
 
-This FastAPI server converts a text prompt into a Unity-ready GLB on Apple
-Silicon macOS, native Windows with NVIDIA CUDA, or x86-64 Linux/WSL 2 with
-NVIDIA CUDA. A named pipeline preset keeps the platform-specific models and
-inference settings reproducible.
+This FastAPI server converts a text prompt into a textured GLB using an NVIDIA
+GPU under WSL 2. The image generator and image-to-3D model are selected
+independently when installing models and starting the server.
 
-## Presets
+The supported public environment is WSL 2, Ubuntu 24.04, x86-64, one
+Ampere-or-newer NVIDIA GPU, and CUDA Toolkit 12.8. The existing native Windows
+and Apple Silicon implementations remain in the source tree as deprecated
+compatibility code, but they are no longer exposed by the public CLI.
 
-| Preset | Platform | Pipeline | Output |
-| --- | --- | --- | --- |
-| `macos-mlx` | Apple Silicon | SD-Turbo → Hunyuan3D 2 Mini MLX | Vertex-colored GLB |
-| `windows-cuda-quality` | Windows/NVIDIA | SDXL-Turbo (4 steps) → Stable Fast 3D | 2048px UV/PBR GLB |
-| `windows-cuda-fast` | Windows/NVIDIA | SDXL-Turbo (1 step) → Stable Fast 3D | 1024px UV/PBR GLB |
-| `windows-cuda-sana` | Windows/NVIDIA | Sana-Sprint 1.6B (2 steps, 1024px) → Stable Fast 3D | 2048px UV/PBR GLB |
-| `linux-cuda-quality` | Linux or WSL 2/NVIDIA | SDXL-Turbo (4 steps) → Stable Fast 3D | 2048px UV/PBR GLB |
-| `linux-cuda-fast` | Linux or WSL 2/NVIDIA | SDXL-Turbo (1 step) → Stable Fast 3D | 1024px UV/PBR GLB |
-| `linux-cuda-sana` | Linux or WSL 2/NVIDIA | Sana-Sprint 1.6B (2 steps, 1024px) → Stable Fast 3D | 2048px UV/PBR GLB |
-| `wsl-cuda-pixal3d` | WSL 2/NVIDIA | Sana-Sprint 1.6B → Pixal3D low-VRAM (1024 cascade) | 4096px UV/PBR GLB |
-| `wsl-cuda-sd35-pixal3d` | WSL 2/NVIDIA | SD 3.5 Medium NF4 (28 steps, 1024px) → Pixal3D low-VRAM | 4096px UV/PBR GLB |
-| `wsl-cuda-sd35-trellis2-q4` | WSL 2/NVIDIA | SD 3.5 Medium NF4 → TRELLIS.2 GGUF Q4 (1024 cascade) | 2048px UV/PBR GLB |
-| `wsl-cuda-sd35-trellis2-q8` | WSL 2/NVIDIA | SD 3.5 Medium NF4 → TRELLIS.2 GGUF Q8 (1024 cascade) | 2048px UV/PBR GLB |
-| `wsl-cuda-zimage-q4-trellis2-q4` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q4 (8 steps, 1024px) → TRELLIS.2 GGUF Q4 | 2048px UV/PBR GLB |
-| `wsl-cuda-zimage-q6-trellis2-q4` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q6 (8 steps, 1024px) → TRELLIS.2 GGUF Q4 | 2048px UV/PBR GLB |
-| `wsl-cuda-zimage-q4-trellis2-fast` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q4 (8 steps, 1024px) → TRELLIS.2 Q4 light path | 1024px UV/PBR GLB |
-| `wsl-cuda-zimage-q3-trellis2-turbo` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q3 (6 steps, 768px) → TRELLIS.2 Q4 light path | 1024px box-UV/PBR GLB |
-| `wsl-cuda-zimage-q4-instantmesh-fast` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q4 → InstantMesh Base low-VRAM experiment | 512px UV/PBR GLB |
+## Model choices
 
-`PIPELINE_PROFILE=auto` selects `macos-mlx` on Apple Silicon and
-`windows-cuda-sana` on supported Windows systems, or `linux-cuda-sana` on
-x86-64 Linux and WSL 2. Selecting a profile for the wrong platform is an
-error. ARM Linux, DirectML, ROCm, and CPU fallback are not supported.
+Image generators:
 
-The CUDA profiles target exactly one Ampere-or-newer NVIDIA GPU with at least
-10 GiB VRAM and 32 GB system RAM. RTX 50-series GPUs require the pinned PyTorch
-CUDA 12.8 build; CUDA 12.4 builds do not contain Blackwell `sm_120` support.
+| CLI value | Model and settings |
+| --- | --- |
+| `zimage-q4` | Z-Image Turbo GGUF Q4, 8 steps, 1024px; default |
+| `zimage-q6` | Z-Image Turbo GGUF Q6, 8 steps, 1024px |
+| `zimage-q3-turbo` | Z-Image Turbo GGUF Q3, 6 steps, 768px |
+| `sd35-medium-nf4` | Stable Diffusion 3.5 Medium NF4, 28 steps, 1024px |
+| `sana-sprint` | Sana-Sprint 1.6B, 2 steps, 1024px |
+| `sdxl-turbo-fast` | SDXL-Turbo, 1 step, 512px |
+| `sdxl-turbo-quality` | SDXL-Turbo, 4 steps, 512px |
 
-## macOS installation
+3D models:
 
-Requirements:
+| CLI value | Model and settings |
+| --- | --- |
+| `trellis2-fast` | TRELLIS.2 GGUF Q4, 512 cascade, 1024px atlas; default |
+| `trellis2-turbo` | TRELLIS.2 GGUF Q4, 512 cascade, 1024px box UV |
+| `trellis2-q4` | TRELLIS.2 GGUF Q4, 1024 cascade, 2048px atlas |
+| `trellis2-q8` | TRELLIS.2 GGUF Q8, 1024 cascade, 2048px atlas |
+| `instantmesh-fast` | InstantMesh Base, 4 views, 96³ grid, 512px texture |
+| `pixal3d` | Pixal3D low-VRAM 1024 cascade, 4096px texture |
+| `stable-fast-3d-fast` | Stable Fast 3D, 1024px texture |
+| `stable-fast-3d-quality` | Stable Fast 3D, 2048px texture |
 
-- Apple Silicon Mac
-- Xcode command-line tools
-- Enough free disk space for the model cache
+Every image choice can be paired with every 3D choice. Z-Image runs in a
+short-lived native process. SD 3.5 also runs in a disposable process. TRELLIS,
+InstantMesh, and Pixal3D have isolated runtimes so image and reconstruction
+allocations do not overlap.
 
-Install and download the automatically selected preset:
+For a 12 GB GPU, start with `zimage-q4` and `trellis2-fast`. InstantMesh is the
+lower-quality/lower-latency experiment. Pixal3D and the TRELLIS 1024 variants
+are the most memory-intensive options.
+
+List the exact choices at any time:
 
 ```bash
-xcode-select --install
-uv sync
-uv run python scripts/download_models.py --profile auto --accept-licenses
+uv run python -m app.cli --list-models
 ```
 
-The existing Mac pipeline uses six Hunyuan steps, octree resolution 48, and
-4-bit MLX weights.
+## WSL installation
 
-## Native Windows installation
-
-Requirements:
-
-- 64-bit Windows 10 or 11
-- Python 3.11 x64
-- NVIDIA Ampere or newer GPU with at least 10 GiB VRAM
-- 32 GB system RAM and at least 25 GB free disk space
-- A current NVIDIA driver
-- CUDA Toolkit 12.8 with `nvcc` on `PATH`
-- Visual Studio 2022 Build Tools with Desktop development with C++, MSVC v143,
-  and a Windows SDK
-- Windows long-path support enabled
-
-Stable Fast 3D is gated. Accept its terms on Hugging Face and provide a
-read-only token for installation:
-
-```powershell
-$env:HF_TOKEN = "hf_..."
-uv sync
-uv run python scripts/download_models.py --profile auto --accept-licenses
-```
-
-The installer locates Visual Studio with `vswhere.exe`, applies the pinned
-Windows compatibility patch, compiles `texture_baker` and `uv_unwrapper`, and
-tests both extensions on CUDA. Tokens are not logged.
-
-Stable Fast 3D's native Windows support is experimental. If compilation fails,
-confirm that `nvcc --version` reports CUDA 12.8 and that the x64 MSVC v143 tools
-are installed. Re-run with `--force` only when replacing the selected preset's
-source and runtime artifacts.
-
-## WSL 2 installation (recommended for Windows/NVIDIA)
-
-WSL uses Stable Fast 3D's Linux build and does not require Visual Studio. These
-instructions target WSL 2 with Ubuntu 24.04 on x86-64 Windows 10 or 11.
-
-### 1. Prepare Windows and WSL
-
-Install a current
-[NVIDIA Windows driver](https://www.nvidia.com/Download/index.aspx), then open
-an Administrator PowerShell:
+Install a current NVIDIA Windows driver, then run in Administrator PowerShell:
 
 ```powershell
 wsl --install -d Ubuntu-24.04
-```
-
-Restart Windows if requested, launch Ubuntu once to create its Linux username
-and password, and then update and verify WSL from PowerShell:
-
-```powershell
 wsl --update
 wsl --set-default-version 2
 wsl --set-version Ubuntu-24.04 2
 wsl --list --verbose
 ```
 
-The Ubuntu entry must show version `2`. Inside Ubuntu, verify that the Windows
-driver exposes the GPU:
-
-```bash
-nvidia-smi
-```
-
-Only install the NVIDIA display driver on Windows. Do **not** install a Linux
-NVIDIA driver inside WSL. See NVIDIA's
+Inside Ubuntu, `nvidia-smi` must see the GPU. Install the display driver only on
+Windows; do not install a Linux NVIDIA driver inside WSL. See NVIDIA's
 [CUDA on WSL guide](https://docs.nvidia.com/cuda/wsl-user-guide/).
 
-### 2. Install Linux build tools and CUDA 12.8
-
-Run inside Ubuntu:
+Install build tools and CUDA Toolkit 12.8 inside Ubuntu:
 
 ```bash
 sudo apt-get update
@@ -136,396 +79,129 @@ wget https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/
 sudo dpkg -i cuda-keyring_1.1-1_all.deb
 sudo apt-get update
 sudo apt-get install -y cuda-toolkit-12-8
-```
 
-Use `cuda-toolkit-12-8` exactly. Do not install the `cuda`, `cuda-12-8`,
-`cuda-drivers`, or other driver-bearing metapackages inside WSL.
-
-Add CUDA to the shell environment:
-
-```bash
 echo 'export CUDA_HOME=/usr/local/cuda-12.8' >> ~/.bashrc
 echo 'export PATH=/usr/local/cuda-12.8/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
 nvcc --version
 ```
 
-`nvcc` must report release 12.8.
+Do not install the `cuda`, `cuda-12-8`, or `cuda-drivers` metapackages inside
+WSL. `nvcc` must report release 12.8. CUDA 12.8 does not support GCC 15; on a
+system that defaults to GCC 15, install `gcc-14 g++-14` and the installer will
+select them automatically.
 
-### 3. Install the project in WSL
-
-Keep the checkout and model cache in WSL's Linux filesystem, not under
-`/mnt/c`; native Linux files are substantially faster for compilation and model
-loading.
+Keep the checkout and model cache in WSL's Linux filesystem rather than
+`/mnt/c`:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source ~/.bashrc
 uv python install 3.11
 
-mkdir -p ~/projects
-cd ~/projects
 git clone --filter=blob:none --sparse https://github.com/GianlucaRigatti/meshup.git
 cd meshup
 git sparse-checkout set asset_generator_server
 cd asset_generator_server
-```
-
-Open the gated
-[Stable Fast 3D model page](https://huggingface.co/stabilityai/stable-fast-3d),
-accept its terms, and create a read token. Export it only in the current shell:
-
-```bash
-export HF_TOKEN="hf_..."
 uv sync
-uv run python scripts/download_models.py --profile auto --accept-licenses
 ```
 
-`auto` selects `linux-cuda-sana`. To install explicitly, use
-`--profile linux-cuda-quality`, `--profile linux-cuda-fast`, or
-`--profile linux-cuda-sana`. The quality and fast profiles share SDXL-Turbo
-weights; the Sana profile downloads its separate 1024px image model. All three
-use the same Stable Fast 3D weights.
+## Install a selected pair
 
-### Try Pixal3D in WSL
-
-Pixal3D is an opt-in experiment for a 12 GB GPU. It trades substantially more
-latency and system-memory use for a higher-detail 1024-stage geometry and
-texture cascade. Upstream describes low-VRAM mode as approximately 10–12 GB
-peak VRAM, so 12 GB is the boundary rather than generous headroom. Close other
-GPU applications before testing it.
-
-Install it from the same WSL checkout; its public weights do not require the
-Stable Fast 3D Hugging Face token:
-
-```bash
-uv sync
-uv run python scripts/download_models.py \
-  --profile wsl-cuda-pixal3d \
-  --accept-licenses
-```
-
-The installer creates an isolated runtime under
-`.model_sources/runtime/pixal3d`, compiles the pinned CUDA extensions for the
-detected GPU architecture, and downloads the pinned Pixal3D, DINOv3, and NAF
-weights. This first installation can take a long time. It uses PyTorch SDPA
-instead of FlashAttention and a fixed `0.2` radian camera FOV, avoiding the
-additional MoGe model and its VRAM cost.
-
-Native CUDA compilation defaults to two parallel jobs to limit WSL system-memory
-use. If the installer is killed silently while building CuMesh or FlexGEMM,
-retry with one job:
-
-```bash
-MAX_JOBS=1 NATTEN_N_WORKERS=1 uv run python scripts/download_models.py \
-  --profile wsl-cuda-pixal3d \
-  --accept-licenses
-```
-
-Set the profile in `.env`, then run the server normally:
-
-```dotenv
-PIPELINE_PROFILE=wsl-cuda-pixal3d
-PIXAL3D_TIMEOUT_SECONDS=1800
-```
-
-Each reconstruction runs in a short-lived subprocess. The server unloads Sana
-first, Pixal3D uses upstream `--low_vram --resolution 1024`, and all Pixal3D
-VRAM is reclaimed when the subprocess exits. This is deliberately safer on a
-12 GB card, but reloads the reconstruction models on every uncached request.
-The server passes its already segmented RGBA image through a lightweight runner,
-so Pixal3D does not instantiate its redundant gated RMBG-2.0 model.
-The generated debug PNG remains beside the resulting GLB for direct
-image-versus-geometry comparison.
-
-For a higher-quality text-to-image stage, first accept the terms on the
-[Stable Diffusion 3.5 Medium model page](https://huggingface.co/stabilityai/stable-diffusion-3.5-medium),
-then install the second WSL-only preset:
-
-```bash
-export HF_TOKEN="hf_..."
-uv sync
-uv run python scripts/download_models.py \
-  --profile wsl-cuda-sd35-pixal3d \
-  --accept-licenses
-```
-
-Configure `.env` with `PIPELINE_PROFILE=wsl-cuda-sd35-pixal3d`. This preset
-keeps all three SD 3.5 text encoders, but loads both its main transformer and
-T5-XXL encoder in 4-bit NF4 with BF16 computation. Automatic placement is
-capped at 9 GiB GPU memory, leaving roughly 3 GiB of a 12 GB card for
-activations and VAE decoding; overflow can use system RAM. VAE tiling further
-limits the 1024px decode peak. SD 3.5 runs in its own short-lived subprocess;
-after it writes the input PNG, the process exits before Pixal3D starts. This
-guarantees that its CPU allocations, CUDA context, and VRAM are released rather
-than relying on Python or glibc to return cached memory. It increases cold-start
-latency on every uncached request but prevents the two models' RAM and VRAM
-footprints from overlapping. Set `IMAGE_TIMEOUT_SECONDS` higher than 600 if the
-28-step image stage is unusually slow.
-
-### Try TRELLIS.2 GGUF in WSL
-
-The two trellis.cpp presets avoid Pixal3D's Python, FlexGEMM, and NATTEN path.
-They use the same isolated SD 3.5 NF4 image stage, followed by a pinned
-CUDA 12.8 build of `trellis-cli`. The CLI loads one model stage at a time and
-exits after each uncached request, releasing all CPU and GPU allocations.
-
-Q4 is the safer starting point for a 12 GB GPU. Q8 uses about 9.5 GB for its
-quantized weight set and is the quality-first experiment. Both presets use the
-same 1024 cascade, 49,152-token ceiling, 2048px atlas, xatlas unwrap, and PNG
-textures so their results can be compared directly.
-
-First accept the Stable Diffusion 3.5 Medium terms and export `HF_TOKEN`, then
-install either or both presets:
-
-```bash
-uv run python scripts/download_models.py \
-  --profile wsl-cuda-sd35-trellis2-q4 \
-  --accept-licenses
-
-uv run python scripts/download_models.py \
-  --profile wsl-cuda-sd35-trellis2-q8 \
-  --accept-licenses
-```
-
-The first command clones pinned trellis.cpp sources and builds only
-`trellis-cli` for the detected CUDA architecture. Compilation defaults to two
-jobs and respects `MAX_JOBS=1` on memory-constrained WSL installations. The
-second preset reuses the SD 3.5 files and compiled CLI, downloading only its Q8
-weights.
-
-Select one in `.env`:
-
-```dotenv
-PIPELINE_PROFILE=wsl-cuda-sd35-trellis2-q4
-IMAGE_TIMEOUT_SECONDS=600
-TRELLIS_TIMEOUT_SECONDS=1800
-```
-
-If Q8 fails with CUDA out-of-memory, use Q4. If both complete, compare the saved
-PNG and GLB pairs before choosing the extra Q8 disk and memory cost.
-
-### Try Z-Image Turbo GGUF in WSL
-
-The Z-Image presets replace the isolated SD 3.5 Diffusers process with a pinned
-CUDA build of `stable-diffusion.cpp`. Z-Image itself, its Qwen3 Q4 text encoder,
-and its VAE run inside one short-lived native process. That process exits before
-TRELLIS.2 starts, so the image and 3D model allocations never overlap.
-
-Both presets generate at 1024x1024 with eight steps, CFG 1.0, Flash Attention,
-tiled VAE decoding, and a 10.5 GiB CUDA planning limit. They use the same Q4
-TRELLIS.2 reconstruction stage. Q6 is the recommended quality setting for a
-12 GB card; Q4 leaves more activation and driver headroom if Q6 is unstable.
-
-The model repositories are public, so these presets do not require the gated
-Stable Diffusion 3.5 `HF_TOKEN`. Install one or both:
-
-```bash
-uv run python scripts/download_models.py \
-  --profile wsl-cuda-zimage-q4-trellis2-q4 \
-  --accept-licenses
-
-uv run python scripts/download_models.py \
-  --profile wsl-cuda-zimage-q6-trellis2-q4 \
-  --accept-licenses
-```
-
-The first installation compiles `sd-cli` and `trellis-cli` for the detected
-CUDA architecture. Both builds default to two parallel jobs and respect
-`MAX_JOBS=1`. The second installation reuses both native runtimes, the Qwen3
-encoder, the VAE, and the TRELLIS.2 Q4 files; it downloads only the other
-Z-Image diffusion quantization.
-
-Select Q6 in `.env` initially:
-
-```dotenv
-PIPELINE_PROFILE=wsl-cuda-zimage-q6-trellis2-q4
-IMAGE_TIMEOUT_SECONDS=600
-TRELLIS_TIMEOUT_SECONDS=1800
-```
-
-If the Z-Image subprocess reports CUDA allocation failures, switch to
-`wsl-cuda-zimage-q4-trellis2-q4`. The generated reference PNG remains beside
-the GLB, which makes comparisons with SD 3.5 straightforward.
-
-#### Lower-latency Z-Image/TRELLIS presets
-
-If Q4/Q4 quality is higher than required, install the conservative fast preset
-first. It keeps the validated Q4 image at 1024px and eight steps, but switches
-TRELLIS.2 from the 1024 cascade to its 512 light path and reduces the atlas to
-1024px:
-
-```bash
-uv run python scripts/download_models.py \
-  --profile wsl-cuda-zimage-q4-trellis2-fast \
-  --accept-licenses
-```
-
-For a larger latency tradeoff, the turbo preset uses Z-Image Q3 at 768px and
-six steps. Its TRELLIS.2 stage uses the 512 light path, a 1024px atlas, and
-faster box-projected UVs:
-
-```bash
-uv run python scripts/download_models.py \
-  --profile wsl-cuda-zimage-q3-trellis2-turbo \
-  --accept-licenses
-```
-
-Both reuse the existing stable-diffusion.cpp and trellis.cpp builds, shared
-Qwen3 encoder, VAE, and TRELLIS.2 Q4 files. The fast preset needs no additional
-model download if the original Z-Image Q4 preset is already installed. The
-turbo preset downloads only the approximately 3.14 GB Z-Image Q3 diffusion
-file. Select either profile in `.env` and restart the server.
-
-#### Experimental Z-Image/InstantMesh preset
-
-The InstantMesh experiment trades some geometry and unseen-side texture quality
-for lower reconstruction latency. It uses Z-Image Q4 at 1024px, then Zero123++
-at 30 steps to create four views, InstantMesh Base, a 96-cube extraction grid,
-and a 512px texture:
+Install the default low-latency pair:
 
 ```bash
 MAX_JOBS=2 uv run python scripts/download_models.py \
-  --profile wsl-cuda-zimage-q4-instantmesh-fast \
+  --image-generator zimage-q4 \
+  --model-3d trellis2-fast \
   --accept-licenses
 ```
 
-The installer creates an isolated InstantMesh Python environment and compiles
-its pinned nvdiffrast extension for CUDA 12.8. It downloads approximately 9 GB
-of additional weights. The runtime generates the views first, deletes
-Zero123++, clears CUDA allocations, and only then loads InstantMesh.
-The process exits after exporting the textured GLB, reclaiming all GPU and CPU
-memory before the next request. The server's existing background removal is
-reused; InstantMesh does not load another rembg model.
+For example, install Z-Image Q4 with InstantMesh instead:
 
-Select the experiment in `.env`:
-
-```dotenv
-PIPELINE_PROFILE=wsl-cuda-zimage-q4-instantmesh-fast
-IMAGE_TIMEOUT_SECONDS=600
-INSTANTMESH_TIMEOUT_SECONDS=1800
+```bash
+MAX_JOBS=2 uv run python scripts/download_models.py \
+  --image-generator zimage-q4 \
+  --model-3d instantmesh-fast \
+  --accept-licenses
 ```
 
-This is intentionally not the default. Compare `reconstruction_ms` in the
-generated JSON metadata with the TRELLIS fast preset before deciding which
-quality/latency tradeoff to keep. If extraction still runs out of VRAM on a
-particular driver, change `grid_resolution=96` to `64` in the preset and rerun;
-the weights and runtime do not need to be reinstalled.
+Already installed runtimes and weights are reused when switching either side.
+`MAX_JOBS` defaults to two for native builds; use `MAX_JOBS=1` if WSL is under
+memory pressure. Pixal3D also respects `NATTEN_N_WORKERS`.
 
-### 4. Run WSL server and connect Unity
+`sd35-medium-nf4` and both Stable Fast 3D choices use gated Stability AI
+weights. Accept the relevant Hugging Face model terms and export a read token
+before installing a pair that contains either one:
 
-Inside WSL:
+```bash
+export HF_TOKEN="hf_..."
+```
+
+Review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) before downloading or
+redistributing any model.
+
+## Run the server
+
+Start the server with the same independent selections:
+
+```bash
+uv run python -m app.cli \
+  --image-generator zimage-q4 \
+  --model-3d trellis2-fast \
+  --host 127.0.0.1 \
+  --port 8000
+```
+
+Only one worker is started because all requests share one GPU. The launcher
+rejects non-WSL hosts and does not expose deprecated platform profiles.
+
+Selections may instead be stored in `.env`:
 
 ```bash
 cp .env.example .env
-uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-In another WSL terminal:
+```dotenv
+IMAGE_GENERATOR=zimage-q4
+MODEL_3D=trellis2-fast
+```
+
+Then run:
+
+```bash
+uv run python -m app.cli
+```
+
+CLI arguments override `.env`. `PIPELINE_PROFILE` is deprecated and is not
+part of the public launcher or installer interface.
+
+Check readiness inside WSL:
 
 ```bash
 curl --fail http://127.0.0.1:8000/readyz
 ```
 
-From Windows PowerShell, verify the forwarded port:
-
-```powershell
-curl.exe --fail http://127.0.0.1:8000/readyz
-```
-
-Unity on Windows can continue using `http://127.0.0.1:8000`. WSL normally
-forwards Linux services to Windows localhost automatically; see Microsoft's
-[WSL networking documentation](https://learn.microsoft.com/en-us/windows/wsl/networking/)
-if localhost forwarding is disabled on the machine.
-
-### 5. Optional WSL memory tuning
-
-If model loading is killed for lack of memory, create or edit
-`%UserProfile%\.wslconfig` on Windows. For a machine with at least 32 GB RAM, a
-starting point is:
-
-```ini
-[wsl2]
-memory=24GB
-swap=16GB
-localhostForwarding=true
-```
-
-Adjust these limits for the host, then apply them from PowerShell:
-
-```powershell
-wsl --shutdown
-```
-
-Restart Ubuntu and the server afterward.
-
-### 6. WSL troubleshooting
-
-Run these checks inside Ubuntu:
-
-```bash
-nvidia-smi
-nvcc --version
-command -v gcc g++ git cmake ninja
-gcc --version
-uv run python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
-curl --fail http://127.0.0.1:8000/readyz
-```
-
-Expected PyTorch CUDA version: `12.8`. If Hugging Face returns `401` or `403`,
-confirm the model terms were accepted by the same account that created
-`HF_TOKEN`. CUDA 12.8 cannot compile extensions with GCC 15. If `gcc --version`
-reports 15, install a supported side-by-side compiler; the installer will
-select it automatically:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y gcc-14 g++-14
-```
-
-If Windows cannot reach the service, first test it inside WSL, then run
-`wsl --shutdown`, restart Ubuntu, and review the WSL networking link above.
-
-## Native Ubuntu Linux installation
-
-Native x86-64 Ubuntu uses the same `linux-cuda-quality`, `linux-cuda-fast`, and
-`linux-cuda-sana` profiles. Install a supported NVIDIA Linux driver and CUDA
-Toolkit 12.8 using NVIDIA's
-[Linux installation guide](https://docs.nvidia.com/cuda/archive/12.8.0/cuda-installation-guide-linux/),
-then install the build packages and project as shown in the WSL sections above.
-Unlike WSL, native Linux requires its own NVIDIA Linux driver. Verify
-`nvidia-smi`, `nvcc --version`, and the PyTorch diagnostic before downloading
-models.
-
-## Run
-
-Copy `.env.example` to `.env`, then start exactly one worker:
-
-```bash
-uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
-```
-
-Check readiness:
-
-```bash
-curl --fail http://127.0.0.1:8000/readyz
-```
-
-The readiness response includes both the configured and resolved profiles.
-
-The following example is from the default Linux Sana profile:
+The response includes the independently selected models:
 
 ```json
 {
   "status": "ready",
   "ready": true,
   "busy": false,
-  "configured_profile": "auto",
-  "profile": "linux-cuda-sana",
+  "image_generator": "zimage-q4",
+  "model_3d": "trellis2-fast",
   "device": "cuda:0",
   "output_mode": "pbr_texture"
 }
 ```
+
+Windows normally forwards WSL services to localhost, so Unity can use
+`http://127.0.0.1:8000`. See Microsoft's
+[WSL networking documentation](https://learn.microsoft.com/en-us/windows/wsl/networking/)
+if forwarding is disabled.
+
+## API
 
 Generate an asset:
 
@@ -537,9 +213,7 @@ curl --fail \
   http://127.0.0.1:8000/generate_asset
 ```
 
-The response reports the model stages separately. Image generation covers the
-text-to-image model call, model generation covers image-to-3D reconstruction,
-and the total also includes model release, preprocessing, and GLB export:
+Example response:
 
 ```json
 {
@@ -552,45 +226,50 @@ and the total also includes model release, preprocessing, and GLB export:
 }
 ```
 
-All three timing values are `0` when `cached` is `true`, because no generation
-stage ran for that request. The original detailed timings remain in the asset's
-JSON metadata.
+Image time covers text-to-image inference. Model time covers image-to-3D
+reconstruction. Total time also includes model release, background removal,
+preprocessing, validation, and GLB export. All values are zero on a cached
+request because no generation stages ran.
 
-Each uncached generation also saves the preprocessed, background-removed image
-passed to the 3D model as `generated_assets/<asset-id>.png` for debugging.
+Each uncached request creates:
 
-Prompts are limited to 500 characters and normalized before hashing. Model
-revisions, the resolved preset, and all output-affecting settings are part of
-the cache identity. The original prompt is never written to metadata.
+- `generated_assets/<asset-id>.glb`
+- `generated_assets/<asset-id>.png`, the preprocessed 3D-model input
+- `generated_assets/<asset-id>.json`, revisions, settings, timings, and memory
 
-The server accepts one uncached generation at a time. A second uncached request
-receives `generator_busy`; cached requests remain available.
+Prompts are normalized and hashed but never stored in metadata. The server
+accepts one uncached request at a time; concurrent uncached requests receive
+`generator_busy`, while cached results remain available.
 
 ## Configuration
 
-- `PIPELINE_PROFILE`: `auto`, `macos-mlx`, `windows-cuda-quality`,
-  `windows-cuda-fast`, `windows-cuda-sana`, `linux-cuda-quality`,
-  `linux-cuda-fast`, `linux-cuda-sana`, `wsl-cuda-pixal3d`, or
-  `wsl-cuda-sd35-pixal3d`, `wsl-cuda-sd35-trellis2-q4`,
-  `wsl-cuda-sd35-trellis2-q8`, `wsl-cuda-zimage-q4-trellis2-q4`,
-  `wsl-cuda-zimage-q6-trellis2-q4`, `wsl-cuda-zimage-q4-trellis2-fast`, or
-  `wsl-cuda-zimage-q3-trellis2-turbo`, or
-  `wsl-cuda-zimage-q4-instantmesh-fast`
-- `PUBLIC_BASE_URL`: public URL used in responses
-- `ASSET_OUTPUT_DIR`: generated GLB and metadata directory
-- `MODEL_CACHE_DIR`: models, pinned sources, and runtimes
-- `HUNYUAN_TIMEOUT_SECONDS`: macOS Hunyuan subprocess timeout
-- `IMAGE_TIMEOUT_SECONDS`: isolated SD 3.5 subprocess timeout (default: 600)
-- `PIXAL3D_TIMEOUT_SECONDS`: WSL Pixal3D subprocess timeout (default: 1800)
-- `TRELLIS_TIMEOUT_SECONDS`: WSL trellis.cpp subprocess timeout (default: 1800)
-- `INSTANTMESH_TIMEOUT_SECONDS`: WSL InstantMesh subprocess timeout (default: 1800)
+- `IMAGE_GENERATOR`: public image selection; default `zimage-q4`
+- `MODEL_3D`: public 3D selection; default `trellis2-fast`
+- `PUBLIC_BASE_URL`: base URL returned by the API
+- `ASSET_OUTPUT_DIR`: generated asset directory
+- `MODEL_CACHE_DIR`: models, pinned sources, and isolated runtimes
+- `IMAGE_TIMEOUT_SECONDS`: isolated image subprocess timeout; default 600
+- `PIXAL3D_TIMEOUT_SECONDS`: Pixal3D timeout; default 1800
+- `TRELLIS_TIMEOUT_SECONDS`: TRELLIS timeout; default 1800
+- `INSTANTMESH_TIMEOUT_SECONDS`: InstantMesh timeout; default 1800
 - `LOG_LEVEL`: server log level
 
-The former `GENERATION_DEVICE`, `HUNYUAN_STEPS`,
-`HUNYUAN_OCTREE_RESOLUTION`, and `HUNYUAN_QUANTIZATION` variables are no longer
-used. Choose a validated preset instead.
+## WSL memory tuning
 
-## Tests and benchmark
+For a Windows machine with 32 GB RAM, a reasonable `%UserProfile%\.wslconfig`
+starting point is:
+
+```ini
+[wsl2]
+memory=24GB
+swap=16GB
+localhostForwarding=true
+```
+
+Apply changes with `wsl --shutdown` in PowerShell. Close other GPU applications
+before running Pixal3D or a quality TRELLIS variant.
+
+## Validation and benchmarking
 
 Run the fast suite:
 
@@ -610,10 +289,5 @@ With the server running, benchmark uncached and cached requests:
 uv run python scripts/benchmark.py --runs 5
 ```
 
-The report includes the resolved profile, per-stage latency, artifact
-statistics, and NVIDIA memory sampling on CUDA platforms. The 2048px quality
-preset must be validated on the target laptop; it never silently falls back to
-a lower texture resolution.
-
-Read [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) before downloading or
-using model weights.
+The report includes both selected models, per-stage latency, artifact
+statistics, and NVIDIA memory use.

@@ -25,6 +25,26 @@ ProfileName: TypeAlias = Literal[
     "wsl-cuda-zimage-q4-instantmesh-fast",
 ]
 
+ImageGeneratorName: TypeAlias = Literal[
+    "sdxl-turbo-fast",
+    "sdxl-turbo-quality",
+    "sana-sprint",
+    "sd35-medium-nf4",
+    "zimage-q3-turbo",
+    "zimage-q4",
+    "zimage-q6",
+]
+Model3DName: TypeAlias = Literal[
+    "stable-fast-3d-fast",
+    "stable-fast-3d-quality",
+    "pixal3d",
+    "trellis2-q4",
+    "trellis2-q8",
+    "trellis2-fast",
+    "trellis2-turbo",
+    "instantmesh-fast",
+]
+
 
 @dataclass(frozen=True)
 class ImagePreset:
@@ -482,6 +502,57 @@ PRESETS: dict[str, PipelinePreset] = {
         ),
     ),
 }
+
+# Public WSL model catalogs. The older platform profiles above remain as an
+# internal compatibility layer, but new callers compose these independently.
+IMAGE_GENERATORS: dict[str, ImagePreset] = {
+    "sdxl-turbo-fast": PRESETS["linux-cuda-fast"].image,
+    "sdxl-turbo-quality": PRESETS["linux-cuda-quality"].image,
+    "sana-sprint": PRESETS["linux-cuda-sana"].image,
+    "sd35-medium-nf4": PRESETS["wsl-cuda-sd35-pixal3d"].image,
+    "zimage-q3-turbo": PRESETS["wsl-cuda-zimage-q3-trellis2-turbo"].image,
+    "zimage-q4": PRESETS["wsl-cuda-zimage-q4-trellis2-q4"].image,
+    "zimage-q6": PRESETS["wsl-cuda-zimage-q6-trellis2-q4"].image,
+}
+
+MODELS_3D: dict[str, AssetPreset] = {
+    "stable-fast-3d-fast": PRESETS["linux-cuda-fast"].asset,
+    "stable-fast-3d-quality": PRESETS["linux-cuda-quality"].asset,
+    "pixal3d": PRESETS["wsl-cuda-pixal3d"].asset,
+    "trellis2-q4": PRESETS["wsl-cuda-sd35-trellis2-q4"].asset,
+    "trellis2-q8": PRESETS["wsl-cuda-sd35-trellis2-q8"].asset,
+    "trellis2-fast": PRESETS["wsl-cuda-zimage-q4-trellis2-fast"].asset,
+    "trellis2-turbo": PRESETS["wsl-cuda-zimage-q3-trellis2-turbo"].asset,
+    "instantmesh-fast": PRESETS["wsl-cuda-zimage-q4-instantmesh-fast"].asset,
+}
+
+DEFAULT_IMAGE_GENERATOR = "zimage-q4"
+DEFAULT_MODEL_3D = "trellis2-fast"
+
+
+def resolve_models(image_generator: str, model_3d: str) -> PipelinePreset:
+    try:
+        image = IMAGE_GENERATORS[image_generator]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown IMAGE_GENERATOR={image_generator!r}; choose "
+            + ", ".join(IMAGE_GENERATORS)
+            + "."
+        ) from exc
+    try:
+        asset = MODELS_3D[model_3d]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown MODEL_3D={model_3d!r}; choose " + ", ".join(MODELS_3D) + "."
+        ) from exc
+    return PipelinePreset(
+        name=f"wsl-{image_generator}--{model_3d}",
+        schema_version=2,
+        platform="linux",
+        device="cuda:0",
+        image=image,
+        asset=asset,
+    )
 
 
 def resolve_profile(

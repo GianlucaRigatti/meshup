@@ -217,9 +217,9 @@ class DiffusersImageBackend:
             # the existing 16 GB Apple Silicon memory lifecycle.
             self._pipeline = None
             self._uses_cpu_offload = False
-        elif self.preset.asset.backend == "pixal3d":
-            # Pixal3D keeps a large collection of low-VRAM stages in system
-            # memory. Drop Sana completely before starting its subprocess.
+        elif self.preset.asset.backend in {"pixal3d", "instantmesh"}:
+            # These subprocess backends keep large model collections in system
+            # memory. Drop the image pipeline completely before starting them.
             self._pipeline = None
             self._uses_cpu_offload = False
         elif self._uses_cpu_offload:
@@ -271,11 +271,18 @@ class IsolatedDiffusersImageBackend:
                 str(IMAGE_RUNNER),
                 "--model-cache",
                 str(self.settings.model_cache_dir.resolve()),
-                "--profile",
-                self.preset.name,
                 "--output",
                 str(output),
             ]
+            if self.settings.pipeline_profile is not None:
+                command += ["--profile", self.settings.pipeline_profile]
+            else:
+                command += [
+                    "--image-generator",
+                    self.settings.image_generator,
+                    "--model-3d",
+                    self.settings.model_3d,
+                ]
             try:
                 completed = subprocess.run(
                     command,
@@ -980,10 +987,7 @@ def create_backends(
     image: ImageBackend
     if preset.image.backend == "z-image-cpp":
         image = ZImageCppBackend(settings, preset)
-    elif preset.image.backend == "stable-diffusion-3.5" and preset.asset.backend in {
-        "pixal3d",
-        "trellis-cpp",
-    }:
+    elif preset.image.backend == "stable-diffusion-3.5" and preset.platform == "linux":
         image = IsolatedDiffusersImageBackend(settings, preset)
     else:
         image = DiffusersImageBackend(settings, preset)

@@ -18,7 +18,9 @@ from app.config import Settings
 from app.presets import (
     DINOV2_LARGE_REVISION,
     HUNYUAN_SWIFT_REVISION,
+    IMAGE_GENERATORS,
     INSTANTMESH_SOURCE_REVISION,
+    MODELS_3D,
     PIXAL3D_SOURCE_REVISION,
     SF3D_SOURCE_REVISION,
     TRELLIS_CPP_MODEL_REVISION,
@@ -1338,30 +1340,20 @@ def _apply_windows_patch(source: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Install a pipeline preset's models.")
-    parser.add_argument(
-        "--profile",
-        default="auto",
-        choices=[
-            "auto",
-            "macos-mlx",
-            "windows-cuda-quality",
-            "windows-cuda-fast",
-            "windows-cuda-sana",
-            "linux-cuda-quality",
-            "linux-cuda-fast",
-            "linux-cuda-sana",
-            "wsl-cuda-pixal3d",
-            "wsl-cuda-sd35-pixal3d",
-            "wsl-cuda-sd35-trellis2-q4",
-            "wsl-cuda-sd35-trellis2-q8",
-            "wsl-cuda-zimage-q4-trellis2-q4",
-            "wsl-cuda-zimage-q6-trellis2-q4",
-            "wsl-cuda-zimage-q4-trellis2-fast",
-            "wsl-cuda-zimage-q3-trellis2-turbo",
-            "wsl-cuda-zimage-q4-instantmesh-fast",
-        ],
+    parser = argparse.ArgumentParser(
+        description="Install an independently selected WSL image and 3D model."
     )
+    parser.add_argument(
+        "--image-generator",
+        choices=IMAGE_GENERATORS,
+        help="Text-to-image model (default: IMAGE_GENERATOR or zimage-q4).",
+    )
+    parser.add_argument(
+        "--model-3d",
+        choices=MODELS_3D,
+        help="Image-to-3D model (default: MODEL_3D or trellis2-fast).",
+    )
+    parser.add_argument("--profile", help=argparse.SUPPRESS)
     parser.add_argument(
         "--accept-licenses",
         action="store_true",
@@ -1370,13 +1362,23 @@ def main() -> None:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Replace source/runtime artifacts for the selected profile.",
+        help="Replace source/runtime artifacts for the selected models.",
     )
     args = parser.parse_args()
     if not args.accept_licenses:
         parser.error("--accept-licenses is required before model downloads")
 
-    settings = Settings(PIPELINE_PROFILE=args.profile)
+    if args.profile and (args.image_generator or args.model_3d):
+        parser.error("--profile cannot be combined with public model selections")
+    if args.profile:
+        settings = Settings(PIPELINE_PROFILE=args.profile)
+    else:
+        environment = Settings(PIPELINE_PROFILE=None)
+        settings = Settings(
+            IMAGE_GENERATOR=args.image_generator or environment.image_generator,
+            MODEL_3D=args.model_3d or environment.model_3d,
+            PIPELINE_PROFILE=None,
+        )
     preset = settings.preset
     if preset.name.startswith("wsl-") and not _is_wsl():
         raise RuntimeError(f"The {preset.name} profile requires WSL 2.")

@@ -23,7 +23,15 @@ from app.backends import (
 )
 from app.config import Settings
 from app.generator import AssetGenerator, GenerationError
-from app.presets import PRESETS, resolve_profile
+from app.presets import (
+    DEFAULT_IMAGE_GENERATOR,
+    DEFAULT_MODEL_3D,
+    IMAGE_GENERATORS,
+    MODELS_3D,
+    PRESETS,
+    resolve_models,
+    resolve_profile,
+)
 
 
 def test_auto_profile_resolution() -> None:
@@ -31,6 +39,38 @@ def test_auto_profile_resolution() -> None:
         resolve_profile("auto", platform_name="darwin", machine="arm64").name
         == "macos-mlx"
     )
+
+
+def test_public_wsl_models_compose_independently() -> None:
+    preset = resolve_models("zimage-q6", "instantmesh-fast")
+
+    assert preset.name == "wsl-zimage-q6--instantmesh-fast"
+    assert preset.schema_version == 2
+    assert preset.platform == "linux"
+    assert preset.image == IMAGE_GENERATORS["zimage-q6"]
+    assert preset.asset == MODELS_3D["instantmesh-fast"]
+
+
+def test_default_settings_use_public_wsl_model_selection() -> None:
+    settings = Settings(PIPELINE_PROFILE=None)
+
+    assert settings.image_generator == DEFAULT_IMAGE_GENERATOR
+    assert settings.model_3d == DEFAULT_MODEL_3D
+    assert settings.preset == resolve_models(DEFAULT_IMAGE_GENERATOR, DEFAULT_MODEL_3D)
+
+
+@pytest.mark.parametrize(
+    ("image_generator", "model_3d", "message"),
+    [
+        ("unknown", "trellis2-fast", "IMAGE_GENERATOR"),
+        ("zimage-q4", "unknown", "MODEL_3D"),
+    ],
+)
+def test_unknown_public_model_selection_is_rejected(
+    image_generator: str, model_3d: str, message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        resolve_models(image_generator, model_3d)
     assert (
         resolve_profile("auto", platform_name="win32", machine="AMD64").name
         == "windows-cuda-sana"
@@ -295,6 +335,20 @@ def test_zimage_instantmesh_uses_two_isolated_process_backends(tmp_path) -> None
 
     assert isinstance(image, ZImageCppBackend)
     assert image.isolated_process is True
+    assert isinstance(asset, InstantMeshBackend)
+
+
+def test_composed_sd35_instantmesh_uses_isolated_image_backend(tmp_path) -> None:
+    settings = Settings(
+        MODEL_CACHE_DIR=tmp_path,
+        IMAGE_GENERATOR="sd35-medium-nf4",
+        MODEL_3D="instantmesh-fast",
+        PIPELINE_PROFILE=None,
+    )
+
+    image, asset = create_backends(settings, settings.preset)
+
+    assert isinstance(image, IsolatedDiffusersImageBackend)
     assert isinstance(asset, InstantMeshBackend)
 
 
