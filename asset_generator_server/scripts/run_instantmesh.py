@@ -34,6 +34,18 @@ def release_cuda(torch_module) -> None:
     torch_module.cuda.ipc_collect()
 
 
+def extract_mesh_float32(model, planes, texture_resolution: int):
+    """Run FlexiCubes outside autocast with its native float32 tensors."""
+    import torch
+
+    with torch.autocast(device_type="cuda", enabled=False):
+        return model.extract_mesh(
+            planes.float(),
+            use_texture_map=True,
+            texture_resolution=texture_resolution,
+        )
+
+
 def export_textured_glb(mesh_out, output: Path) -> None:
     import numpy as np
     import trimesh
@@ -220,14 +232,19 @@ def main() -> None:
         f"texture {args.texture_resolution} ...",
         flush=True,
     )
-    with torch.inference_mode(), torch.autocast(
-        device_type="cuda", dtype=torch.float16
-    ):
-        planes = model.forward_planes(images, cameras)
-        mesh_out = model.extract_mesh(
+    with torch.inference_mode():
+        # The transformer is the expensive part and benefits from FP16. The
+        # upstream FlexiCubes implementation creates float32 accumulators, so
+        # feeding it autocast FP16 tensors causes index_add_ dtype failures.
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
+            planes = model.forward_planes(images, cameras)
+        # Rebind here so the FP16 storage can be reclaimed before the
+        # float32-only extraction stage reaches its peak allocation.
+        planes = planes.float()
+        mesh_out = extract_mesh_float32(
+            model,
             planes,
-            use_texture_map=True,
-            texture_resolution=args.texture_resolution,
+            args.texture_resolution,
         )
     export_textured_glb(mesh_out, args.output.resolve())
     print(f"Mesh saved to {args.output.resolve()}", flush=True)

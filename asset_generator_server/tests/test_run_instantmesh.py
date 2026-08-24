@@ -4,7 +4,19 @@ import numpy as np
 import torch
 import trimesh
 
-from scripts.run_instantmesh import export_textured_glb
+from scripts.run_instantmesh import export_textured_glb, extract_mesh_float32
+
+
+def test_extract_mesh_promotes_autocast_planes_to_float32() -> None:
+    class Model:
+        def extract_mesh(self, planes, **kwargs):
+            assert planes.dtype == torch.float32
+            assert kwargs == {"use_texture_map": True, "texture_resolution": 512}
+            return "mesh"
+
+    planes = torch.ones((1, 3, 4, 4), dtype=torch.float16)
+
+    assert extract_mesh_float32(Model(), planes, 512) == "mesh"
 
 
 def test_export_textured_glb_embeds_texture_and_splits_uv_seams(tmp_path) -> None:
