@@ -146,6 +146,9 @@ def download_image_model(
 ) -> None:
     destination = settings.image_model_path
     destination.parent.mkdir(parents=True, exist_ok=True)
+    if preset.image.backend == "flux2-klein-cpp":
+        _download_flux2_klein_models(settings, preset, token)
+        return
     if preset.image.backend == "z-image-cpp":
         _download_z_image_models(settings, preset)
         return
@@ -259,6 +262,60 @@ def _download_z_image_models(settings: Settings, preset: PipelinePreset) -> None
     )
     print(
         f"Installed Z-Image Turbo {preset.image.quantization.upper()} at "
+        f"{settings.image_model_path}"
+    )
+
+
+def _download_flux2_klein_models(
+    settings: Settings,
+    preset: PipelinePreset,
+    token: str | None = None,
+) -> None:
+    image = preset.image
+    required_metadata = (
+        image.text_encoder_model_id,
+        image.text_encoder_revision,
+        image.text_encoder_filename,
+        image.vae_model_id,
+        image.vae_revision,
+        image.vae_filename,
+    )
+    if any(value is None for value in required_metadata):
+        raise RuntimeError("The FLUX.2 Klein selection has incomplete component metadata.")
+
+    destination = settings.image_model_path
+    destination.mkdir(parents=True, exist_ok=True)
+    diffusion_filename = settings.flux2_klein_diffusion_path.relative_to(
+        destination
+    ).as_posix()
+    downloads = (
+        (image.model_id, image.revision, diffusion_filename),
+        (
+            image.text_encoder_model_id,
+            image.text_encoder_revision,
+            image.text_encoder_filename,
+        ),
+        (image.vae_model_id, image.vae_revision, image.vae_filename),
+    )
+    for repo_id, revision, filename in downloads:
+        hf_hub_download(
+            repo_id=repo_id,
+            revision=revision,
+            filename=filename,
+            token=token,
+            local_dir=destination,
+        )
+    (destination / ".model-revision").write_text(
+        image.revision + "\n", encoding="utf-8"
+    )
+    (destination / ".text-encoder-revision").write_text(
+        image.text_encoder_revision + "\n", encoding="utf-8"
+    )
+    (destination / ".vae-revision").write_text(
+        image.vae_revision + "\n", encoding="utf-8"
+    )
+    print(
+        f"Installed FLUX.2 Klein {image.quantization.upper()} at "
         f"{settings.image_model_path}"
     )
 
@@ -822,6 +879,38 @@ def install_z_image_cpp(
     )
 
 
+def install_flux2_klein_cpp(
+    settings: Settings,
+    preset: PipelinePreset,
+    force: bool,
+    architecture: str,
+) -> None:
+    if not _is_wsl():
+        raise RuntimeError("The FLUX.2 Klein models require WSL 2.")
+    _build_stable_diffusion_cpp(settings, architecture, force)
+    missing = [
+        path.resolve()
+        for path in settings.flux2_klein_required_files
+        if not path.is_file()
+    ]
+    if missing:
+        raise RuntimeError(
+            "FLUX.2 Klein installation did not create the required files:\n- "
+            + "\n- ".join(str(path) for path in missing)
+        )
+    binary_dir = settings.stable_diffusion_cpp_executable_path.parent.resolve()
+    existing = os.environ.get("LD_LIBRARY_PATH")
+    library_path = str(binary_dir) if not existing else f"{binary_dir}:{existing}"
+    run(
+        [str(settings.stable_diffusion_cpp_executable_path.resolve()), "--help"],
+        env={**os.environ, "LD_LIBRARY_PATH": library_path},
+    )
+    print(
+        "Installed and verified FLUX.2 Klein "
+        f"{preset.image.quantization.upper()} at {settings.image_model_path}"
+    )
+
+
 def _download_trellis_cpp_models(
     settings: Settings, preset: PipelinePreset
 ) -> None:
@@ -1125,7 +1214,9 @@ def install_linux(
     }:
         raise RuntimeError("Linux CUDA profiles require 64-bit x86 Linux.")
     architecture = architecture or _validate_linux_cuda()
-    if preset.image.backend == "z-image-cpp":
+    if preset.image.backend == "flux2-klein-cpp":
+        install_flux2_klein_cpp(settings, preset, force, architecture)
+    elif preset.image.backend == "z-image-cpp":
         install_z_image_cpp(settings, preset, force, architecture)
     if preset.asset.backend == "pixal3d":
         install_pixal3d(settings, preset, force, architecture)

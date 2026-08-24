@@ -178,6 +178,41 @@ class Settings(BaseSettings):
         )
 
     @property
+    def flux2_klein_diffusion_path(self) -> Path:
+        filenames = {
+            "fp8": "flux-2-klein-4b-fp8.safetensors",
+            "q5_k_m": "flux-2-klein-9b-Q5_K_M.gguf",
+        }
+        try:
+            filename = filenames[self.preset.image.quantization]
+        except KeyError as exc:
+            raise ValueError("The selected image model is not FLUX.2 Klein.") from exc
+        return self.image_model_path / filename
+
+    @property
+    def flux2_klein_text_encoder_path(self) -> Path:
+        filename = self.preset.image.text_encoder_filename
+        if filename is None:
+            raise ValueError("The selected image model has no FLUX.2 text encoder.")
+        return self.image_model_path / filename
+
+    @property
+    def flux2_klein_vae_path(self) -> Path:
+        filename = self.preset.image.vae_filename
+        if filename is None:
+            raise ValueError("The selected image model has no FLUX.2 VAE.")
+        return self.image_model_path / filename
+
+    @property
+    def flux2_klein_required_files(self) -> tuple[Path, ...]:
+        return (
+            self.stable_diffusion_cpp_executable_path,
+            self.flux2_klein_diffusion_path,
+            self.flux2_klein_text_encoder_path,
+            self.flux2_klein_vae_path,
+        )
+
+    @property
     def pixal3d_runtime_path(self) -> Path:
         return self.model_cache_dir / "runtime" / "pixal3d"
 

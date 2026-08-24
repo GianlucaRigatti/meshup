@@ -274,6 +274,43 @@ def test_linux_zimage_instantmesh_install_dispatches_to_both_runtimes(
     ]
 
 
+def test_linux_flux2_trellis_install_dispatches_to_both_native_runtimes(
+    tmp_path, monkeypatch
+) -> None:
+    settings = Settings(
+        MODEL_CACHE_DIR=tmp_path,
+        IMAGE_GENERATOR="flux2-klein-9b-q5-k-m",
+        MODEL_3D="trellis2-fast",
+        PIPELINE_PROFILE=None,
+    )
+    preset = settings.preset
+    events = []
+    monkeypatch.setattr(download_models.sys, "platform", "linux")
+    monkeypatch.setattr(download_models.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(
+        download_models,
+        "install_flux2_klein_cpp",
+        lambda *args: events.append(("flux2", args)),
+    )
+    monkeypatch.setattr(
+        download_models,
+        "install_trellis_cpp",
+        lambda *args: events.append(("trellis", args)),
+    )
+
+    download_models.install_linux(
+        settings,
+        preset,
+        False,
+        architecture="12.0",
+    )
+
+    assert events == [
+        ("flux2", (settings, preset, False, "12.0")),
+        ("trellis", (settings, preset, False, "12.0")),
+    ]
+
+
 @pytest.mark.parametrize(
     ("profile", "filename"),
     [
@@ -315,6 +352,54 @@ def test_zimage_download_selects_quant_and_shared_components(
         settings.z_image_components_path / ".text-encoder-revision"
     ).is_file()
     assert (settings.z_image_components_path / ".vae-revision").is_file()
+
+
+@pytest.mark.parametrize(
+    ("image_generator", "diffusion", "text_encoder"),
+    [
+        (
+            "flux2-klein-4b-fp8",
+            "flux-2-klein-4b-fp8.safetensors",
+            "Qwen3-4B-Q4_K_M.gguf",
+        ),
+        (
+            "flux2-klein-9b-q5-k-m",
+            "flux-2-klein-9b-Q5_K_M.gguf",
+            "Qwen3-8B-Q4_K_M.gguf",
+        ),
+    ],
+)
+def test_flux2_download_pins_diffusion_encoder_and_vae(
+    tmp_path, monkeypatch, image_generator: str, diffusion: str, text_encoder: str
+) -> None:
+    settings = Settings(
+        MODEL_CACHE_DIR=tmp_path,
+        IMAGE_GENERATOR=image_generator,
+        MODEL_3D="trellis2-fast",
+        PIPELINE_PROFILE=None,
+    )
+    calls = []
+
+    def download(**kwargs):
+        calls.append(kwargs)
+        destination = Path(kwargs["local_dir"]) / kwargs["filename"]
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.touch()
+        return str(destination)
+
+    monkeypatch.setattr(download_models, "hf_hub_download", download)
+
+    download_models.download_image_model(settings, settings.preset)
+
+    assert [call["filename"] for call in calls] == [
+        diffusion,
+        text_encoder,
+        "split_files/vae/flux2-vae.safetensors",
+    ]
+    assert all(call["revision"] for call in calls)
+    assert (settings.image_model_path / ".model-revision").is_file()
+    assert (settings.image_model_path / ".text-encoder-revision").is_file()
+    assert (settings.image_model_path / ".vae-revision").is_file()
 
 
 def test_trellis_model_download_selects_only_requested_quant(

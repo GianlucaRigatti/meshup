@@ -457,6 +457,141 @@ class ZImageCppBackend:
         _trim_process_heap()
 
 
+class Flux2KleinCppBackend:
+    """Generate with FLUX.2 Klein in a disposable native CUDA process."""
+
+    isolated_process = True
+
+    def __init__(self, settings: Settings, preset: PipelinePreset) -> None:
+        self.settings = settings
+        self.preset = preset
+        self.device = "cuda:0"
+
+    def load(self) -> None:
+        if not _is_wsl():
+            raise RuntimeError("The FLUX.2 Klein models currently require WSL 2.")
+        missing = [
+            path.resolve()
+            for path in self.settings.flux2_klein_required_files
+            if not path.is_file()
+        ]
+        if missing:
+            raise FileNotFoundError(
+                "The FLUX.2 Klein runtime is incomplete. Missing files:\n- "
+                + "\n- ".join(str(path) for path in missing)
+                + "\nRerun the model installer for this selection."
+            )
+        image = self.preset.image
+        _require_git_revision(
+            self.settings.stable_diffusion_cpp_source_path,
+            image.runtime_revision,
+        )
+        _require_revision(self.settings.image_model_path, image.revision)
+        _require_revision(
+            self.settings.image_model_path,
+            image.text_encoder_revision,
+            marker=".text-encoder-revision",
+        )
+        _require_revision(
+            self.settings.image_model_path,
+            image.vae_revision,
+            marker=".vae-revision",
+        )
+        completed = subprocess.run(
+            [str(self.settings.stable_diffusion_cpp_executable_path.resolve()), "--help"],
+            env=self._environment,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=60,
+        )
+        if completed.returncode != 0:
+            tail = completed.stdout[-4000:].strip()
+            message = "The stable-diffusion.cpp runtime failed its readiness check."
+            if tail:
+                message += f"\n{tail}"
+            raise RuntimeError(message)
+
+    def generate(self, prompt: str, seed: int) -> Image.Image:
+        self.load()
+        with tempfile.TemporaryDirectory(prefix="flux2-klein-") as temporary_dir:
+            temporary = Path(temporary_dir)
+            prompt_path = temporary / "prompt.txt"
+            output = temporary / "image.png"
+            prompt_path.write_text(prompt, encoding="utf-8")
+            image = self.preset.image
+            command = [
+                str(self.settings.stable_diffusion_cpp_executable_path.resolve()),
+                "--diffusion-model",
+                str(self.settings.flux2_klein_diffusion_path.resolve()),
+                "--llm",
+                str(self.settings.flux2_klein_text_encoder_path.resolve()),
+                "--vae",
+                str(self.settings.flux2_klein_vae_path.resolve()),
+                "--prompt-file",
+                str(prompt_path),
+                "--output",
+                str(output),
+                "--steps",
+                str(image.steps),
+                "--cfg-scale",
+                str(image.guidance),
+                "--sampling-method",
+                "euler",
+                "--width",
+                str(image.width),
+                "--height",
+                str(image.height),
+                "--seed",
+                str(seed),
+                "--rng",
+                "cpu",
+                "--diffusion-fa",
+                "--offload-to-cpu",
+                "--vae-tiling",
+                "--auto-fit",
+                "--max-vram",
+                "cuda0=10.5",
+            ]
+            try:
+                completed = subprocess.run(
+                    command,
+                    env=self._environment,
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=self.settings.image_timeout_seconds,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(
+                    "FLUX.2 Klein generation timed out after "
+                    f"{self.settings.image_timeout_seconds} seconds."
+                ) from exc
+            if completed.returncode != 0 or not output.is_file():
+                tail = completed.stdout[-4000:].strip()
+                message = "FLUX.2 Klein generation failed."
+                if tail:
+                    message += f"\n{tail}"
+                raise RuntimeError(message)
+            with Image.open(output) as generated:
+                return generated.convert("RGB")
+
+    @property
+    def _environment(self) -> dict[str, str]:
+        binary_dir = self.settings.stable_diffusion_cpp_executable_path.parent.resolve()
+        existing = os.environ.get("LD_LIBRARY_PATH")
+        library_path = str(binary_dir) if not existing else f"{binary_dir}:{existing}"
+        return {**os.environ, "LD_LIBRARY_PATH": library_path}
+
+    def move_to_cpu(self) -> None:
+        return
+
+    def release_device_memory(self) -> None:
+        _trim_process_heap()
+
+
 class HunyuanMlxBackend:
     output_mode = "vertex_color"
 
@@ -985,7 +1120,9 @@ def create_backends(
     settings: Settings, preset: PipelinePreset
 ) -> tuple[ImageBackend, AssetBackend]:
     image: ImageBackend
-    if preset.image.backend == "z-image-cpp":
+    if preset.image.backend == "flux2-klein-cpp":
+        image = Flux2KleinCppBackend(settings, preset)
+    elif preset.image.backend == "z-image-cpp":
         image = ZImageCppBackend(settings, preset)
     elif preset.image.backend == "stable-diffusion-3.5" and preset.platform == "linux":
         image = IsolatedDiffusersImageBackend(settings, preset)

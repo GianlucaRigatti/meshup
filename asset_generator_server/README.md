@@ -15,6 +15,8 @@ Image generators:
 
 | CLI value | Model and settings |
 | --- | --- |
+| `flux2-klein-4b-fp8` | FLUX.2 Klein 4B Distilled FP8, 4 steps, 1024px |
+| `flux2-klein-9b-q5-k-m` | FLUX.2 Klein 9B Distilled GGUF Q5_K_M, 4 steps, 1024px |
 | `zimage-q4` | Z-Image Turbo GGUF Q4, 8 steps, 1024px; default |
 | `zimage-q6` | Z-Image Turbo GGUF Q6, 8 steps, 1024px |
 | `zimage-q3-turbo` | Z-Image Turbo GGUF Q3, 6 steps, 768px |
@@ -37,9 +39,9 @@ Image generators:
 | `stable-fast-3d-quality` | Stable Fast 3D, 2048px texture |
 
 Every image choice can be paired with every 3D choice. Z-Image runs in a
-short-lived native process. SD 3.5 also runs in a disposable process. TRELLIS,
-InstantMesh, and Pixal3D have isolated runtimes so image and reconstruction
-allocations do not overlap.
+short-lived native process, as do both FLUX.2 Klein choices. SD 3.5 also runs
+in a disposable process. TRELLIS, InstantMesh, and Pixal3D have isolated
+runtimes so image and reconstruction allocations do not overlap.
 
 For a 12 GB GPU, start with `zimage-q4` and `trellis2-fast`. InstantMesh is the
 lower-quality/lower-latency experiment. Pixal3D and the TRELLIS 1024 variants
@@ -125,6 +127,23 @@ MAX_JOBS=2 uv run python scripts/download_models.py \
   --model-3d instantmesh-fast \
   --accept-licenses
 ```
+
+Install either FLUX.2 Klein choice the same way. The installer reuses the
+existing `stable-diffusion.cpp` CUDA build:
+
+```bash
+MAX_JOBS=2 uv run python scripts/download_models.py \
+  --image-generator flux2-klein-4b-fp8 \
+  --model-3d trellis2-fast \
+  --accept-licenses
+```
+
+For the larger 9B experiment, replace the image value with
+`flux2-klein-9b-q5-k-m`. Its approximately 7 GB diffusion weights and 5 GB Qwen
+encoder require substantially more disk and system-memory headroom. Both FLUX
+choices use four distilled steps, native Flash Attention, CPU offload, and a
+10.5 GiB GPU-memory ceiling so they can be tried on a 12 GB GPU. The 9B weights
+are governed by the FLUX non-commercial license; review the notices before use.
 
 Already installed runtimes and weights are reused when switching either side.
 `MAX_JOBS` defaults to two for native builds; use `MAX_JOBS=1` if WSL is under

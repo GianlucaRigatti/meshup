@@ -26,6 +26,8 @@ ProfileName: TypeAlias = Literal[
 ]
 
 ImageGeneratorName: TypeAlias = Literal[
+    "flux2-klein-4b-fp8",
+    "flux2-klein-9b-q5-k-m",
     "sdxl-turbo-fast",
     "sdxl-turbo-quality",
     "sana-sprint",
@@ -53,15 +55,25 @@ class ImagePreset:
     directory_name: str
     steps: int
     backend: Literal[
-        "auto", "sana-sprint", "stable-diffusion-3.5", "z-image-cpp"
+        "auto",
+        "flux2-klein-cpp",
+        "sana-sprint",
+        "stable-diffusion-3.5",
+        "z-image-cpp",
     ] = "auto"
     guidance: float = 0.0
     width: int = 512
     height: int = 512
     dtype: str = "float16"
     variant: str | None = "fp16"
-    quantization: Literal["nf4", "q3", "q4", "q6"] | None = None
+    quantization: Literal["fp8", "nf4", "q3", "q4", "q5_k_m", "q6"] | None = None
     runtime_revision: str | None = None
+    text_encoder_model_id: str | None = None
+    text_encoder_revision: str | None = None
+    text_encoder_filename: str | None = None
+    vae_model_id: str | None = None
+    vae_revision: str | None = None
+    vae_filename: str | None = None
 
 
 @dataclass(frozen=True)
@@ -119,6 +131,11 @@ Z_IMAGE_TEXT_ENCODER_REVISION = "a06e946bb6b655725eafa393f4a9745d460374c9"
 Z_IMAGE_VAE_REVISION = "08d04455279082882deaabc8d0d09fc914c071e1"
 INSTANTMESH_SOURCE_REVISION = "08822c52fdc399b93ea00e4fa9e596344ed52ccc"
 INSTANTMESH_MODEL_REVISION = "b785b4ecfb6636ef34a08c748f96f6a5686244d0"
+FLUX2_KLEIN_4B_FP8_REVISION = "5b4408e59397a4a37ccb46afe426d8ed86379441"
+FLUX2_KLEIN_9B_GGUF_REVISION = "fde8634245fe6b749a221c25b34672b5b8fbd079"
+QWEN3_4B_GGUF_REVISION = "bc640142c66e1fdd12af0bd68f40445458f3869b"
+QWEN3_8B_GGUF_REVISION = "7c41481f57cb95916b40956ab2f0b139b296d974"
+FLUX2_KLEIN_VAE_REVISION = "5f526678002e43af5551dadb73ce2e8c91b43afe"
 
 
 SD35_MEDIUM_NF4 = ImagePreset(
@@ -155,6 +172,52 @@ def z_image_turbo(
         variant=None,
         quantization=quantization,
         runtime_revision=STABLE_DIFFUSION_CPP_SOURCE_REVISION,
+    )
+
+
+def flux2_klein(
+    size: Literal["4b", "9b"],
+) -> ImagePreset:
+    if size == "4b":
+        return ImagePreset(
+            backend="flux2-klein-cpp",
+            model_id="black-forest-labs/FLUX.2-klein-4b-fp8",
+            revision=FLUX2_KLEIN_4B_FP8_REVISION,
+            directory_name="flux2-klein-4b-fp8",
+            steps=4,
+            guidance=1.0,
+            width=1024,
+            height=1024,
+            dtype="float8_e4m3fn",
+            variant=None,
+            quantization="fp8",
+            runtime_revision=STABLE_DIFFUSION_CPP_SOURCE_REVISION,
+            text_encoder_model_id="Qwen/Qwen3-4B-GGUF",
+            text_encoder_revision=QWEN3_4B_GGUF_REVISION,
+            text_encoder_filename="Qwen3-4B-Q4_K_M.gguf",
+            vae_model_id="Comfy-Org/flux2-klein-4B",
+            vae_revision=FLUX2_KLEIN_VAE_REVISION,
+            vae_filename="split_files/vae/flux2-vae.safetensors",
+        )
+    return ImagePreset(
+        backend="flux2-klein-cpp",
+        model_id="unsloth/FLUX.2-klein-9B-GGUF",
+        revision=FLUX2_KLEIN_9B_GGUF_REVISION,
+        directory_name="flux2-klein-9b-q5-k-m",
+        steps=4,
+        guidance=1.0,
+        width=1024,
+        height=1024,
+        dtype="gguf",
+        variant=None,
+        quantization="q5_k_m",
+        runtime_revision=STABLE_DIFFUSION_CPP_SOURCE_REVISION,
+        text_encoder_model_id="Qwen/Qwen3-8B-GGUF",
+        text_encoder_revision=QWEN3_8B_GGUF_REVISION,
+        text_encoder_filename="Qwen3-8B-Q4_K_M.gguf",
+        vae_model_id="Comfy-Org/flux2-klein-4B",
+        vae_revision=FLUX2_KLEIN_VAE_REVISION,
+        vae_filename="split_files/vae/flux2-vae.safetensors",
     )
 
 
@@ -506,6 +569,8 @@ PRESETS: dict[str, PipelinePreset] = {
 # Public WSL model catalogs. The older platform profiles above remain as an
 # internal compatibility layer, but new callers compose these independently.
 IMAGE_GENERATORS: dict[str, ImagePreset] = {
+    "flux2-klein-4b-fp8": flux2_klein("4b"),
+    "flux2-klein-9b-q5-k-m": flux2_klein("9b"),
     "sdxl-turbo-fast": PRESETS["linux-cuda-fast"].image,
     "sdxl-turbo-quality": PRESETS["linux-cuda-quality"].image,
     "sana-sprint": PRESETS["linux-cuda-sana"].image,
