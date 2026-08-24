@@ -537,16 +537,24 @@ curl --fail \
   http://127.0.0.1:8000/generate_asset
 ```
 
-The request API is unchanged:
+The response reports the model stages separately. Image generation covers the
+text-to-image model call, model generation covers image-to-3D reconstruction,
+and the total also includes model release, preprocessing, and GLB export:
 
 ```json
 {
   "url": "http://127.0.0.1:8000/assets/<asset-id>.glb",
   "asset_id": "<asset-id>",
   "cached": false,
+  "image_generation_time_ms": 1200,
+  "model_generation_time_ms": 3500,
   "generation_time_ms": 5000
 }
 ```
+
+All three timing values are `0` when `cached` is `true`, because no generation
+stage ran for that request. The original detailed timings remain in the asset's
+JSON metadata.
 
 Each uncached generation also saves the preprocessed, background-removed image
 passed to the 3D model as `generated_assets/<asset-id>.png` for debugging.

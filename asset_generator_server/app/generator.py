@@ -104,7 +104,7 @@ class AssetGenerator:
             self.output_mode,
         )
 
-    def generate(self, prompt: str) -> tuple[str, bool, int]:
+    def generate(self, prompt: str) -> tuple[str, bool, dict[str, int]]:
         if not self.ready:
             raise RuntimeError("The asset generator is not ready.")
 
@@ -114,17 +114,17 @@ class AssetGenerator:
         image_path = self.output_dir / f"{asset_id}.png"
         metadata_path = self.output_dir / f"{asset_id}.json"
         if asset_path.is_file() and metadata_path.is_file():
-            return asset_id, True, 0
+            return asset_id, True, self._cached_timings()
 
         if not self._lock.acquire(blocking=False):
             if asset_path.is_file() and metadata_path.is_file():
-                return asset_id, True, 0
+                return asset_id, True, self._cached_timings()
             raise BusyError
 
         started = time.perf_counter()
         try:
             if asset_path.is_file() and metadata_path.is_file():
-                return asset_id, True, 0
+                return asset_id, True, self._cached_timings()
 
             seed = int(asset_id[:16], 16) % (2**31)
             timings: dict[str, int] = {}
@@ -195,7 +195,7 @@ class AssetGenerator:
                     "memory": self._memory_metadata(image_peak_memory),
                 },
             )
-            return asset_id, False, total_ms
+            return asset_id, False, timings
         except BusyError:
             raise
         except Exception as exc:
@@ -210,6 +210,14 @@ class AssetGenerator:
             self.asset_backend.move_to_cpu()
             self.asset_backend.release_device_memory()
             self._lock.release()
+
+    @staticmethod
+    def _cached_timings() -> dict[str, int]:
+        return {
+            "text_to_image_ms": 0,
+            "reconstruction_ms": 0,
+            "total_ms": 0,
+        }
 
     @property
     def _version(self) -> str:

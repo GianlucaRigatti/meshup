@@ -81,7 +81,7 @@ def create_app(
                 503, "generator_not_ready", "The asset generator is not ready."
             )
         try:
-            asset_id, cached, generation_time_ms = await asyncio.to_thread(
+            asset_id, cached, timings = await asyncio.to_thread(
                 service.generate, payload.prompt
             )
         except BusyError:
@@ -96,7 +96,9 @@ def create_app(
             "url": f"{base_url.rstrip('/')}/assets/{asset_id}.glb",
             "asset_id": asset_id,
             "cached": cached,
-            "generation_time_ms": generation_time_ms,
+            "image_generation_time_ms": timings["text_to_image_ms"],
+            "model_generation_time_ms": timings["reconstruction_ms"],
+            "generation_time_ms": timings["total_ms"],
         }
 
     return application

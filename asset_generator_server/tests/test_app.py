@@ -31,6 +31,9 @@ def test_generate_serve_and_cache(client: TestClient) -> None:
     body = first.json()
     assert body["url"].startswith("http://testserver/assets/")
     assert body["cached"] is False
+    assert isinstance(body["image_generation_time_ms"], int)
+    assert isinstance(body["model_generation_time_ms"], int)
+    assert isinstance(body["generation_time_ms"], int)
 
     asset = client.get(body["url"])
     assert asset.headers["content-type"] == "model/gltf-binary"
@@ -39,6 +42,8 @@ def test_generate_serve_and_cache(client: TestClient) -> None:
     second = client.post("/generate_asset", json={"prompt": "a red chair"}).json()
     assert second["asset_id"] == body["asset_id"]
     assert second["cached"] is True
+    assert second["image_generation_time_ms"] == 0
+    assert second["model_generation_time_ms"] == 0
     assert second["generation_time_ms"] == 0
 
 
@@ -102,6 +107,9 @@ def test_metadata_does_not_store_prompt(app_parts) -> None:
     metadata = json.loads((settings.asset_output_dir / f"{asset_id}.json").read_text())
     assert "prompt_hash" in metadata
     assert "prompt" not in metadata
+    assert metadata["timings"]["text_to_image_ms"] >= 0
+    assert metadata["timings"]["reconstruction_ms"] >= 0
+    assert metadata["timings"]["total_ms"] >= 0
 
 
 def test_generation_saves_preprocessed_input_image(app_parts) -> None:
