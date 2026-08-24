@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     instantmesh_timeout_seconds: int = Field(
         default=1800, alias="INSTANTMESH_TIMEOUT_SECONDS"
     )
+    background_removal_timeout_seconds: int = Field(
+        default=120, alias="BACKGROUND_REMOVAL_TIMEOUT_SECONDS"
+    )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     @property
@@ -190,6 +193,7 @@ class Settings(BaseSettings):
     def flux2_klein_diffusion_path(self) -> Path:
         filenames = {
             "fp8": "flux-2-klein-4b-fp8.safetensors",
+            "q4_k_m": "flux-2-klein-9b-Q4_K_M.gguf",
             "q5_k_m": "flux-2-klein-9b-Q5_K_M.gguf",
         }
         try:

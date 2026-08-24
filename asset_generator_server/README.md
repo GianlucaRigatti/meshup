@@ -16,6 +16,7 @@ Image generators:
 | CLI value | Model and settings |
 | --- | --- |
 | `flux2-klein-4b-fp8` | FLUX.2 Klein 4B Distilled FP8, 4 steps, 1024px |
+| `flux2-klein-9b-q4-k-m-fast` | FLUX.2 Klein 9B Distilled GGUF Q4_K_M, 4 steps, 768px, balanced latency |
 | `flux2-klein-9b-q5-k-m` | FLUX.2 Klein 9B Distilled GGUF Q5_K_M, 4 steps, 1024px |
 | `zimage-q4` | Z-Image Turbo GGUF Q4, 8 steps, 1024px; default |
 | `zimage-q6` | Z-Image Turbo GGUF Q6, 8 steps, 1024px |
@@ -138,12 +139,22 @@ MAX_JOBS=2 uv run python scripts/download_models.py \
   --accept-licenses
 ```
 
-For the larger 9B experiment, replace the image value with
-`flux2-klein-9b-q5-k-m`. Its approximately 7 GB diffusion weights and 5 GB Qwen
-encoder require substantially more disk and system-memory headroom. Both FLUX
-choices use four distilled steps, native Flash Attention, CPU offload, and a
-10.5 GiB GPU-memory ceiling so they can be tried on a 12 GB GPU. The 9B weights
-are governed by the FLUX non-commercial license; review the notices before use.
+For the larger 9B model, use `flux2-klein-9b-q4-k-m-fast` for the balanced
+768px path or `flux2-klein-9b-q5-k-m` for the 1024px quality path. The balanced
+selection uses an 11 GiB graph budget and direct VAE decoding; the quality
+selection retains a 10.5 GiB ceiling and tiled VAE decoding. Both use four
+distilled steps, native Flash Attention, CPU offload, and the same Qwen3-8B Q4
+encoder. The 9B weights are governed by the FLUX non-commercial license; review
+the notices before use.
+
+For the measured low-latency pair on a 12 GB GPU:
+
+```bash
+MAX_JOBS=2 uv run python scripts/download_models.py \
+  --image-generator flux2-klein-9b-q4-k-m-fast \
+  --model-3d trellis2-turbo \
+  --accept-licenses
+```
 
 Already installed runtimes and weights are reused when switching either side.
 `MAX_JOBS` defaults to two for native builds; use `MAX_JOBS=1` if WSL is under
@@ -267,6 +278,8 @@ accepts one uncached request at a time; concurrent uncached requests receive
 - `MODEL_3D`: public 3D selection; default `trellis2-fast`
 - `BACKGROUND_REMOVAL_MODEL`: foreground segmentation model; default
   `birefnet-general`. Set `u2netp` only to restore the faster legacy model.
+- `BACKGROUND_REMOVAL_TIMEOUT_SECONDS`: isolated CUDA background-removal
+  timeout; default 120
 - `PUBLIC_BASE_URL`: base URL returned by the API
 - `ASSET_OUTPUT_DIR`: generated asset directory
 - `MODEL_CACHE_DIR`: models, pinned sources, and isolated runtimes
@@ -290,6 +303,11 @@ localhostForwarding=true
 
 Apply changes with `wsl --shutdown` in PowerShell. Close other GPU applications
 before running Pixal3D or a quality TRELLIS variant.
+
+On WSL, background removal runs in a CUDA-only subprocess between image and 3D
+generation. The installer pins ONNX Runtime GPU to a CUDA 12.8-compatible
+release, and startup fails instead of silently falling back to CPU. The process
+exits before TRELLIS starts, returning all of its VRAM.
 
 ## Validation and benchmarking
 

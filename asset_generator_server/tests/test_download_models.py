@@ -376,6 +376,11 @@ def test_zimage_download_selects_quant_and_shared_components(
             "Qwen3-4B-Q4_K_M.gguf",
         ),
         (
+            "flux2-klein-9b-q4-k-m-fast",
+            "flux-2-klein-9b-Q4_K_M.gguf",
+            "Qwen3-8B-Q4_K_M.gguf",
+        ),
+        (
             "flux2-klein-9b-q5-k-m",
             "flux-2-klein-9b-Q5_K_M.gguf",
             "Qwen3-8B-Q4_K_M.gguf",

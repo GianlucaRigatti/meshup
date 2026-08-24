@@ -363,7 +363,10 @@ class ZImageCppBackend:
             marker=".vae-revision",
         )
         completed = subprocess.run(
-            [str(self.settings.stable_diffusion_cpp_executable_path.resolve()), "--help"],
+            [
+                str(self.settings.stable_diffusion_cpp_executable_path.resolve()),
+                "--help",
+            ],
             env=self._environment,
             check=False,
             stdout=subprocess.PIPE,
@@ -445,9 +448,7 @@ class ZImageCppBackend:
     def _environment(self) -> dict[str, str]:
         binary_dir = self.settings.stable_diffusion_cpp_executable_path.parent.resolve()
         existing = os.environ.get("LD_LIBRARY_PATH")
-        library_path = (
-            str(binary_dir) if not existing else f"{binary_dir}:{existing}"
-        )
+        library_path = str(binary_dir) if not existing else f"{binary_dir}:{existing}"
         return {**os.environ, "LD_LIBRARY_PATH": library_path}
 
     def move_to_cpu(self) -> None:
@@ -498,7 +499,10 @@ class Flux2KleinCppBackend:
             marker=".vae-revision",
         )
         completed = subprocess.run(
-            [str(self.settings.stable_diffusion_cpp_executable_path.resolve()), "--help"],
+            [
+                str(self.settings.stable_diffusion_cpp_executable_path.resolve()),
+                "--help",
+            ],
             env=self._environment,
             check=False,
             stdout=subprocess.PIPE,
@@ -549,11 +553,12 @@ class Flux2KleinCppBackend:
                 "cpu",
                 "--diffusion-fa",
                 "--offload-to-cpu",
-                "--vae-tiling",
                 "--auto-fit",
                 "--max-vram",
-                "cuda0=10.5",
+                f"cuda0={image.max_vram_gib:g}",
             ]
+            if image.vae_tiling:
+                command.append("--vae-tiling")
             try:
                 completed = subprocess.run(
                     command,

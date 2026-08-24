@@ -124,7 +124,7 @@ before redistribution.
 - Pinned runtime revision: `97d2990807fe6d558e395f8764198d7c7e7b411c`
 - 4B FP8 diffusion weights: <https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8>
 - Pinned 4B revision: `5b4408e59397a4a37ccb46afe426d8ed86379441`
-- 9B Q5_K_M diffusion weights: <https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF>
+- 9B Q4_K_M and Q5_K_M diffusion weights: <https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF>
 - Pinned 9B revision: `fde8634245fe6b749a221c25b34672b5b8fbd079`
 - Qwen3 4B GGUF encoder: <https://huggingface.co/Qwen/Qwen3-4B-GGUF>
 - Qwen3 8B GGUF encoder: <https://huggingface.co/Qwen/Qwen3-8B-GGUF>
@@ -132,10 +132,11 @@ before redistribution.
 
 The `flux2-klein-4b-fp8` selection uses Black Forest Labs' official distilled
 FP8 checkpoint. The 4B model identifies its weights as Apache 2.0. The
-`flux2-klein-9b-q5-k-m` selection uses a quantized derivative of the distilled
-9B checkpoint, whose original weights are governed by the FLUX Non-Commercial
-License. Review the model cards, licenses, acceptable-use terms, and GGUF
-repository before use or redistribution.
+`flux2-klein-9b-q4-k-m-fast` and `flux2-klein-9b-q5-k-m` selections use
+quantized derivatives of the distilled 9B checkpoint, whose original weights
+are governed by the FLUX Non-Commercial License. Review the model cards,
+licenses, acceptable-use terms, and GGUF repository before use or
+redistribution.
 
 ## InstantMesh and Zero123++
 

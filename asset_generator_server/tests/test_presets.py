@@ -53,24 +53,37 @@ def test_public_wsl_models_compose_independently() -> None:
 
 
 @pytest.mark.parametrize(
-    ("name", "quantization", "model_id", "text_encoder"),
+    ("name", "quantization", "resolution", "model_id", "text_encoder"),
     [
         (
             "flux2-klein-4b-fp8",
             "fp8",
+            1024,
             "black-forest-labs/FLUX.2-klein-4b-fp8",
             "Qwen3-4B-Q4_K_M.gguf",
         ),
         (
+            "flux2-klein-9b-q4-k-m-fast",
+            "q4_k_m",
+            768,
+            "unsloth/FLUX.2-klein-9B-GGUF",
+            "Qwen3-8B-Q4_K_M.gguf",
+        ),
+        (
             "flux2-klein-9b-q5-k-m",
             "q5_k_m",
+            1024,
             "unsloth/FLUX.2-klein-9B-GGUF",
             "Qwen3-8B-Q4_K_M.gguf",
         ),
     ],
 )
 def test_flux2_klein_public_presets(
-    name: str, quantization: str, model_id: str, text_encoder: str
+    name: str,
+    quantization: str,
+    resolution: int,
+    model_id: str,
+    text_encoder: str,
 ) -> None:
     image = IMAGE_GENERATORS[name]
 
@@ -80,7 +93,7 @@ def test_flux2_klein_public_presets(
     assert image.text_encoder_filename == text_encoder
     assert image.steps == 4
     assert image.guidance == 1.0
-    assert (image.width, image.height) == (1024, 1024)
+    assert (image.width, image.height) == (resolution, resolution)
 
 
 def test_default_settings_use_public_wsl_model_selection() -> None:
@@ -391,7 +404,11 @@ def test_composed_sd35_instantmesh_uses_isolated_image_backend(tmp_path) -> None
 
 @pytest.mark.parametrize(
     "image_generator",
-    ["flux2-klein-4b-fp8", "flux2-klein-9b-q5-k-m"],
+    [
+        "flux2-klein-4b-fp8",
+        "flux2-klein-9b-q4-k-m-fast",
+        "flux2-klein-9b-q5-k-m",
+    ],
 )
 def test_composed_flux2_uses_native_isolated_image_backend(
     tmp_path, image_generator: str
@@ -440,6 +457,39 @@ def test_flux2_klein_cpp_invokes_low_vram_native_cli(tmp_path, monkeypatch) -> N
     assert captured["command"][captured["command"].index("--max-vram") + 1] == (
         "cuda0=10.5"
     )
+    assert "--vae-tiling" in captured["command"]
+
+
+def test_flux2_klein_fast_uses_larger_budget_and_untiled_vae(
+    tmp_path, monkeypatch
+) -> None:
+    preset = resolve_models("flux2-klein-9b-q4-k-m-fast", "trellis2-turbo")
+    settings = SimpleNamespace(
+        stable_diffusion_cpp_executable_path=tmp_path / "bin" / "sd-cli",
+        flux2_klein_diffusion_path=tmp_path / "flux-q4.gguf",
+        flux2_klein_text_encoder_path=tmp_path / "qwen-q4.gguf",
+        flux2_klein_vae_path=tmp_path / "flux2-vae.safetensors",
+        image_timeout_seconds=600,
+    )
+    captured = {}
+
+    def run(command, **kwargs):
+        captured.update(command=command, kwargs=kwargs)
+        output = Path(command[command.index("--output") + 1])
+        Image.new("RGB", (12, 10), "blue").save(output)
+        return SimpleNamespace(returncode=0, stdout="")
+
+    backend = Flux2KleinCppBackend(settings, preset)
+    monkeypatch.setattr(backend, "load", lambda: None)
+    monkeypatch.setattr("app.backends.subprocess.run", run)
+
+    backend.generate("private test prompt", 123)
+
+    command = captured["command"]
+    assert command[command.index("--width") + 1] == "768"
+    assert command[command.index("--height") + 1] == "768"
+    assert command[command.index("--max-vram") + 1] == "cuda0=11"
+    assert "--vae-tiling" not in command
 
 
 def test_zimage_cpp_backend_invokes_memory_bounded_native_cli(

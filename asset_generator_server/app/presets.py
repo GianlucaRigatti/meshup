@@ -27,6 +27,7 @@ ProfileName: TypeAlias = Literal[
 
 ImageGeneratorName: TypeAlias = Literal[
     "flux2-klein-4b-fp8",
+    "flux2-klein-9b-q4-k-m-fast",
     "flux2-klein-9b-q5-k-m",
     "sdxl-turbo-fast",
     "sdxl-turbo-quality",
@@ -66,7 +67,9 @@ class ImagePreset:
     height: int = 512
     dtype: str = "float16"
     variant: str | None = "fp16"
-    quantization: Literal["fp8", "nf4", "q3", "q4", "q5_k_m", "q6"] | None = None
+    quantization: Literal["fp8", "nf4", "q3", "q4", "q4_k_m", "q5_k_m", "q6"] | None = (
+        None
+    )
     runtime_revision: str | None = None
     text_encoder_model_id: str | None = None
     text_encoder_revision: str | None = None
@@ -74,6 +77,8 @@ class ImagePreset:
     vae_model_id: str | None = None
     vae_revision: str | None = None
     vae_filename: str | None = None
+    max_vram_gib: float = 10.5
+    vae_tiling: bool = True
 
 
 @dataclass(frozen=True)
@@ -123,9 +128,7 @@ PIXAL3D_MODEL_REVISION = "0b31f9160aa400719af409098bff7936a932f726"
 SD35_MEDIUM_REVISION = "b940f670f0eda2d07fbb75229e779da1ad11eb80"
 TRELLIS_CPP_SOURCE_REVISION = "06fc9000719c912ddc4929d21db075972c26ac3e"
 TRELLIS_CPP_MODEL_REVISION = "a57397bd3d351599d9729fc144b3f87c3f87d65b"
-STABLE_DIFFUSION_CPP_SOURCE_REVISION = (
-    "97d2990807fe6d558e395f8764198d7c7e7b411c"
-)
+STABLE_DIFFUSION_CPP_SOURCE_REVISION = "97d2990807fe6d558e395f8764198d7c7e7b411c"
 Z_IMAGE_TURBO_GGUF_REVISION = "c61c0e422dc8b541b7548cf33a4ef8302b0f8085"
 Z_IMAGE_TEXT_ENCODER_REVISION = "a06e946bb6b655725eafa393f4a9745d460374c9"
 Z_IMAGE_VAE_REVISION = "08d04455279082882deaabc8d0d09fc914c071e1"
@@ -175,9 +178,7 @@ def z_image_turbo(
     )
 
 
-def flux2_klein(
-    size: Literal["4b", "9b"],
-) -> ImagePreset:
+def flux2_klein(size: Literal["4b", "9b"], *, fast: bool = False) -> ImagePreset:
     if size == "4b":
         return ImagePreset(
             backend="flux2-klein-cpp",
@@ -203,14 +204,16 @@ def flux2_klein(
         backend="flux2-klein-cpp",
         model_id="unsloth/FLUX.2-klein-9B-GGUF",
         revision=FLUX2_KLEIN_9B_GGUF_REVISION,
+        # The Q4 and Q5 files share one directory so the large Qwen encoder and
+        # VAE are reused when comparing the balanced and quality selections.
         directory_name="flux2-klein-9b-q5-k-m",
         steps=4,
         guidance=1.0,
-        width=1024,
-        height=1024,
+        width=768 if fast else 1024,
+        height=768 if fast else 1024,
         dtype="gguf",
         variant=None,
-        quantization="q5_k_m",
+        quantization="q4_k_m" if fast else "q5_k_m",
         runtime_revision=STABLE_DIFFUSION_CPP_SOURCE_REVISION,
         text_encoder_model_id="Qwen/Qwen3-8B-GGUF",
         text_encoder_revision=QWEN3_8B_GGUF_REVISION,
@@ -218,6 +221,8 @@ def flux2_klein(
         vae_model_id="Comfy-Org/flux2-klein-4B",
         vae_revision=FLUX2_KLEIN_VAE_REVISION,
         vae_filename="split_files/vae/flux2-vae.safetensors",
+        max_vram_gib=11.0 if fast else 10.5,
+        vae_tiling=not fast,
     )
 
 
@@ -570,6 +575,7 @@ PRESETS: dict[str, PipelinePreset] = {
 # internal compatibility layer, but new callers compose these independently.
 IMAGE_GENERATORS: dict[str, ImagePreset] = {
     "flux2-klein-4b-fp8": flux2_klein("4b"),
+    "flux2-klein-9b-q4-k-m-fast": flux2_klein("9b", fast=True),
     "flux2-klein-9b-q5-k-m": flux2_klein("9b"),
     "sdxl-turbo-fast": PRESETS["linux-cuda-fast"].image,
     "sdxl-turbo-quality": PRESETS["linux-cuda-quality"].image,
