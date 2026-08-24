@@ -16,6 +16,8 @@ ProfileName: TypeAlias = Literal[
     "linux-cuda-sana",
     "wsl-cuda-pixal3d",
     "wsl-cuda-sd35-pixal3d",
+    "wsl-cuda-sd35-trellis2-q4",
+    "wsl-cuda-sd35-trellis2-q8",
 ]
 
 
@@ -36,7 +38,7 @@ class ImagePreset:
 
 @dataclass(frozen=True)
 class AssetPreset:
-    backend: Literal["hunyuan-mlx", "stable-fast-3d", "pixal3d"]
+    backend: Literal["hunyuan-mlx", "stable-fast-3d", "pixal3d", "trellis-cpp"]
     model_id: str
     revision: str
     directory_name: str
@@ -44,11 +46,12 @@ class AssetPreset:
     output_mode: Literal["vertex_color", "pbr_texture"]
     steps: int | None = None
     octree_resolution: int | None = None
-    quantization: int | None = None
+    quantization: int | Literal["q4", "q8"] | None = None
     texture_resolution: int | None = None
     foreground_ratio: float = 0.85
     remesh: str = "none"
     pipeline_resolution: int | None = None
+    max_tokens: int | None = None
     camera_fov: float | None = None
 
 
@@ -73,6 +76,23 @@ DINOV2_LARGE_REVISION = "47b73eefe95e8d44ec3623f8890bd894b6ea2d6c"
 PIXAL3D_SOURCE_REVISION = "cdbb2bbffbf4e6f298b5f2af3d1d76a8d823d2af"
 PIXAL3D_MODEL_REVISION = "0b31f9160aa400719af409098bff7936a932f726"
 SD35_MEDIUM_REVISION = "b940f670f0eda2d07fbb75229e779da1ad11eb80"
+TRELLIS_CPP_SOURCE_REVISION = "06fc9000719c912ddc4929d21db075972c26ac3e"
+TRELLIS_CPP_MODEL_REVISION = "a57397bd3d351599d9729fc144b3f87c3f87d65b"
+
+
+SD35_MEDIUM_NF4 = ImagePreset(
+    backend="stable-diffusion-3.5",
+    model_id="stabilityai/stable-diffusion-3.5-medium",
+    revision=SD35_MEDIUM_REVISION,
+    directory_name="stable-diffusion-3.5-medium-nf4",
+    steps=28,
+    guidance=7.0,
+    width=1024,
+    height=1024,
+    dtype="bfloat16",
+    variant=None,
+    quantization="nf4",
+)
 
 
 PRESETS: dict[str, PipelinePreset] = {
@@ -271,19 +291,7 @@ PRESETS: dict[str, PipelinePreset] = {
         schema_version=1,
         platform="linux",
         device="cuda:0",
-        image=ImagePreset(
-            backend="stable-diffusion-3.5",
-            model_id="stabilityai/stable-diffusion-3.5-medium",
-            revision=SD35_MEDIUM_REVISION,
-            directory_name="stable-diffusion-3.5-medium-nf4",
-            steps=28,
-            guidance=7.0,
-            width=1024,
-            height=1024,
-            dtype="bfloat16",
-            variant=None,
-            quantization="nf4",
-        ),
+        image=SD35_MEDIUM_NF4,
         asset=AssetPreset(
             backend="pixal3d",
             model_id="TencentARC/Pixal3D",
@@ -294,6 +302,44 @@ PRESETS: dict[str, PipelinePreset] = {
             texture_resolution=4096,
             pipeline_resolution=1024,
             camera_fov=0.2,
+        ),
+    ),
+    "wsl-cuda-sd35-trellis2-q4": PipelinePreset(
+        name="wsl-cuda-sd35-trellis2-q4",
+        schema_version=1,
+        platform="linux",
+        device="cuda:0",
+        image=SD35_MEDIUM_NF4,
+        asset=AssetPreset(
+            backend="trellis-cpp",
+            model_id="ilintar/trellis2-gguf",
+            revision=TRELLIS_CPP_MODEL_REVISION,
+            directory_name="trellis2-gguf-q4",
+            source_revision=TRELLIS_CPP_SOURCE_REVISION,
+            output_mode="pbr_texture",
+            quantization="q4",
+            texture_resolution=2048,
+            pipeline_resolution=1024,
+            max_tokens=49152,
+        ),
+    ),
+    "wsl-cuda-sd35-trellis2-q8": PipelinePreset(
+        name="wsl-cuda-sd35-trellis2-q8",
+        schema_version=1,
+        platform="linux",
+        device="cuda:0",
+        image=SD35_MEDIUM_NF4,
+        asset=AssetPreset(
+            backend="trellis-cpp",
+            model_id="ilintar/trellis2-gguf",
+            revision=TRELLIS_CPP_MODEL_REVISION,
+            directory_name="trellis2-gguf-q8",
+            source_revision=TRELLIS_CPP_SOURCE_REVISION,
+            output_mode="pbr_texture",
+            quantization="q8",
+            texture_resolution=2048,
+            pipeline_resolution=1024,
+            max_tokens=49152,
         ),
     ),
 }

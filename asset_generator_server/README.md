@@ -18,6 +18,8 @@ inference settings reproducible.
 | `linux-cuda-sana` | Linux or WSL 2/NVIDIA | Sana-Sprint 1.6B (2 steps, 1024px) → Stable Fast 3D | 2048px UV/PBR GLB |
 | `wsl-cuda-pixal3d` | WSL 2/NVIDIA | Sana-Sprint 1.6B → Pixal3D low-VRAM (1024 cascade) | 4096px UV/PBR GLB |
 | `wsl-cuda-sd35-pixal3d` | WSL 2/NVIDIA | SD 3.5 Medium NF4 (28 steps, 1024px) → Pixal3D low-VRAM | 4096px UV/PBR GLB |
+| `wsl-cuda-sd35-trellis2-q4` | WSL 2/NVIDIA | SD 3.5 Medium NF4 → TRELLIS.2 GGUF Q4 (1024 cascade) | 2048px UV/PBR GLB |
+| `wsl-cuda-sd35-trellis2-q8` | WSL 2/NVIDIA | SD 3.5 Medium NF4 → TRELLIS.2 GGUF Q8 (1024 cascade) | 2048px UV/PBR GLB |
 
 `PIPELINE_PROFILE=auto` selects `macos-mlx` on Apple Silicon and
 `windows-cuda-sana` on supported Windows systems, or `linux-cuda-sana` on
@@ -256,6 +258,48 @@ latency on every uncached request but prevents the two models' RAM and VRAM
 footprints from overlapping. Set `IMAGE_TIMEOUT_SECONDS` higher than 600 if the
 28-step image stage is unusually slow.
 
+### Try TRELLIS.2 GGUF in WSL
+
+The two trellis.cpp presets avoid Pixal3D's Python, FlexGEMM, and NATTEN path.
+They use the same isolated SD 3.5 NF4 image stage, followed by a pinned
+CUDA 12.8 build of `trellis-cli`. The CLI loads one model stage at a time and
+exits after each uncached request, releasing all CPU and GPU allocations.
+
+Q4 is the safer starting point for a 12 GB GPU. Q8 uses about 9.5 GB for its
+quantized weight set and is the quality-first experiment. Both presets use the
+same 1024 cascade, 49,152-token ceiling, 2048px atlas, xatlas unwrap, and PNG
+textures so their results can be compared directly.
+
+First accept the Stable Diffusion 3.5 Medium terms and export `HF_TOKEN`, then
+install either or both presets:
+
+```bash
+uv run python scripts/download_models.py \
+  --profile wsl-cuda-sd35-trellis2-q4 \
+  --accept-licenses
+
+uv run python scripts/download_models.py \
+  --profile wsl-cuda-sd35-trellis2-q8 \
+  --accept-licenses
+```
+
+The first command clones pinned trellis.cpp sources and builds only
+`trellis-cli` for the detected CUDA architecture. Compilation defaults to two
+jobs and respects `MAX_JOBS=1` on memory-constrained WSL installations. The
+second preset reuses the SD 3.5 files and compiled CLI, downloading only its Q8
+weights.
+
+Select one in `.env`:
+
+```dotenv
+PIPELINE_PROFILE=wsl-cuda-sd35-trellis2-q4
+IMAGE_TIMEOUT_SECONDS=600
+TRELLIS_TIMEOUT_SECONDS=1800
+```
+
+If Q8 fails with CUDA out-of-memory, use Q4. If both complete, compare the saved
+PNG and GLB pairs before choosing the extra Q8 disk and memory cost.
+
 ### 4. Run WSL server and connect Unity
 
 Inside WSL:
@@ -407,13 +451,15 @@ receives `generator_busy`; cached requests remain available.
 - `PIPELINE_PROFILE`: `auto`, `macos-mlx`, `windows-cuda-quality`,
   `windows-cuda-fast`, `windows-cuda-sana`, `linux-cuda-quality`,
   `linux-cuda-fast`, `linux-cuda-sana`, `wsl-cuda-pixal3d`, or
-  `wsl-cuda-sd35-pixal3d`
+  `wsl-cuda-sd35-pixal3d`, `wsl-cuda-sd35-trellis2-q4`, or
+  `wsl-cuda-sd35-trellis2-q8`
 - `PUBLIC_BASE_URL`: public URL used in responses
 - `ASSET_OUTPUT_DIR`: generated GLB and metadata directory
 - `MODEL_CACHE_DIR`: models, pinned sources, and runtimes
 - `HUNYUAN_TIMEOUT_SECONDS`: macOS Hunyuan subprocess timeout
 - `IMAGE_TIMEOUT_SECONDS`: isolated SD 3.5 subprocess timeout (default: 600)
 - `PIXAL3D_TIMEOUT_SECONDS`: WSL Pixal3D subprocess timeout (default: 1800)
+- `TRELLIS_TIMEOUT_SECONDS`: WSL trellis.cpp subprocess timeout (default: 1800)
 - `LOG_LEVEL`: server log level
 
 The former `GENERATION_DEVICE`, `HUNYUAN_STEPS`,

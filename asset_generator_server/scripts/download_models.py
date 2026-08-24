@@ -20,6 +20,8 @@ from app.presets import (
     HUNYUAN_SWIFT_REVISION,
     PIXAL3D_SOURCE_REVISION,
     SF3D_SOURCE_REVISION,
+    TRELLIS_CPP_MODEL_REVISION,
+    TRELLIS_CPP_SOURCE_REVISION,
     PipelinePreset,
 )
 
@@ -27,6 +29,7 @@ HUNYUAN_REPOSITORY = "https://github.com/ZimengXiong/Hunyuan3D-Swift.git"
 SF3D_REPOSITORY = "https://github.com/Stability-AI/stable-fast-3d.git"
 PIXAL3D_REPOSITORY = "https://github.com/TencentARC/Pixal3D.git"
 TRELLIS2_REPOSITORY = "https://github.com/microsoft/TRELLIS.2.git"
+TRELLIS_CPP_REPOSITORY = "https://github.com/pwilkin/trellis.cpp.git"
 CUMESH_REPOSITORY = "https://github.com/JeffreyXiang/CuMesh.git"
 FLEXGEMM_REPOSITORY = "https://github.com/JeffreyXiang/FlexGEMM.git"
 NVDIFFRAST_REPOSITORY = "https://github.com/NVlabs/nvdiffrast.git"
@@ -647,6 +650,126 @@ def install_pixal3d(
     print(f"Installed and verified Pixal3D at {settings.asset_model_path}")
 
 
+def _download_trellis_cpp_models(
+    settings: Settings, preset: PipelinePreset
+) -> None:
+    quantization = preset.asset.quantization
+    if quantization not in {"q4", "q8"}:
+        raise RuntimeError("The trellis.cpp preset must select Q4 or Q8 weights.")
+    snapshot_download(
+        repo_id=preset.asset.model_id,
+        revision=TRELLIS_CPP_MODEL_REVISION,
+        local_dir=settings.asset_model_path,
+        allow_patterns=[f"{quantization}/*"],
+    )
+    (settings.asset_model_path / ".model-revision").write_text(
+        preset.asset.revision + "\n", encoding="utf-8"
+    )
+
+
+def _build_trellis_cpp(
+    settings: Settings, architecture: str, force: bool
+) -> None:
+    source = settings.trellis_cpp_source_path
+    build = settings.trellis_cpp_build_path
+    executable = settings.trellis_cpp_executable_path
+    install_source(
+        source,
+        TRELLIS_CPP_REPOSITORY,
+        TRELLIS_CPP_SOURCE_REVISION,
+        "trellis.cpp",
+        force,
+        recursive=True,
+    )
+    if executable.is_file() and not force:
+        print(f"trellis.cpp CUDA runtime is present at {build}")
+        return
+
+    cc, cxx = _select_cuda_host_compilers()
+    build_jobs = os.environ.get(
+        "MAX_JOBS", str(min(2, max(1, (os.cpu_count() or 2) // 2)))
+    )
+    cuda_architecture = architecture.replace(".", "")
+    env = {
+        **os.environ,
+        "CC": cc,
+        "CXX": cxx,
+        "CUDAHOSTCXX": cxx,
+        "CUDA_HOME": "/usr/local/cuda-12.8",
+        "CUDACXX": "/usr/local/cuda-12.8/bin/nvcc",
+    }
+    print(
+        f"Building trellis.cpp for CUDA sm_{cuda_architecture} with "
+        f"{build_jobs} parallel jobs; this can take several minutes."
+    )
+    run(
+        [
+            "cmake",
+            "-S",
+            str(source.resolve()),
+            "-B",
+            str(build.resolve()),
+            "-G",
+            "Ninja",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DGGML_CUDA=ON",
+            "-DTRELLIS_WEBP=OFF",
+            "-DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc",
+            f"-DCMAKE_CUDA_HOST_COMPILER={cxx}",
+            f"-DCMAKE_CUDA_ARCHITECTURES={cuda_architecture}",
+        ],
+        env=env,
+    )
+    run(
+        [
+            "cmake",
+            "--build",
+            str(build.resolve()),
+            "--target",
+            "trellis-cli",
+            "--parallel",
+            build_jobs,
+        ],
+        env=env,
+    )
+    if not executable.is_file():
+        raise RuntimeError("The trellis.cpp build did not create trellis-cli.")
+    print(f"Built trellis.cpp CUDA runtime at {build}")
+
+
+def install_trellis_cpp(
+    settings: Settings,
+    preset: PipelinePreset,
+    force: bool,
+    architecture: str,
+) -> None:
+    if not _is_wsl():
+        raise RuntimeError("The TRELLIS.2 GGUF profiles require WSL 2.")
+    _build_trellis_cpp(settings, architecture, force)
+    _download_trellis_cpp_models(settings, preset)
+    missing = [
+        path.resolve()
+        for path in settings.trellis_cpp_required_files
+        if not path.is_file()
+    ]
+    if missing:
+        raise RuntimeError(
+            "TRELLIS.2 installation did not create the required files:\n- "
+            + "\n- ".join(str(path) for path in missing)
+        )
+    build = settings.trellis_cpp_build_path.resolve()
+    existing = os.environ.get("LD_LIBRARY_PATH")
+    library_path = str(build) if not existing else f"{build}:{existing}"
+    run(
+        [str(settings.trellis_cpp_executable_path.resolve()), "--help"],
+        env={**os.environ, "LD_LIBRARY_PATH": library_path},
+    )
+    print(
+        "Installed and verified TRELLIS.2 "
+        f"{preset.asset.quantization.upper()} at {settings.asset_model_path}"
+    )
+
+
 def install_linux(
     settings: Settings,
     preset: PipelinePreset,
@@ -663,6 +786,9 @@ def install_linux(
     architecture = architecture or _validate_linux_cuda()
     if preset.asset.backend == "pixal3d":
         install_pixal3d(settings, preset, force, architecture)
+        return
+    if preset.asset.backend == "trellis-cpp":
+        install_trellis_cpp(settings, preset, force, architecture)
         return
     token = token or _require_hugging_face_token()
     install_source(
@@ -883,6 +1009,8 @@ def main() -> None:
             "linux-cuda-sana",
             "wsl-cuda-pixal3d",
             "wsl-cuda-sd35-pixal3d",
+            "wsl-cuda-sd35-trellis2-q4",
+            "wsl-cuda-sd35-trellis2-q8",
         ],
     )
     parser.add_argument(
@@ -904,8 +1032,7 @@ def main() -> None:
     if preset.name.startswith("wsl-") and not _is_wsl():
         raise RuntimeError(f"The {preset.name} profile requires WSL 2.")
     print(
-        "Installing models governed by Stability AI and/or Tencent community "
-        "licenses. See THIRD_PARTY_NOTICES.md."
+        "Installing third-party models and runtimes. See THIRD_PARTY_NOTICES.md."
     )
     token: str | None = None
     architecture: str | None = None
@@ -916,7 +1043,7 @@ def main() -> None:
         token = _require_hugging_face_token()
     elif preset.platform == "linux":
         architecture = _validate_linux_cuda()
-        if preset.asset.backend == "pixal3d":
+        if preset.asset.backend in {"pixal3d", "trellis-cpp"}:
             _select_cuda_host_compilers()
         if (
             preset.asset.backend == "stable-fast-3d"

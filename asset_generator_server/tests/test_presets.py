@@ -15,6 +15,7 @@ from app.backends import (
     DiffusersImageBackend,
     IsolatedDiffusersImageBackend,
     Pixal3DBackend,
+    TrellisCppBackend,
     create_backends,
 )
 from app.config import Settings
@@ -112,6 +113,18 @@ def test_sd35_pixal3d_profile_quantizes_both_large_image_components() -> None:
     assert preset.asset == PRESETS["wsl-cuda-pixal3d"].asset
 
 
+@pytest.mark.parametrize("quantization", ["q4", "q8"])
+def test_sd35_trellis2_profiles_use_matching_quantization(quantization: str) -> None:
+    preset = PRESETS[f"wsl-cuda-sd35-trellis2-{quantization}"]
+
+    assert preset.image == PRESETS["wsl-cuda-sd35-pixal3d"].image
+    assert preset.asset.backend == "trellis-cpp"
+    assert preset.asset.quantization == quantization
+    assert preset.asset.pipeline_resolution == 1024
+    assert preset.asset.max_tokens == 49152
+    assert preset.asset.texture_resolution == 2048
+
+
 def test_sd35_backend_selects_quantized_loader(tmp_path, monkeypatch) -> None:
     preset = PRESETS["wsl-cuda-sd35-pixal3d"]
     model_path = tmp_path / "models" / preset.image.directory_name
@@ -194,6 +207,56 @@ def test_sd35_pixal3d_uses_isolated_image_backend(tmp_path) -> None:
 
     assert isinstance(image, IsolatedDiffusersImageBackend)
     assert isinstance(asset, Pixal3DBackend)
+
+
+@pytest.mark.parametrize("quantization", ["q4", "q8"])
+def test_sd35_trellis2_uses_isolated_image_backend(
+    tmp_path, quantization: str
+) -> None:
+    settings = Settings(MODEL_CACHE_DIR=tmp_path)
+    preset = PRESETS[f"wsl-cuda-sd35-trellis2-{quantization}"]
+
+    image, asset = create_backends(settings, preset)
+
+    assert isinstance(image, IsolatedDiffusersImageBackend)
+    assert isinstance(asset, TrellisCppBackend)
+
+
+def test_trellis_cpp_backend_invokes_pinned_quality_cli(tmp_path, monkeypatch) -> None:
+    preset = PRESETS["wsl-cuda-sd35-trellis2-q4"]
+    executable = tmp_path / "runtime" / "trellis-cli"
+    models = tmp_path / "models" / "q4"
+    settings = SimpleNamespace(
+        trellis_cpp_executable_path=executable,
+        trellis_cpp_model_path=models,
+        trellis_cpp_build_path=executable.parent,
+        trellis_timeout_seconds=1800,
+    )
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append((command, kwargs))
+        Path(command[2]).write_bytes(b"glTF")
+        return SimpleNamespace(returncode=0, stdout="")
+
+    backend = TrellisCppBackend(settings, preset)
+    monkeypatch.setattr(backend, "load", lambda: None)
+    monkeypatch.setattr("app.backends.subprocess.run", run)
+    output = tmp_path / "job" / "asset.glb"
+    output.parent.mkdir()
+
+    backend.generate(Image.new("RGBA", (16, 16)), 123, output)
+
+    command, kwargs = calls[0]
+    assert command[0] == str(executable.resolve())
+    assert command[command.index("--models") + 1] == str(models.resolve())
+    assert command[command.index("--res") + 1] == "1024"
+    assert command[command.index("--max-tokens") + 1] == "49152"
+    assert command[command.index("--atlas") + 1] == "2048"
+    assert command[command.index("--webp") + 1] == "off"
+    assert command[command.index("--seed") + 1] == "123"
+    assert "--require-gpu" in command
+    assert str(executable.parent.resolve()) in kwargs["env"]["LD_LIBRARY_PATH"]
 
 
 def test_isolated_sd35_backend_passes_private_request_over_stdin(

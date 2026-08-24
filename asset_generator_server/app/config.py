@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     hunyuan_timeout_seconds: int = Field(default=300, alias="HUNYUAN_TIMEOUT_SECONDS")
     image_timeout_seconds: int = Field(default=600, alias="IMAGE_TIMEOUT_SECONDS")
     pixal3d_timeout_seconds: int = Field(default=1800, alias="PIXAL3D_TIMEOUT_SECONDS")
+    trellis_timeout_seconds: int = Field(default=1800, alias="TRELLIS_TIMEOUT_SECONDS")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     @property
@@ -71,6 +72,44 @@ class Settings(BaseSettings):
     @property
     def trellis2_source_path(self) -> Path:
         return self.model_cache_dir / "sources" / "TRELLIS.2"
+
+    @property
+    def trellis_cpp_source_path(self) -> Path:
+        return self.model_cache_dir / "sources" / "trellis.cpp"
+
+    @property
+    def trellis_cpp_build_path(self) -> Path:
+        return self.trellis_cpp_source_path / ".build"
+
+    @property
+    def trellis_cpp_executable_path(self) -> Path:
+        return self.trellis_cpp_build_path / "trellis-cli"
+
+    @property
+    def trellis_cpp_model_path(self) -> Path:
+        quantization = self.preset.asset.quantization
+        if quantization not in {"q4", "q8"}:
+            raise ValueError("The selected preset does not use TRELLIS.2 GGUF weights.")
+        return self.asset_model_path / quantization
+
+    @property
+    def trellis_cpp_required_files(self) -> tuple[Path, ...]:
+        models = (
+            "birefnet.gguf",
+            "dinov3.gguf",
+            "ss_flow.gguf",
+            "ss_dec.gguf",
+            "shape_flow_512.gguf",
+            "shape_flow_1024.gguf",
+            "shape_dec.gguf",
+            "tex_flow_512.gguf",
+            "tex_flow_1024.gguf",
+            "tex_dec.gguf",
+        )
+        return (
+            self.trellis_cpp_executable_path,
+            *(self.trellis_cpp_model_path / name for name in models),
+        )
 
     @property
     def pixal3d_runtime_path(self) -> Path:

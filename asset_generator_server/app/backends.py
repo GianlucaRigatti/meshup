@@ -594,14 +594,121 @@ class Pixal3DBackend:
         return
 
 
+class TrellisCppBackend:
+    output_mode = "pbr_texture"
+
+    def __init__(self, settings: Settings, preset: PipelinePreset) -> None:
+        self.settings = settings
+        self.preset = preset
+        self.device = "cuda:0"
+
+    def load(self) -> None:
+        if not _is_wsl():
+            raise RuntimeError("The TRELLIS.2 GGUF profiles currently require WSL 2.")
+        missing = [
+            path.resolve()
+            for path in self.settings.trellis_cpp_required_files
+            if not path.is_file()
+        ]
+        if missing:
+            raise FileNotFoundError(
+                "The trellis.cpp runtime is incomplete. Missing files:\n- "
+                + "\n- ".join(str(path) for path in missing)
+                + "\nRerun the model installer for this profile."
+            )
+        _require_git_revision(
+            self.settings.trellis_cpp_source_path,
+            self.preset.asset.source_revision,
+        )
+        _require_revision(
+            self.settings.asset_model_path,
+            self.preset.asset.revision,
+        )
+        completed = subprocess.run(
+            [str(self.settings.trellis_cpp_executable_path.resolve()), "--help"],
+            env=self._environment,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=60,
+        )
+        if completed.returncode != 0:
+            tail = completed.stdout[-4000:].strip()
+            message = "The trellis.cpp runtime failed its readiness check."
+            if tail:
+                message += f"\n{tail}"
+            raise RuntimeError(message)
+
+    def generate(self, image: Image.Image, seed: int, output: Path) -> None:
+        self.load()
+        input_path = output.with_name("input.png")
+        image.save(input_path, format="PNG")
+        asset = self.preset.asset
+        command = [
+            str(self.settings.trellis_cpp_executable_path.resolve()),
+            str(input_path.resolve()),
+            str(output.resolve()),
+            "--models",
+            str(self.settings.trellis_cpp_model_path.resolve()),
+            "--gpu",
+            "0",
+            "--seed",
+            str(seed),
+            "--res",
+            str(asset.pipeline_resolution),
+            "--max-tokens",
+            str(asset.max_tokens),
+            "--atlas",
+            str(asset.texture_resolution),
+            "--webp",
+            "off",
+            "--require-gpu",
+        ]
+        try:
+            completed = subprocess.run(
+                command,
+                env=self._environment,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=self.settings.trellis_timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                "TRELLIS.2 generation timed out after "
+                f"{self.settings.trellis_timeout_seconds} seconds."
+            ) from exc
+        if completed.returncode != 0 or not output.is_file():
+            tail = completed.stdout[-4000:].strip()
+            message = "TRELLIS.2 generation failed."
+            if tail:
+                message += f"\n{tail}"
+            raise RuntimeError(message)
+
+    @property
+    def _environment(self) -> dict[str, str]:
+        build = self.settings.trellis_cpp_build_path.resolve()
+        existing = os.environ.get("LD_LIBRARY_PATH")
+        library_path = str(build) if not existing else f"{build}:{existing}"
+        return {**os.environ, "LD_LIBRARY_PATH": library_path}
+
+    def move_to_cpu(self) -> None:
+        return
+
+    def release_device_memory(self) -> None:
+        return
+
+
 def create_backends(
     settings: Settings, preset: PipelinePreset
 ) -> tuple[ImageBackend, AssetBackend]:
     image: ImageBackend
-    if (
-        preset.image.backend == "stable-diffusion-3.5"
-        and preset.asset.backend == "pixal3d"
-    ):
+    if preset.image.backend == "stable-diffusion-3.5" and preset.asset.backend in {
+        "pixal3d",
+        "trellis-cpp",
+    }:
         image = IsolatedDiffusersImageBackend(settings, preset)
     else:
         image = DiffusersImageBackend(settings, preset)
@@ -609,6 +716,8 @@ def create_backends(
         return image, HunyuanMlxBackend(settings, preset)
     if preset.asset.backend == "pixal3d":
         return image, Pixal3DBackend(settings, preset)
+    if preset.asset.backend == "trellis-cpp":
+        return image, TrellisCppBackend(settings, preset)
     return image, StableFast3DBackend(settings, preset)
 
 

@@ -157,6 +157,91 @@ def test_linux_pixal3d_install_dispatches_without_hugging_face_token(
     assert captured["args"] == (settings, preset, False, "8.9")
 
 
+def test_linux_trellis_install_dispatches_to_cpp_runtime(tmp_path, monkeypatch) -> None:
+    settings = _settings(tmp_path)
+    captured = {}
+    monkeypatch.setattr(download_models.sys, "platform", "linux")
+    monkeypatch.setattr(download_models.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(
+        download_models,
+        "install_trellis_cpp",
+        lambda *args: captured.update(args=args),
+    )
+    preset = PRESETS["wsl-cuda-sd35-trellis2-q4"]
+
+    download_models.install_linux(
+        settings,
+        preset,
+        False,
+        token="hf_test",
+        architecture="12.0",
+    )
+
+    assert captured["args"] == (settings, preset, False, "12.0")
+
+
+def test_trellis_model_download_selects_only_requested_quant(
+    tmp_path, monkeypatch
+) -> None:
+    preset = PRESETS["wsl-cuda-sd35-trellis2-q8"]
+    settings = SimpleNamespace(asset_model_path=tmp_path / "trellis-q8")
+    captured = {}
+
+    def snapshot(**kwargs):
+        captured.update(kwargs)
+        Path(kwargs["local_dir"]).mkdir(parents=True)
+
+    monkeypatch.setattr(download_models, "snapshot_download", snapshot)
+
+    download_models._download_trellis_cpp_models(settings, preset)
+
+    assert captured["repo_id"] == "ilintar/trellis2-gguf"
+    assert captured["revision"] == preset.asset.revision
+    assert captured["allow_patterns"] == ["q8/*"]
+    assert (settings.asset_model_path / ".model-revision").read_text().strip() == (
+        preset.asset.revision
+    )
+
+
+def test_trellis_build_targets_detected_cuda_architecture(tmp_path, monkeypatch) -> None:
+    source = tmp_path / "sources" / "trellis.cpp"
+    build = source / ".build"
+    executable = build / "trellis-cli"
+    settings = SimpleNamespace(
+        trellis_cpp_source_path=source,
+        trellis_cpp_build_path=build,
+        trellis_cpp_executable_path=executable,
+    )
+    calls = []
+    monkeypatch.setattr(
+        download_models, "install_source", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        download_models,
+        "_select_cuda_host_compilers",
+        lambda: ("/usr/bin/gcc-14", "/usr/bin/g++-14"),
+    )
+
+    def run(command, cwd=None, env=None):
+        calls.append((command, cwd, env))
+        if command[:2] == ["cmake", "--build"]:
+            executable.parent.mkdir(parents=True)
+            executable.touch()
+        return ""
+
+    monkeypatch.setattr(download_models, "run", run)
+
+    download_models._build_trellis_cpp(settings, "12.0", False)
+
+    configure = calls[0][0]
+    build_command = calls[1][0]
+    assert "-DCMAKE_CUDA_ARCHITECTURES=120" in configure
+    assert "-DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc" in configure
+    assert "-DGGML_CUDA=ON" in configure
+    assert "-DTRELLIS_WEBP=OFF" in configure
+    assert build_command[build_command.index("--target") + 1] == "trellis-cli"
+
+
 def test_linux_preflight_reports_missing_build_tools(monkeypatch) -> None:
     monkeypatch.setattr(
         download_models.shutil,

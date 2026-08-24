@@ -85,3 +85,17 @@ CuMesh, FlexGEMM, nvdiffrast, O-Voxel, utils3d, DINOv3, and NAF. Pixal3D and
 TRELLIS.2 source are MIT-licensed. Their third-party components and model
 weights remain under their own terms; review the linked repositories and model
 cards before downloading or distributing them.
+
+## TRELLIS.2 GGUF via trellis.cpp
+
+- Runtime source: <https://github.com/pwilkin/trellis.cpp>
+- Pinned runtime revision: `06fc9000719c912ddc4929d21db075972c26ac3e`
+- Quantized weights: <https://huggingface.co/ilintar/trellis2-gguf>
+- Pinned weight revision: `a57397bd3d351599d9729fc144b3f87c3f87d65b`
+- Original model: <https://huggingface.co/microsoft/TRELLIS.2-4B>
+
+The optional WSL Q4 and Q8 presets build the MIT-licensed trellis.cpp runtime
+against the local CUDA 12.8 toolkit and download only the selected GGUF weight
+folder. The original Microsoft TRELLIS.2 model is MIT-licensed. Review the
+runtime's bundled third-party components and the quantized-weight repository
+before redistribution.
