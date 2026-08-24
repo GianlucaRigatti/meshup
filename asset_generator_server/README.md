@@ -272,6 +272,10 @@ Native BiRefNet runs additionally record `background_to_gpu_ms`,
 `background_inference_ms`, and `background_release_ms`. Its memory section
 reports model allocation, inference peak, and post-release CUDA allocation so
 12 GB cards can be checked for real headroom instead of relying on estimates.
+Native FLUX and TRELLIS subprocesses also record whole-device NVIDIA baseline,
+peak, peak delta, and post-process usage under `image_model_*` and `model_3d_*`
+keys. These include VRAM used by other processes, while the delta is the useful
+per-stage estimate.
 
 Prompts are normalized and hashed but never stored in metadata. The server
 accepts one uncached request at a time; concurrent uncached requests receive

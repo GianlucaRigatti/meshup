@@ -14,6 +14,7 @@ import trimesh
 from PIL import Image
 
 from app.config import Settings
+from app.gpu_memory import NvidiaMemorySampler
 from app.presets import (
     DINOV2_LARGE_REVISION,
     Z_IMAGE_TEXT_ENCODER_REVISION,
@@ -467,6 +468,7 @@ class Flux2KleinCppBackend:
         self.settings = settings
         self.preset = preset
         self.device = "cuda:0"
+        self.last_memory: dict[str, int] = {}
 
     def load(self) -> None:
         if not _is_wsl():
@@ -559,21 +561,25 @@ class Flux2KleinCppBackend:
             ]
             if image.vae_tiling:
                 command.append("--vae-tiling")
+            sampler = NvidiaMemorySampler("image_model")
             try:
-                completed = subprocess.run(
-                    command,
-                    env=self._environment,
-                    check=False,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    timeout=self.settings.image_timeout_seconds,
-                )
+                with sampler:
+                    completed = subprocess.run(
+                        command,
+                        env=self._environment,
+                        check=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        timeout=self.settings.image_timeout_seconds,
+                    )
             except subprocess.TimeoutExpired as exc:
                 raise RuntimeError(
                     "FLUX.2 Klein generation timed out after "
                     f"{self.settings.image_timeout_seconds} seconds."
                 ) from exc
+            finally:
+                self.last_memory = sampler.metadata
             if completed.returncode != 0 or not output.is_file():
                 tail = completed.stdout[-4000:].strip()
                 message = "FLUX.2 Klein generation failed."
@@ -893,6 +899,7 @@ class TrellisCppBackend:
         self.settings = settings
         self.preset = preset
         self.device = "cuda:0"
+        self.last_memory: dict[str, int] = {}
 
     def load(self) -> None:
         if not _is_wsl():
@@ -959,21 +966,25 @@ class TrellisCppBackend:
         ]
         if asset.box_uv:
             command.append("--box-uv")
+        sampler = NvidiaMemorySampler("model_3d")
         try:
-            completed = subprocess.run(
-                command,
-                env=self._environment,
-                check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=self.settings.trellis_timeout_seconds,
-            )
+            with sampler:
+                completed = subprocess.run(
+                    command,
+                    env=self._environment,
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=self.settings.trellis_timeout_seconds,
+                )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError(
                 "TRELLIS.2 generation timed out after "
                 f"{self.settings.trellis_timeout_seconds} seconds."
             ) from exc
+        finally:
+            self.last_memory = sampler.metadata
         if completed.returncode != 0 or not output.is_file():
             tail = completed.stdout[-4000:].strip()
             message = "TRELLIS.2 generation failed."

@@ -199,11 +199,13 @@ class AssetGenerator:
                     "created_at": datetime.now(UTC).isoformat(),
                     "timings": timings,
                     "memory": self._memory_metadata(image_peak_memory)
+                    | getattr(self.image_backend, "last_memory", {})
                     | (
                         self._background_remover.last_memory
                         if self._background_remover is not None
                         else {}
-                    ),
+                    )
+                    | getattr(self.asset_backend, "last_memory", {}),
                 },
             )
             return asset_id, False, timings
