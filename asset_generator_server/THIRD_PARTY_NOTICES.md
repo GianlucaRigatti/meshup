@@ -2,6 +2,16 @@
 
 This project downloads and uses the following model software and weights.
 
+## BiRefNet-General
+
+- Model: <https://huggingface.co/ZhengPeng7/BiRefNet>
+- Pinned revision: `b7d7f31fed203ab364ac756d62053ee467502434`
+- Source: <https://github.com/ZhengPeng7/BiRefNet>
+- License: MIT
+
+The default WSL background-removal path keeps the native PyTorch checkpoint in
+system RAM and moves it temporarily to CUDA for inference.
+
 ## Hunyuan3D 2 Mini for MLX
 
 - MLX-Swift source: <https://github.com/ZimengXiong/Hunyuan3D-Swift>

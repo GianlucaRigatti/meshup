@@ -268,6 +268,11 @@ Each uncached request creates:
 - `generated_assets/<asset-id>.png`, the preprocessed 3D-model input
 - `generated_assets/<asset-id>.json`, revisions, settings, timings, and memory
 
+Native BiRefNet runs additionally record `background_to_gpu_ms`,
+`background_inference_ms`, and `background_release_ms`. Its memory section
+reports model allocation, inference peak, and post-release CUDA allocation so
+12 GB cards can be checked for real headroom instead of relying on estimates.
+
 Prompts are normalized and hashed but never stored in metadata. The server
 accepts one uncached request at a time; concurrent uncached requests receive
 `generator_busy`, while cached results remain available.
@@ -278,8 +283,6 @@ accepts one uncached request at a time; concurrent uncached requests receive
 - `MODEL_3D`: public 3D selection; default `trellis2-fast`
 - `BACKGROUND_REMOVAL_MODEL`: foreground segmentation model; default
   `birefnet-general`. Set `u2netp` only to restore the faster legacy model.
-- `BACKGROUND_REMOVAL_TIMEOUT_SECONDS`: isolated CUDA background-removal
-  timeout; default 120
 - `PUBLIC_BASE_URL`: base URL returned by the API
 - `ASSET_OUTPUT_DIR`: generated asset directory
 - `MODEL_CACHE_DIR`: models, pinned sources, and isolated runtimes
@@ -304,10 +307,10 @@ localhostForwarding=true
 Apply changes with `wsl --shutdown` in PowerShell. Close other GPU applications
 before running Pixal3D or a quality TRELLIS variant.
 
-On WSL, background removal runs in a CUDA-only subprocess between image and 3D
-generation. The installer pins ONNX Runtime GPU to a CUDA 12.8-compatible
-release, and startup fails instead of silently falling back to CPU. The process
-exits before TRELLIS starts, returning all of its VRAM.
+On WSL, BiRefNet-General stays resident in FP16 system RAM. After the image
+generator exits, it moves temporarily to CUDA for segmentation, then returns to
+CPU and clears the CUDA allocator before TRELLIS starts. This avoids rebuilding
+an ONNX session for every request without permanently reserving VRAM.
 
 ## Validation and benchmarking
 

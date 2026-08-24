@@ -103,7 +103,7 @@ def test_default_settings_use_public_wsl_model_selection() -> None:
     assert settings.model_3d == DEFAULT_MODEL_3D
     assert settings.background_removal_model == "birefnet-general"
     assert settings.background_removal_model_path == (
-        Path(".model_sources/models/rembg/birefnet-general.onnx")
+        Path(".model_sources/models/birefnet-general")
     )
     assert settings.preset == resolve_models(DEFAULT_IMAGE_GENERATOR, DEFAULT_MODEL_3D)
 

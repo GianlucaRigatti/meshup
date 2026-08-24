@@ -4,8 +4,6 @@ import hashlib
 import json
 import logging
 import os
-import subprocess
-import sys
 import tempfile
 import threading
 import time
@@ -16,14 +14,12 @@ import numpy as np
 import trimesh
 from PIL import Image
 
+from app.background_removal import TorchBiRefNet
 from app.backends import AssetBackend, ImageBackend, create_backends
 from app.config import Settings
 from app.presets import PipelinePreset
 
 LOGGER = logging.getLogger(__name__)
-BACKGROUND_REMOVAL_RUNNER = (
-    Path(__file__).resolve().parents[1] / "scripts" / "run_background_removal.py"
-)
 PROMPT_SUFFIX = ", one isolated subject, complete subject fully visible, centered, three-quarter front view, camera near subject height, faithful subject-specific anatomy, characteristic colors and materials, natural coherent shape, strong clean silhouette, limbs and appendages clearly visible and separated where applicable, balanced proportions, soft diffuse studio lighting, shadowless presentation, sharp focus, weak-perspective product view, solid white background, no floor, no pedestal, no environment, no text, no extra objects, no cropping, no occlusion"
 
 
@@ -58,6 +54,7 @@ class AssetGenerator:
         self.load_error: str | None = None
         self._rembg = None
         self._rembg_session = None
+        self._background_remover: TorchBiRefNet | None = None
         self._lock = threading.Lock()
 
     @property
@@ -152,6 +149,8 @@ class AssetGenerator:
             stage = time.perf_counter()
             image = self._remove_background(image)
             timings["preprocess_ms"] = self._elapsed_ms(stage)
+            if self._background_remover is not None:
+                timings.update(self._background_remover.last_timings)
 
             temporary_image_path = image_path.with_suffix(".png.tmp")
             image.save(temporary_image_path, format="PNG")
@@ -199,7 +198,12 @@ class AssetGenerator:
                     "texture_resolution": self.preset.asset.texture_resolution,
                     "created_at": datetime.now(UTC).isoformat(),
                     "timings": timings,
-                    "memory": self._memory_metadata(image_peak_memory),
+                    "memory": self._memory_metadata(image_peak_memory)
+                    | (
+                        self._background_remover.last_memory
+                        if self._background_remover is not None
+                        else {}
+                    ),
                 },
             )
             return asset_id, False, timings
@@ -234,7 +238,7 @@ class AssetGenerator:
             "image": self.preset.image.__dict__,
             "asset": self.preset.asset.__dict__,
             "background_removal_model": self.settings.background_removal_model,
-            "implementation": "cross-platform-v1",
+            "implementation": "cross-platform-v2-native-birefnet",
         }
         digest = hashlib.sha256(
             json.dumps(identity, sort_keys=True).encode()
@@ -244,11 +248,7 @@ class AssetGenerator:
     def _check_common_model_files(self) -> None:
         if (
             not self.settings.image_model_path.is_dir()
-            or not self.settings.background_removal_model_path.is_file()
-            or (
-                self.preset.platform == "linux"
-                and not BACKGROUND_REMOVAL_RUNNER.is_file()
-            )
+            or not self.settings.background_removal_model_path.exists()
         ):
             raise FileNotFoundError(
                 "Models are missing. Run `uv run python scripts/download_models.py "
@@ -257,29 +257,14 @@ class AssetGenerator:
             )
 
     def _load_background_removal(self) -> None:
-        if self.preset.platform == "linux":
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    str(BACKGROUND_REMOVAL_RUNNER),
-                    "--model-cache",
-                    str(self.settings.model_cache_dir.resolve()),
-                    "--model",
-                    self.settings.background_removal_model,
-                    "--check",
-                ],
-                check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=self.settings.background_removal_timeout_seconds,
+        if (
+            self.preset.platform == "linux"
+            and self.settings.background_removal_model == "birefnet-general"
+        ):
+            self._background_remover = TorchBiRefNet(
+                self.settings.background_removal_model_path
             )
-            if completed.returncode != 0:
-                message = "The CUDA background-removal runtime is unavailable."
-                tail = completed.stdout[-4000:].strip()
-                if tail:
-                    message += f"\n{tail}"
-                raise RuntimeError(message)
+            self._background_remover.load()
             return
 
         import rembg
@@ -290,8 +275,8 @@ class AssetGenerator:
         self._rembg_session = rembg.new_session(self.settings.background_removal_model)
 
     def _remove_background(self, image: Image.Image) -> Image.Image:
-        if self.preset.platform == "linux":
-            rgba = self._remove_background_isolated(image)
+        if self._background_remover is not None:
+            rgba = self._background_remover.remove(image)
         else:
             rgba = self._rembg.remove(image, session=self._rembg_session).convert(
                 "RGBA"
@@ -319,46 +304,6 @@ class AssetGenerator:
             cropped, ((canvas_size - size[0]) // 2, (canvas_size - size[1]) // 2)
         )
         return canvas
-
-    def _remove_background_isolated(self, image: Image.Image) -> Image.Image:
-        with tempfile.TemporaryDirectory(prefix="background-removal-") as temporary:
-            directory = Path(temporary)
-            input_path = directory / "input.png"
-            output_path = directory / "output.png"
-            image.convert("RGB").save(input_path, format="PNG")
-            try:
-                completed = subprocess.run(
-                    [
-                        sys.executable,
-                        str(BACKGROUND_REMOVAL_RUNNER),
-                        "--model-cache",
-                        str(self.settings.model_cache_dir.resolve()),
-                        "--model",
-                        self.settings.background_removal_model,
-                        "--input",
-                        str(input_path),
-                        "--output",
-                        str(output_path),
-                    ],
-                    check=False,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    timeout=self.settings.background_removal_timeout_seconds,
-                )
-            except subprocess.TimeoutExpired as exc:
-                raise RuntimeError(
-                    "Background removal timed out after "
-                    f"{self.settings.background_removal_timeout_seconds} seconds."
-                ) from exc
-            if completed.returncode != 0 or not output_path.is_file():
-                message = "CUDA background removal failed."
-                tail = completed.stdout[-4000:].strip()
-                if tail:
-                    message += f"\n{tail}"
-                raise RuntimeError(message)
-            with Image.open(output_path) as output:
-                return output.convert("RGBA").copy()
 
     def _validate_glb(self, path: Path) -> None:
         if not path.is_file() or path.read_bytes()[:4] != b"glTF":

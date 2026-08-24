@@ -8,7 +8,12 @@ from types import SimpleNamespace
 import pytest
 
 from app.config import Settings
-from app.presets import DINOV2_LARGE_REVISION, PRESETS
+from app.presets import (
+    BIREFNET_MODEL_ID,
+    BIREFNET_MODEL_REVISION,
+    DINOV2_LARGE_REVISION,
+    PRESETS,
+)
 from scripts import download_models
 
 
@@ -29,12 +34,38 @@ def test_run_preserves_failed_command_output(monkeypatch) -> None:
         download_models.run(["compiler"])
 
 
-def test_download_rembg_uses_configured_segmentation_model(
-    tmp_path, monkeypatch
-) -> None:
+def test_download_rembg_installs_native_birefnet(tmp_path, monkeypatch) -> None:
     settings = Settings(
         MODEL_CACHE_DIR=tmp_path,
         BACKGROUND_REMOVAL_MODEL="birefnet-general",
+    )
+    calls = []
+
+    def download(**kwargs):
+        calls.append(kwargs)
+        kwargs["local_dir"].mkdir(parents=True)
+
+    monkeypatch.setattr(download_models, "snapshot_download", download)
+
+    download_models.download_rembg(settings)
+
+    destination = tmp_path / "models" / "birefnet-general"
+    assert calls == [
+        {
+            "repo_id": BIREFNET_MODEL_ID,
+            "revision": BIREFNET_MODEL_REVISION,
+            "local_dir": destination,
+        }
+    ]
+    assert (destination / ".model-revision").read_text() == (
+        BIREFNET_MODEL_REVISION + "\n"
+    )
+
+
+def test_download_rembg_keeps_legacy_u2netp_path(tmp_path, monkeypatch) -> None:
+    settings = Settings(
+        MODEL_CACHE_DIR=tmp_path,
+        BACKGROUND_REMOVAL_MODEL="u2netp",
     )
     selected = []
     monkeypatch.setattr(
@@ -43,7 +74,7 @@ def test_download_rembg_uses_configured_segmentation_model(
 
     download_models.download_rembg(settings)
 
-    assert selected == ["birefnet-general"]
+    assert selected == ["u2netp"]
 
 
 def test_cuda_build_environment_uses_detected_architecture() -> None:

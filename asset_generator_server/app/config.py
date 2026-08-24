@@ -46,9 +46,6 @@ class Settings(BaseSettings):
     instantmesh_timeout_seconds: int = Field(
         default=1800, alias="INSTANTMESH_TIMEOUT_SECONDS"
     )
-    background_removal_timeout_seconds: int = Field(
-        default=120, alias="BACKGROUND_REMOVAL_TIMEOUT_SECONDS"
-    )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     @property
@@ -67,6 +64,11 @@ class Settings(BaseSettings):
 
     @property
     def background_removal_model_path(self) -> Path:
+        if (
+            self.background_removal_model == "birefnet-general"
+            and self.preset.platform == "linux"
+        ):
+            return self.model_cache_dir / "models" / "birefnet-general"
         filename = {
             "birefnet-general": "birefnet-general.onnx",
             "u2netp": "u2netp.onnx",

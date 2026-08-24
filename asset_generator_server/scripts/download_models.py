@@ -16,6 +16,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from app.config import Settings
 from app.presets import (
+    BIREFNET_MODEL_ID,
+    BIREFNET_MODEL_REVISION,
     DINOV2_LARGE_REVISION,
     HUNYUAN_SWIFT_REVISION,
     IMAGE_GENERATORS,
@@ -325,6 +327,22 @@ def _download_flux2_klein_models(
 
 
 def download_rembg(settings: Settings) -> None:
+    if (
+        settings.background_removal_model == "birefnet-general"
+        and settings.preset.platform == "linux"
+    ):
+        destination = settings.background_removal_model_path
+        snapshot_download(
+            repo_id=BIREFNET_MODEL_ID,
+            revision=BIREFNET_MODEL_REVISION,
+            local_dir=destination,
+        )
+        (destination / ".model-revision").write_text(
+            BIREFNET_MODEL_REVISION + "\n", encoding="utf-8"
+        )
+        print(f"Installed native BiRefNet-General at {destination}")
+        return
+
     rembg_dir = settings.model_cache_dir / "models" / "rembg"
     rembg_dir.mkdir(parents=True, exist_ok=True)
     os.environ["U2NET_HOME"] = str(rembg_dir.resolve())
