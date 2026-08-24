@@ -68,6 +68,7 @@ def create_app(
             "busy": service.busy,
             "image_generator": settings.image_generator,
             "model_3d": settings.model_3d,
+            "background_removal_model": settings.background_removal_model,
             "device": service.preset.device,
             "output_mode": service.output_mode,
         }

@@ -19,9 +19,7 @@ from app.config import Settings
 from app.presets import PipelinePreset
 
 LOGGER = logging.getLogger(__name__)
-PROMPT_SUFFIX = (
-    ", one isolated subject, complete subject fully visible, centered, three-quarter front view, camera near subject height, faithful subject-specific anatomy, characteristic colors and materials, natural coherent shape, strong clean silhouette, limbs and appendages clearly visible and separated where applicable, balanced proportions, soft diffuse studio lighting, shadowless presentation, sharp focus, weak-perspective product view, solid white background, no floor, no pedestal, no environment, no text, no extra objects, no cropping, no occlusion"
-)
+PROMPT_SUFFIX = ", one isolated subject, complete subject fully visible, centered, three-quarter front view, camera near subject height, faithful subject-specific anatomy, characteristic colors and materials, natural coherent shape, strong clean silhouette, limbs and appendages clearly visible and separated where applicable, balanced proportions, soft diffuse studio lighting, shadowless presentation, sharp focus, weak-perspective product view, solid white background, no floor, no pedestal, no environment, no text, no extra objects, no cropping, no occlusion"
 
 
 class BusyError(RuntimeError):
@@ -177,6 +175,9 @@ class AssetGenerator:
                     "seed": seed,
                     "image_generator": self.settings.image_generator,
                     "model_3d": self.settings.model_3d,
+                    "background_removal_model": (
+                        self.settings.background_removal_model
+                    ),
                     "pipeline_version": self._version,
                     "models": {
                         "image": {
@@ -227,6 +228,7 @@ class AssetGenerator:
             "profile": self.preset.name,
             "image": self.preset.image.__dict__,
             "asset": self.preset.asset.__dict__,
+            "background_removal_model": self.settings.background_removal_model,
             "implementation": "cross-platform-v1",
         }
         digest = hashlib.sha256(
@@ -235,8 +237,10 @@ class AssetGenerator:
         return f"{self.preset.name}-{digest}"
 
     def _check_common_model_files(self) -> None:
-        rembg = self.settings.model_cache_dir / "models" / "rembg" / "u2netp.onnx"
-        if not self.settings.image_model_path.is_dir() or not rembg.is_file():
+        if (
+            not self.settings.image_model_path.is_dir()
+            or not self.settings.background_removal_model_path.is_file()
+        ):
             raise FileNotFoundError(
                 "Models are missing. Run `uv run python scripts/download_models.py "
                 f"--image-generator {self.settings.image_generator} "
@@ -249,7 +253,7 @@ class AssetGenerator:
         rembg_dir = self.settings.model_cache_dir / "models" / "rembg"
         os.environ["U2NET_HOME"] = str(rembg_dir.resolve())
         self._rembg = rembg
-        self._rembg_session = rembg.new_session("u2netp")
+        self._rembg_session = rembg.new_session(self.settings.background_removal_model)
 
     def _remove_background(self, image: Image.Image) -> Image.Image:
         rgba = self._rembg.remove(image, session=self._rembg_session).convert("RGBA")

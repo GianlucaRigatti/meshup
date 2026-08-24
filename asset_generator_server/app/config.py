@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,6 +33,9 @@ class Settings(BaseSettings):
         default=DEFAULT_IMAGE_GENERATOR, alias="IMAGE_GENERATOR"
     )
     model_3d: str = Field(default=DEFAULT_MODEL_3D, alias="MODEL_3D")
+    background_removal_model: Literal["birefnet-general", "u2netp"] = Field(
+        default="birefnet-general", alias="BACKGROUND_REMOVAL_MODEL"
+    )
     # Deprecated internal compatibility switch. New launch/install CLIs do not
     # expose legacy platform profiles.
     pipeline_profile: str | None = Field(default=None, alias="PIPELINE_PROFILE")
@@ -57,6 +61,14 @@ class Settings(BaseSettings):
     @property
     def asset_model_path(self) -> Path:
         return self.model_cache_dir / "models" / self.preset.asset.directory_name
+
+    @property
+    def background_removal_model_path(self) -> Path:
+        filename = {
+            "birefnet-general": "birefnet-general.onnx",
+            "u2netp": "u2netp.onnx",
+        }[self.background_removal_model]
+        return self.model_cache_dir / "models" / "rembg" / filename
 
     @property
     def sd_turbo_path(self) -> Path:
@@ -159,10 +171,7 @@ class Settings(BaseSettings):
 
     @property
     def z_image_text_encoder_path(self) -> Path:
-        return (
-            self.z_image_components_path
-            / "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
-        )
+        return self.z_image_components_path / "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
 
     @property
     def z_image_vae_path(self) -> Path:
@@ -260,12 +269,8 @@ class Settings(BaseSettings):
             self.asset_model_path / "diffusion_pytorch_model.bin",
             self.asset_model_path / "instant_mesh_base.ckpt",
             self.zero123_model_path / "model_index.json",
-            self.zero123_model_path
-            / "unet"
-            / "diffusion_pytorch_model.safetensors",
-            self.zero123_model_path
-            / "vae"
-            / "diffusion_pytorch_model.safetensors",
+            self.zero123_model_path / "unet" / "diffusion_pytorch_model.safetensors",
+            self.zero123_model_path / "vae" / "diffusion_pytorch_model.safetensors",
             self.zero123_model_path / "vision_encoder" / "model.safetensors",
             self.zero123_model_path / "text_encoder" / "model.safetensors",
             self.zero123_pipeline_path / "pipeline.py",

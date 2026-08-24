@@ -184,6 +184,7 @@ cp .env.example .env
 ```dotenv
 IMAGE_GENERATOR=zimage-q4
 MODEL_3D=trellis2-fast
+BACKGROUND_REMOVAL_MODEL=birefnet-general
 ```
 
 Then run:
@@ -264,6 +265,8 @@ accepts one uncached request at a time; concurrent uncached requests receive
 
 - `IMAGE_GENERATOR`: public image selection; default `zimage-q4`
 - `MODEL_3D`: public 3D selection; default `trellis2-fast`
+- `BACKGROUND_REMOVAL_MODEL`: foreground segmentation model; default
+  `birefnet-general`. Set `u2netp` only to restore the faster legacy model.
 - `PUBLIC_BASE_URL`: base URL returned by the API
 - `ASSET_OUTPUT_DIR`: generated asset directory
 - `MODEL_CACHE_DIR`: models, pinned sources, and isolated runtimes

@@ -29,6 +29,23 @@ def test_run_preserves_failed_command_output(monkeypatch) -> None:
         download_models.run(["compiler"])
 
 
+def test_download_rembg_uses_configured_segmentation_model(
+    tmp_path, monkeypatch
+) -> None:
+    settings = Settings(
+        MODEL_CACHE_DIR=tmp_path,
+        BACKGROUND_REMOVAL_MODEL="birefnet-general",
+    )
+    selected = []
+    monkeypatch.setattr(
+        "rembg.new_session", lambda model_name: selected.append(model_name)
+    )
+
+    download_models.download_rembg(settings)
+
+    assert selected == ["birefnet-general"]
+
+
 def test_cuda_build_environment_uses_detected_architecture() -> None:
     env = download_models._cuda_build_environment("8.6")
     assert env["USE_CUDA"] == "1"
@@ -101,9 +118,7 @@ def test_instantmesh_runtime_pins_legacy_hub_with_cuda_128_torch(
         lambda: ("/usr/bin/gcc-13", "/usr/bin/g++-13"),
     )
 
-    python, env = download_models._install_instantmesh_runtime(
-        settings, "12.0", False
-    )
+    python, env = download_models._install_instantmesh_runtime(settings, "12.0", False)
 
     assert python.is_absolute()
     assert env["MAX_JOBS"] == "2"
@@ -348,9 +363,7 @@ def test_zimage_download_selects_quant_and_shared_components(
     assert (
         settings.image_model_path / ".model-revision"
     ).read_text().strip() == preset.image.revision
-    assert (
-        settings.z_image_components_path / ".text-encoder-revision"
-    ).is_file()
+    assert (settings.z_image_components_path / ".text-encoder-revision").is_file()
     assert (settings.z_image_components_path / ".vae-revision").is_file()
 
 
@@ -425,7 +438,9 @@ def test_trellis_model_download_selects_only_requested_quant(
     )
 
 
-def test_trellis_build_targets_detected_cuda_architecture(tmp_path, monkeypatch) -> None:
+def test_trellis_build_targets_detected_cuda_architecture(
+    tmp_path, monkeypatch
+) -> None:
     source = tmp_path / "sources" / "trellis.cpp"
     build = source / ".build"
     executable = build / "trellis-cli"
@@ -685,8 +700,7 @@ def test_sana_download_includes_sharded_encoder_and_transformer(
     assert captured["revision"] == preset.image.revision
     assert "text_encoder/model-*.safetensors" in captured["allow_patterns"]
     assert (
-        "transformer/diffusion_pytorch_model.safetensors"
-        in captured["allow_patterns"]
+        "transformer/diffusion_pytorch_model.safetensors" in captured["allow_patterns"]
     )
     assert (
         settings.image_model_path / ".model-revision"
@@ -734,6 +748,6 @@ def test_sd35_download_includes_full_t5_and_uses_token(tmp_path, monkeypatch) ->
     assert captured["revision"] == preset.image.revision
     assert captured["token"] == "hf_test"
     assert "text_encoder_3/model-*.safetensors" in captured["allow_patterns"]
-    assert "transformer/diffusion_pytorch_model.safetensors" in captured[
-        "allow_patterns"
-    ]
+    assert (
+        "transformer/diffusion_pytorch_model.safetensors" in captured["allow_patterns"]
+    )

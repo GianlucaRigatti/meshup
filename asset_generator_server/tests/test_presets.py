@@ -88,7 +88,18 @@ def test_default_settings_use_public_wsl_model_selection() -> None:
 
     assert settings.image_generator == DEFAULT_IMAGE_GENERATOR
     assert settings.model_3d == DEFAULT_MODEL_3D
+    assert settings.background_removal_model == "birefnet-general"
+    assert settings.background_removal_model_path == (
+        Path(".model_sources/models/rembg/birefnet-general.onnx")
+    )
     assert settings.preset == resolve_models(DEFAULT_IMAGE_GENERATOR, DEFAULT_MODEL_3D)
+
+
+def test_background_removal_model_changes_asset_cache_identity() -> None:
+    birefnet = AssetGenerator(Settings(BACKGROUND_REMOVAL_MODEL="birefnet-general"))
+    legacy = AssetGenerator(Settings(BACKGROUND_REMOVAL_MODEL="u2netp"))
+
+    assert birefnet._version != legacy._version
 
 
 @pytest.mark.parametrize(
@@ -305,14 +316,10 @@ def test_sd35_quantized_loader_uses_supported_balanced_device_map(
             pass
 
     monkeypatch.setattr("app.backends._is_wsl", lambda: True)
-    monkeypatch.setattr(
-        "diffusers.BitsAndBytesConfig", FakeQuantizationConfig
-    )
+    monkeypatch.setattr("diffusers.BitsAndBytesConfig", FakeQuantizationConfig)
     monkeypatch.setattr("diffusers.SD3Transformer2DModel", FakeModel)
     monkeypatch.setattr("diffusers.StableDiffusion3Pipeline", FakePipeline)
-    monkeypatch.setattr(
-        "transformers.BitsAndBytesConfig", FakeQuantizationConfig
-    )
+    monkeypatch.setattr("transformers.BitsAndBytesConfig", FakeQuantizationConfig)
     monkeypatch.setattr("transformers.T5EncoderModel", FakeModel)
 
     backend._load_quantized_sd35(SimpleNamespace(), "bfloat16")
@@ -333,9 +340,7 @@ def test_sd35_pixal3d_uses_isolated_image_backend(tmp_path) -> None:
 
 
 @pytest.mark.parametrize("quantization", ["q4", "q8"])
-def test_sd35_trellis2_uses_isolated_image_backend(
-    tmp_path, quantization: str
-) -> None:
+def test_sd35_trellis2_uses_isolated_image_backend(tmp_path, quantization: str) -> None:
     settings = Settings(MODEL_CACHE_DIR=tmp_path)
     preset = PRESETS[f"wsl-cuda-sd35-trellis2-{quantization}"]
 
@@ -583,9 +588,7 @@ def test_isolated_sd35_backend_passes_private_request_over_stdin(
     tmp_path, monkeypatch
 ) -> None:
     settings = Settings(MODEL_CACHE_DIR=tmp_path)
-    backend = IsolatedDiffusersImageBackend(
-        settings, PRESETS["wsl-cuda-sd35-pixal3d"]
-    )
+    backend = IsolatedDiffusersImageBackend(settings, PRESETS["wsl-cuda-sd35-pixal3d"])
     calls = []
 
     def run(command, **kwargs):

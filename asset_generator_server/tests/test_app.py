@@ -20,6 +20,7 @@ def test_health_and_ready(client: TestClient) -> None:
         "busy": False,
         "image_generator": "zimage-q4",
         "model_3d": "trellis2-fast",
+        "background_removal_model": "birefnet-general",
         "device": "cuda:0",
         "output_mode": "vertex_color",
     }

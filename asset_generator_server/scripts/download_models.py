@@ -37,9 +37,7 @@ PIXAL3D_REPOSITORY = "https://github.com/TencentARC/Pixal3D.git"
 INSTANTMESH_REPOSITORY = "https://github.com/TencentARC/InstantMesh.git"
 TRELLIS2_REPOSITORY = "https://github.com/microsoft/TRELLIS.2.git"
 TRELLIS_CPP_REPOSITORY = "https://github.com/pwilkin/trellis.cpp.git"
-STABLE_DIFFUSION_CPP_REPOSITORY = (
-    "https://github.com/leejet/stable-diffusion.cpp.git"
-)
+STABLE_DIFFUSION_CPP_REPOSITORY = "https://github.com/leejet/stable-diffusion.cpp.git"
 Z_IMAGE_TEXT_ENCODER_REPOSITORY = "unsloth/Qwen3-4B-Instruct-2507-GGUF"
 Z_IMAGE_VAE_REPOSITORY = "Comfy-Org/z_image_turbo"
 Z_IMAGE_TEXT_ENCODER_FILENAME = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
@@ -129,7 +127,9 @@ def install_source(
                 "to replace that profile's source checkout."
             )
         if recursive:
-            run(["git", "submodule", "update", "--init", "--recursive"], cwd=destination)
+            run(
+                ["git", "submodule", "update", "--init", "--recursive"], cwd=destination
+            )
         print(f"{label} source is present at {destination}")
         return
 
@@ -227,7 +227,9 @@ def _download_z_image_models(settings: Settings, preset: PipelinePreset) -> None
     try:
         diffusion_filename = filenames[preset.image.quantization]
     except KeyError as exc:
-        raise RuntimeError("The Z-Image preset must select Q3, Q4, or Q6 weights.") from exc
+        raise RuntimeError(
+            "The Z-Image preset must select Q3, Q4, or Q6 weights."
+        ) from exc
 
     settings.image_model_path.mkdir(parents=True, exist_ok=True)
     hf_hub_download(
@@ -281,7 +283,9 @@ def _download_flux2_klein_models(
         image.vae_filename,
     )
     if any(value is None for value in required_metadata):
-        raise RuntimeError("The FLUX.2 Klein selection has incomplete component metadata.")
+        raise RuntimeError(
+            "The FLUX.2 Klein selection has incomplete component metadata."
+        )
 
     destination = settings.image_model_path
     destination.mkdir(parents=True, exist_ok=True)
@@ -326,8 +330,11 @@ def download_rembg(settings: Settings) -> None:
     os.environ["U2NET_HOME"] = str(rembg_dir.resolve())
     import rembg
 
-    rembg.new_session("u2netp")
-    print(f"Installed rembg weights at {rembg_dir}")
+    rembg.new_session(settings.background_removal_model)
+    print(
+        f"Installed {settings.background_removal_model} background-removal "
+        f"weights at {rembg_dir}"
+    )
 
 
 def install_macos(settings: Settings, preset: PipelinePreset, force: bool) -> None:
@@ -911,9 +918,7 @@ def install_flux2_klein_cpp(
     )
 
 
-def _download_trellis_cpp_models(
-    settings: Settings, preset: PipelinePreset
-) -> None:
+def _download_trellis_cpp_models(settings: Settings, preset: PipelinePreset) -> None:
     quantization = preset.asset.quantization
     if quantization not in {"q4", "q8"}:
         raise RuntimeError("The trellis.cpp preset must select Q4 or Q8 weights.")
@@ -928,9 +933,7 @@ def _download_trellis_cpp_models(
     )
 
 
-def _build_trellis_cpp(
-    settings: Settings, architecture: str, force: bool
-) -> None:
+def _build_trellis_cpp(settings: Settings, architecture: str, force: bool) -> None:
     source = settings.trellis_cpp_source_path
     build = settings.trellis_cpp_build_path
     executable = settings.trellis_cpp_executable_path
@@ -1473,9 +1476,7 @@ def main() -> None:
     preset = settings.preset
     if preset.name.startswith("wsl-") and not _is_wsl():
         raise RuntimeError(f"The {preset.name} profile requires WSL 2.")
-    print(
-        "Installing third-party models and runtimes. See THIRD_PARTY_NOTICES.md."
-    )
+    print("Installing third-party models and runtimes. See THIRD_PARTY_NOTICES.md.")
     token: str | None = None
     architecture: str | None = None
     vcvars: Path | None = None
