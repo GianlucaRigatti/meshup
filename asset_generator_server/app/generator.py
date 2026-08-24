@@ -20,9 +20,7 @@ from app.presets import PipelinePreset
 
 LOGGER = logging.getLogger(__name__)
 PROMPT_SUFFIX = (
-    ", one centered object, full object visible, isolated neutral studio product "
-    "render, plain light gray background, no text, no floor, no shadows, "
-    "no surrounding objects"
+    ", single isolated object, complete object fully visible, centered, three-quarter front view at approximately 35 degrees, camera slightly above object center, clear view of front, side, and top surfaces, geometrically plausible construction, strong readable silhouette, distinct separated components, correct symmetry and proportions, soft uniform studio lighting, minimal shadows, sharp focus everywhere, neutral orthographic-like perspective, plain white background, no floor, no pedestal, no environment, no text, no extra objects, no occlusion"
 )
 
 
