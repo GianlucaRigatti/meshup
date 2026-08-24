@@ -20,6 +20,8 @@ inference settings reproducible.
 | `wsl-cuda-sd35-pixal3d` | WSL 2/NVIDIA | SD 3.5 Medium NF4 (28 steps, 1024px) → Pixal3D low-VRAM | 4096px UV/PBR GLB |
 | `wsl-cuda-sd35-trellis2-q4` | WSL 2/NVIDIA | SD 3.5 Medium NF4 → TRELLIS.2 GGUF Q4 (1024 cascade) | 2048px UV/PBR GLB |
 | `wsl-cuda-sd35-trellis2-q8` | WSL 2/NVIDIA | SD 3.5 Medium NF4 → TRELLIS.2 GGUF Q8 (1024 cascade) | 2048px UV/PBR GLB |
+| `wsl-cuda-zimage-q4-trellis2-q4` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q4 (8 steps, 1024px) → TRELLIS.2 GGUF Q4 | 2048px UV/PBR GLB |
+| `wsl-cuda-zimage-q6-trellis2-q4` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q6 (8 steps, 1024px) → TRELLIS.2 GGUF Q4 | 2048px UV/PBR GLB |
 
 `PIPELINE_PROFILE=auto` selects `macos-mlx` on Apple Silicon and
 `windows-cuda-sana` on supported Windows systems, or `linux-cuda-sana` on
@@ -300,6 +302,49 @@ TRELLIS_TIMEOUT_SECONDS=1800
 If Q8 fails with CUDA out-of-memory, use Q4. If both complete, compare the saved
 PNG and GLB pairs before choosing the extra Q8 disk and memory cost.
 
+### Try Z-Image Turbo GGUF in WSL
+
+The Z-Image presets replace the isolated SD 3.5 Diffusers process with a pinned
+CUDA build of `stable-diffusion.cpp`. Z-Image itself, its Qwen3 Q4 text encoder,
+and its VAE run inside one short-lived native process. That process exits before
+TRELLIS.2 starts, so the image and 3D model allocations never overlap.
+
+Both presets generate at 1024x1024 with eight steps, CFG 1.0, Flash Attention,
+tiled VAE decoding, and a 10.5 GiB CUDA planning limit. They use the same Q4
+TRELLIS.2 reconstruction stage. Q6 is the recommended quality setting for a
+12 GB card; Q4 leaves more activation and driver headroom if Q6 is unstable.
+
+The model repositories are public, so these presets do not require the gated
+Stable Diffusion 3.5 `HF_TOKEN`. Install one or both:
+
+```bash
+uv run python scripts/download_models.py \
+  --profile wsl-cuda-zimage-q4-trellis2-q4 \
+  --accept-licenses
+
+uv run python scripts/download_models.py \
+  --profile wsl-cuda-zimage-q6-trellis2-q4 \
+  --accept-licenses
+```
+
+The first installation compiles `sd-cli` and `trellis-cli` for the detected
+CUDA architecture. Both builds default to two parallel jobs and respect
+`MAX_JOBS=1`. The second installation reuses both native runtimes, the Qwen3
+encoder, the VAE, and the TRELLIS.2 Q4 files; it downloads only the other
+Z-Image diffusion quantization.
+
+Select Q6 in `.env` initially:
+
+```dotenv
+PIPELINE_PROFILE=wsl-cuda-zimage-q6-trellis2-q4
+IMAGE_TIMEOUT_SECONDS=600
+TRELLIS_TIMEOUT_SECONDS=1800
+```
+
+If the Z-Image subprocess reports CUDA allocation failures, switch to
+`wsl-cuda-zimage-q4-trellis2-q4`. The generated reference PNG remains beside
+the GLB, which makes comparisons with SD 3.5 straightforward.
+
 ### 4. Run WSL server and connect Unity
 
 Inside WSL:
@@ -451,8 +496,9 @@ receives `generator_busy`; cached requests remain available.
 - `PIPELINE_PROFILE`: `auto`, `macos-mlx`, `windows-cuda-quality`,
   `windows-cuda-fast`, `windows-cuda-sana`, `linux-cuda-quality`,
   `linux-cuda-fast`, `linux-cuda-sana`, `wsl-cuda-pixal3d`, or
-  `wsl-cuda-sd35-pixal3d`, `wsl-cuda-sd35-trellis2-q4`, or
-  `wsl-cuda-sd35-trellis2-q8`
+  `wsl-cuda-sd35-pixal3d`, `wsl-cuda-sd35-trellis2-q4`,
+  `wsl-cuda-sd35-trellis2-q8`, `wsl-cuda-zimage-q4-trellis2-q4`, or
+  `wsl-cuda-zimage-q6-trellis2-q4`
 - `PUBLIC_BASE_URL`: public URL used in responses
 - `ASSET_OUTPUT_DIR`: generated GLB and metadata directory
 - `MODEL_CACHE_DIR`: models, pinned sources, and runtimes

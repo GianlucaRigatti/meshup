@@ -18,6 +18,8 @@ ProfileName: TypeAlias = Literal[
     "wsl-cuda-sd35-pixal3d",
     "wsl-cuda-sd35-trellis2-q4",
     "wsl-cuda-sd35-trellis2-q8",
+    "wsl-cuda-zimage-q4-trellis2-q4",
+    "wsl-cuda-zimage-q6-trellis2-q4",
 ]
 
 
@@ -27,13 +29,16 @@ class ImagePreset:
     revision: str
     directory_name: str
     steps: int
-    backend: Literal["auto", "sana-sprint", "stable-diffusion-3.5"] = "auto"
+    backend: Literal[
+        "auto", "sana-sprint", "stable-diffusion-3.5", "z-image-cpp"
+    ] = "auto"
     guidance: float = 0.0
     width: int = 512
     height: int = 512
     dtype: str = "float16"
     variant: str | None = "fp16"
-    quantization: Literal["nf4"] | None = None
+    quantization: Literal["nf4", "q4", "q6"] | None = None
+    runtime_revision: str | None = None
 
 
 @dataclass(frozen=True)
@@ -78,6 +83,12 @@ PIXAL3D_MODEL_REVISION = "0b31f9160aa400719af409098bff7936a932f726"
 SD35_MEDIUM_REVISION = "b940f670f0eda2d07fbb75229e779da1ad11eb80"
 TRELLIS_CPP_SOURCE_REVISION = "06fc9000719c912ddc4929d21db075972c26ac3e"
 TRELLIS_CPP_MODEL_REVISION = "a57397bd3d351599d9729fc144b3f87c3f87d65b"
+STABLE_DIFFUSION_CPP_SOURCE_REVISION = (
+    "97d2990807fe6d558e395f8764198d7c7e7b411c"
+)
+Z_IMAGE_TURBO_GGUF_REVISION = "c61c0e422dc8b541b7548cf33a4ef8302b0f8085"
+Z_IMAGE_TEXT_ENCODER_REVISION = "a06e946bb6b655725eafa393f4a9745d460374c9"
+Z_IMAGE_VAE_REVISION = "08d04455279082882deaabc8d0d09fc914c071e1"
 
 
 SD35_MEDIUM_NF4 = ImagePreset(
@@ -93,6 +104,23 @@ SD35_MEDIUM_NF4 = ImagePreset(
     variant=None,
     quantization="nf4",
 )
+
+
+def z_image_turbo(quantization: Literal["q4", "q6"]) -> ImagePreset:
+    return ImagePreset(
+        backend="z-image-cpp",
+        model_id="leejet/Z-Image-Turbo-GGUF",
+        revision=Z_IMAGE_TURBO_GGUF_REVISION,
+        directory_name=f"z-image-turbo-{quantization}",
+        steps=8,
+        guidance=1.0,
+        width=1024,
+        height=1024,
+        dtype="gguf",
+        variant=None,
+        quantization=quantization,
+        runtime_revision=STABLE_DIFFUSION_CPP_SOURCE_REVISION,
+    )
 
 
 PRESETS: dict[str, PipelinePreset] = {
@@ -337,6 +365,44 @@ PRESETS: dict[str, PipelinePreset] = {
             source_revision=TRELLIS_CPP_SOURCE_REVISION,
             output_mode="pbr_texture",
             quantization="q8",
+            texture_resolution=2048,
+            pipeline_resolution=1024,
+            max_tokens=49152,
+        ),
+    ),
+    "wsl-cuda-zimage-q4-trellis2-q4": PipelinePreset(
+        name="wsl-cuda-zimage-q4-trellis2-q4",
+        schema_version=1,
+        platform="linux",
+        device="cuda:0",
+        image=z_image_turbo("q4"),
+        asset=AssetPreset(
+            backend="trellis-cpp",
+            model_id="ilintar/trellis2-gguf",
+            revision=TRELLIS_CPP_MODEL_REVISION,
+            directory_name="trellis2-gguf-q4",
+            source_revision=TRELLIS_CPP_SOURCE_REVISION,
+            output_mode="pbr_texture",
+            quantization="q4",
+            texture_resolution=2048,
+            pipeline_resolution=1024,
+            max_tokens=49152,
+        ),
+    ),
+    "wsl-cuda-zimage-q6-trellis2-q4": PipelinePreset(
+        name="wsl-cuda-zimage-q6-trellis2-q4",
+        schema_version=1,
+        platform="linux",
+        device="cuda:0",
+        image=z_image_turbo("q6"),
+        asset=AssetPreset(
+            backend="trellis-cpp",
+            model_id="ilintar/trellis2-gguf",
+            revision=TRELLIS_CPP_MODEL_REVISION,
+            directory_name="trellis2-gguf-q4",
+            source_revision=TRELLIS_CPP_SOURCE_REVISION,
+            output_mode="pbr_texture",
+            quantization="q4",
             texture_resolution=2048,
             pipeline_resolution=1024,
             max_tokens=49152,

@@ -112,6 +112,54 @@ class Settings(BaseSettings):
         )
 
     @property
+    def stable_diffusion_cpp_source_path(self) -> Path:
+        return self.model_cache_dir / "sources" / "stable-diffusion.cpp"
+
+    @property
+    def stable_diffusion_cpp_build_path(self) -> Path:
+        return self.stable_diffusion_cpp_source_path / ".build"
+
+    @property
+    def stable_diffusion_cpp_executable_path(self) -> Path:
+        return self.stable_diffusion_cpp_build_path / "bin" / "sd-cli"
+
+    @property
+    def z_image_diffusion_path(self) -> Path:
+        filenames = {
+            "q4": "z_image_turbo-Q4_K.gguf",
+            "q6": "z_image_turbo-Q6_K.gguf",
+        }
+        try:
+            filename = filenames[self.preset.image.quantization]
+        except KeyError as exc:
+            raise ValueError("The selected preset does not use Z-Image GGUF.") from exc
+        return self.image_model_path / filename
+
+    @property
+    def z_image_components_path(self) -> Path:
+        return self.model_cache_dir / "models" / "z-image-components"
+
+    @property
+    def z_image_text_encoder_path(self) -> Path:
+        return (
+            self.z_image_components_path
+            / "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+        )
+
+    @property
+    def z_image_vae_path(self) -> Path:
+        return self.z_image_components_path / "split_files" / "vae" / "ae.safetensors"
+
+    @property
+    def z_image_required_files(self) -> tuple[Path, ...]:
+        return (
+            self.stable_diffusion_cpp_executable_path,
+            self.z_image_diffusion_path,
+            self.z_image_text_encoder_path,
+            self.z_image_vae_path,
+        )
+
+    @property
     def pixal3d_runtime_path(self) -> Path:
         return self.model_cache_dir / "runtime" / "pixal3d"
 

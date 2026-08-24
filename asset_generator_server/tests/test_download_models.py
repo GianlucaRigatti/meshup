@@ -180,6 +180,79 @@ def test_linux_trellis_install_dispatches_to_cpp_runtime(tmp_path, monkeypatch) 
     assert captured["args"] == (settings, preset, False, "12.0")
 
 
+def test_linux_zimage_trellis_install_dispatches_to_both_native_runtimes(
+    tmp_path, monkeypatch
+) -> None:
+    settings = _settings(tmp_path)
+    events = []
+    monkeypatch.setattr(download_models.sys, "platform", "linux")
+    monkeypatch.setattr(download_models.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(
+        download_models,
+        "install_z_image_cpp",
+        lambda *args: events.append(("z-image", args)),
+    )
+    monkeypatch.setattr(
+        download_models,
+        "install_trellis_cpp",
+        lambda *args: events.append(("trellis", args)),
+    )
+    preset = PRESETS["wsl-cuda-zimage-q6-trellis2-q4"]
+
+    download_models.install_linux(
+        settings,
+        preset,
+        False,
+        architecture="12.0",
+    )
+
+    assert events == [
+        ("z-image", (settings, preset, False, "12.0")),
+        ("trellis", (settings, preset, False, "12.0")),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("quantization", "filename"),
+    [
+        ("q4", "z_image_turbo-Q4_K.gguf"),
+        ("q6", "z_image_turbo-Q6_K.gguf"),
+    ],
+)
+def test_zimage_download_selects_quant_and_shared_components(
+    tmp_path, monkeypatch, quantization: str, filename: str
+) -> None:
+    preset = PRESETS[f"wsl-cuda-zimage-{quantization}-trellis2-q4"]
+    settings = SimpleNamespace(
+        image_model_path=tmp_path / f"z-image-{quantization}",
+        z_image_components_path=tmp_path / "components",
+    )
+    calls = []
+
+    def download(**kwargs):
+        calls.append(kwargs)
+        destination = Path(kwargs["local_dir"]) / kwargs["filename"]
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.touch()
+        return str(destination)
+
+    monkeypatch.setattr(download_models, "hf_hub_download", download)
+
+    download_models._download_z_image_models(settings, preset)
+
+    assert calls[0]["filename"] == filename
+    assert calls[0]["revision"] == preset.image.revision
+    assert calls[1]["filename"] == "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+    assert calls[2]["filename"] == "split_files/vae/ae.safetensors"
+    assert (
+        settings.image_model_path / ".model-revision"
+    ).read_text().strip() == preset.image.revision
+    assert (
+        settings.z_image_components_path / ".text-encoder-revision"
+    ).is_file()
+    assert (settings.z_image_components_path / ".vae-revision").is_file()
+
+
 def test_trellis_model_download_selects_only_requested_quant(
     tmp_path, monkeypatch
 ) -> None:
@@ -240,6 +313,47 @@ def test_trellis_build_targets_detected_cuda_architecture(tmp_path, monkeypatch)
     assert "-DGGML_CUDA=ON" in configure
     assert "-DTRELLIS_WEBP=OFF" in configure
     assert build_command[build_command.index("--target") + 1] == "trellis-cli"
+
+
+def test_stable_diffusion_cpp_build_targets_detected_cuda_architecture(
+    tmp_path, monkeypatch
+) -> None:
+    source = tmp_path / "sources" / "stable-diffusion.cpp"
+    build = source / ".build"
+    executable = build / "bin" / "sd-cli"
+    settings = SimpleNamespace(
+        stable_diffusion_cpp_source_path=source,
+        stable_diffusion_cpp_build_path=build,
+        stable_diffusion_cpp_executable_path=executable,
+    )
+    calls = []
+    monkeypatch.setattr(
+        download_models, "install_source", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        download_models,
+        "_select_cuda_host_compilers",
+        lambda: ("/usr/bin/gcc-14", "/usr/bin/g++-14"),
+    )
+
+    def run(command, cwd=None, env=None):
+        calls.append((command, cwd, env))
+        if command[:2] == ["cmake", "--build"]:
+            executable.parent.mkdir(parents=True)
+            executable.touch()
+        return ""
+
+    monkeypatch.setattr(download_models, "run", run)
+
+    download_models._build_stable_diffusion_cpp(settings, "12.0", False)
+
+    configure = calls[0][0]
+    build_command = calls[1][0]
+    assert "-DCMAKE_CUDA_ARCHITECTURES=120" in configure
+    assert "-DSD_CUDA=ON" in configure
+    assert "-DSD_WEBP=OFF" in configure
+    assert "-DSD_WEBM=OFF" in configure
+    assert build_command[build_command.index("--target") + 1] == "sd-cli"
 
 
 def test_linux_preflight_reports_missing_build_tools(monkeypatch) -> None:

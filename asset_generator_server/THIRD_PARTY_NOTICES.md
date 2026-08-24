@@ -99,3 +99,21 @@ against the local CUDA 12.8 toolkit and download only the selected GGUF weight
 folder. The original Microsoft TRELLIS.2 model is MIT-licensed. Review the
 runtime's bundled third-party components and the quantized-weight repository
 before redistribution.
+
+## Z-Image Turbo GGUF via stable-diffusion.cpp
+
+- Runtime source: <https://github.com/leejet/stable-diffusion.cpp>
+- Pinned runtime revision: `97d2990807fe6d558e395f8764198d7c7e7b411c`
+- Quantized Z-Image weights: <https://huggingface.co/leejet/Z-Image-Turbo-GGUF>
+- Pinned weight revision: `c61c0e422dc8b541b7548cf33a4ef8302b0f8085`
+- Quantized Qwen3 text encoder: <https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF>
+- Pinned text-encoder revision: `a06e946bb6b655725eafa393f4a9745d460374c9`
+- VAE files: <https://huggingface.co/Comfy-Org/z_image_turbo>
+- Pinned VAE revision: `08d04455279082882deaabc8d0d09fc914c071e1`
+- Original model: <https://huggingface.co/Tongyi-MAI/Z-Image-Turbo>
+
+The optional WSL Z-Image Q4 and Q6 presets build the MIT-licensed
+stable-diffusion.cpp runtime against the local CUDA 12.8 toolkit. Z-Image Turbo
+and the referenced model repositories identify their weights as Apache 2.0.
+Review each linked model card and the runtime's bundled third-party components
+before redistribution.

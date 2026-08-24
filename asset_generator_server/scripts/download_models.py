@@ -22,6 +22,9 @@ from app.presets import (
     SF3D_SOURCE_REVISION,
     TRELLIS_CPP_MODEL_REVISION,
     TRELLIS_CPP_SOURCE_REVISION,
+    STABLE_DIFFUSION_CPP_SOURCE_REVISION,
+    Z_IMAGE_TEXT_ENCODER_REVISION,
+    Z_IMAGE_VAE_REVISION,
     PipelinePreset,
 )
 
@@ -30,6 +33,13 @@ SF3D_REPOSITORY = "https://github.com/Stability-AI/stable-fast-3d.git"
 PIXAL3D_REPOSITORY = "https://github.com/TencentARC/Pixal3D.git"
 TRELLIS2_REPOSITORY = "https://github.com/microsoft/TRELLIS.2.git"
 TRELLIS_CPP_REPOSITORY = "https://github.com/pwilkin/trellis.cpp.git"
+STABLE_DIFFUSION_CPP_REPOSITORY = (
+    "https://github.com/leejet/stable-diffusion.cpp.git"
+)
+Z_IMAGE_TEXT_ENCODER_REPOSITORY = "unsloth/Qwen3-4B-Instruct-2507-GGUF"
+Z_IMAGE_VAE_REPOSITORY = "Comfy-Org/z_image_turbo"
+Z_IMAGE_TEXT_ENCODER_FILENAME = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+Z_IMAGE_VAE_FILENAME = "split_files/vae/ae.safetensors"
 CUMESH_REPOSITORY = "https://github.com/JeffreyXiang/CuMesh.git"
 FLEXGEMM_REPOSITORY = "https://github.com/JeffreyXiang/FlexGEMM.git"
 NVDIFFRAST_REPOSITORY = "https://github.com/NVlabs/nvdiffrast.git"
@@ -126,6 +136,9 @@ def download_image_model(
 ) -> None:
     destination = settings.image_model_path
     destination.parent.mkdir(parents=True, exist_ok=True)
+    if preset.image.backend == "z-image-cpp":
+        _download_z_image_models(settings, preset)
+        return
     if preset.image.backend == "stable-diffusion-3.5":
         allow_patterns = [
             "LICENSE.md",
@@ -190,6 +203,53 @@ def download_image_model(
         preset.image.revision + "\n", encoding="utf-8"
     )
     print(f"Installed {preset.image.model_id} at {destination}")
+
+
+def _download_z_image_models(settings: Settings, preset: PipelinePreset) -> None:
+    filenames = {
+        "q4": "z_image_turbo-Q4_K.gguf",
+        "q6": "z_image_turbo-Q6_K.gguf",
+    }
+    try:
+        diffusion_filename = filenames[preset.image.quantization]
+    except KeyError as exc:
+        raise RuntimeError("The Z-Image preset must select Q4 or Q6 weights.") from exc
+
+    settings.image_model_path.mkdir(parents=True, exist_ok=True)
+    hf_hub_download(
+        repo_id=preset.image.model_id,
+        revision=preset.image.revision,
+        filename=diffusion_filename,
+        local_dir=settings.image_model_path,
+    )
+    (settings.image_model_path / ".model-revision").write_text(
+        preset.image.revision + "\n", encoding="utf-8"
+    )
+
+    components = settings.z_image_components_path
+    components.mkdir(parents=True, exist_ok=True)
+    hf_hub_download(
+        repo_id=Z_IMAGE_TEXT_ENCODER_REPOSITORY,
+        revision=Z_IMAGE_TEXT_ENCODER_REVISION,
+        filename=Z_IMAGE_TEXT_ENCODER_FILENAME,
+        local_dir=components,
+    )
+    hf_hub_download(
+        repo_id=Z_IMAGE_VAE_REPOSITORY,
+        revision=Z_IMAGE_VAE_REVISION,
+        filename=Z_IMAGE_VAE_FILENAME,
+        local_dir=components,
+    )
+    (components / ".text-encoder-revision").write_text(
+        Z_IMAGE_TEXT_ENCODER_REVISION + "\n", encoding="utf-8"
+    )
+    (components / ".vae-revision").write_text(
+        Z_IMAGE_VAE_REVISION + "\n", encoding="utf-8"
+    )
+    print(
+        f"Installed Z-Image Turbo {preset.image.quantization.upper()} at "
+        f"{settings.image_model_path}"
+    )
 
 
 def download_rembg(settings: Settings) -> None:
@@ -650,6 +710,107 @@ def install_pixal3d(
     print(f"Installed and verified Pixal3D at {settings.asset_model_path}")
 
 
+def _build_stable_diffusion_cpp(
+    settings: Settings, architecture: str, force: bool
+) -> None:
+    source = settings.stable_diffusion_cpp_source_path
+    build = settings.stable_diffusion_cpp_build_path
+    executable = settings.stable_diffusion_cpp_executable_path
+    install_source(
+        source,
+        STABLE_DIFFUSION_CPP_REPOSITORY,
+        STABLE_DIFFUSION_CPP_SOURCE_REVISION,
+        "stable-diffusion.cpp",
+        force,
+        recursive=True,
+    )
+    if executable.is_file() and not force:
+        print(f"stable-diffusion.cpp CUDA runtime is present at {build}")
+        return
+
+    cc, cxx = _select_cuda_host_compilers()
+    build_jobs = os.environ.get(
+        "MAX_JOBS", str(min(2, max(1, (os.cpu_count() or 2) // 2)))
+    )
+    cuda_architecture = architecture.replace(".", "")
+    env = {
+        **os.environ,
+        "CC": cc,
+        "CXX": cxx,
+        "CUDAHOSTCXX": cxx,
+        "CUDA_HOME": "/usr/local/cuda-12.8",
+        "CUDACXX": "/usr/local/cuda-12.8/bin/nvcc",
+    }
+    print(
+        f"Building stable-diffusion.cpp for CUDA sm_{cuda_architecture} with "
+        f"{build_jobs} parallel jobs; this can take several minutes."
+    )
+    run(
+        [
+            "cmake",
+            "-S",
+            str(source.resolve()),
+            "-B",
+            str(build.resolve()),
+            "-G",
+            "Ninja",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DSD_CUDA=ON",
+            "-DSD_WEBP=OFF",
+            "-DSD_WEBM=OFF",
+            "-DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc",
+            f"-DCMAKE_CUDA_HOST_COMPILER={cxx}",
+            f"-DCMAKE_CUDA_ARCHITECTURES={cuda_architecture}",
+        ],
+        env=env,
+    )
+    run(
+        [
+            "cmake",
+            "--build",
+            str(build.resolve()),
+            "--target",
+            "sd-cli",
+            "--parallel",
+            build_jobs,
+        ],
+        env=env,
+    )
+    if not executable.is_file():
+        raise RuntimeError("The stable-diffusion.cpp build did not create sd-cli.")
+    print(f"Built stable-diffusion.cpp CUDA runtime at {build}")
+
+
+def install_z_image_cpp(
+    settings: Settings,
+    preset: PipelinePreset,
+    force: bool,
+    architecture: str,
+) -> None:
+    if not _is_wsl():
+        raise RuntimeError("The Z-Image GGUF profiles require WSL 2.")
+    _build_stable_diffusion_cpp(settings, architecture, force)
+    missing = [
+        path.resolve() for path in settings.z_image_required_files if not path.is_file()
+    ]
+    if missing:
+        raise RuntimeError(
+            "Z-Image installation did not create the required files:\n- "
+            + "\n- ".join(str(path) for path in missing)
+        )
+    binary_dir = settings.stable_diffusion_cpp_executable_path.parent.resolve()
+    existing = os.environ.get("LD_LIBRARY_PATH")
+    library_path = str(binary_dir) if not existing else f"{binary_dir}:{existing}"
+    run(
+        [str(settings.stable_diffusion_cpp_executable_path.resolve()), "--help"],
+        env={**os.environ, "LD_LIBRARY_PATH": library_path},
+    )
+    print(
+        "Installed and verified Z-Image Turbo "
+        f"{preset.image.quantization.upper()} at {settings.image_model_path}"
+    )
+
+
 def _download_trellis_cpp_models(
     settings: Settings, preset: PipelinePreset
 ) -> None:
@@ -784,6 +945,8 @@ def install_linux(
     }:
         raise RuntimeError("Linux CUDA profiles require 64-bit x86 Linux.")
     architecture = architecture or _validate_linux_cuda()
+    if preset.image.backend == "z-image-cpp":
+        install_z_image_cpp(settings, preset, force, architecture)
     if preset.asset.backend == "pixal3d":
         install_pixal3d(settings, preset, force, architecture)
         return
@@ -1011,6 +1174,8 @@ def main() -> None:
             "wsl-cuda-sd35-pixal3d",
             "wsl-cuda-sd35-trellis2-q4",
             "wsl-cuda-sd35-trellis2-q8",
+            "wsl-cuda-zimage-q4-trellis2-q4",
+            "wsl-cuda-zimage-q6-trellis2-q4",
         ],
     )
     parser.add_argument(

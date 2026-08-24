@@ -14,7 +14,12 @@ import trimesh
 from PIL import Image
 
 from app.config import Settings
-from app.presets import DINOV2_LARGE_REVISION, PipelinePreset
+from app.presets import (
+    DINOV2_LARGE_REVISION,
+    Z_IMAGE_TEXT_ENCODER_REVISION,
+    Z_IMAGE_VAE_REVISION,
+    PipelinePreset,
+)
 
 
 PIXAL3D_RUNNER = Path(__file__).resolve().parents[1] / "scripts" / "run_pixal3d.py"
@@ -297,6 +302,143 @@ class IsolatedDiffusersImageBackend:
                 raise RuntimeError(message)
             with Image.open(output) as generated:
                 return generated.convert("RGB")
+
+    def move_to_cpu(self) -> None:
+        return
+
+    def release_device_memory(self) -> None:
+        _trim_process_heap()
+
+
+class ZImageCppBackend:
+    """Generate with Z-Image in a disposable native CUDA process."""
+
+    isolated_process = True
+
+    def __init__(self, settings: Settings, preset: PipelinePreset) -> None:
+        self.settings = settings
+        self.preset = preset
+        self.device = "cuda:0"
+
+    def load(self) -> None:
+        if not _is_wsl():
+            raise RuntimeError("The Z-Image GGUF profiles currently require WSL 2.")
+        missing = [
+            path.resolve()
+            for path in self.settings.z_image_required_files
+            if not path.is_file()
+        ]
+        if missing:
+            raise FileNotFoundError(
+                "The Z-Image runtime is incomplete. Missing files:\n- "
+                + "\n- ".join(str(path) for path in missing)
+                + "\nRerun the model installer for this profile."
+            )
+        _require_git_revision(
+            self.settings.stable_diffusion_cpp_source_path,
+            self.preset.image.runtime_revision,
+        )
+        _require_revision(
+            self.settings.image_model_path,
+            self.preset.image.revision,
+        )
+        _require_revision(
+            self.settings.z_image_components_path,
+            Z_IMAGE_TEXT_ENCODER_REVISION,
+            marker=".text-encoder-revision",
+        )
+        _require_revision(
+            self.settings.z_image_components_path,
+            Z_IMAGE_VAE_REVISION,
+            marker=".vae-revision",
+        )
+        completed = subprocess.run(
+            [str(self.settings.stable_diffusion_cpp_executable_path.resolve()), "--help"],
+            env=self._environment,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=60,
+        )
+        if completed.returncode != 0:
+            tail = completed.stdout[-4000:].strip()
+            message = "The stable-diffusion.cpp runtime failed its readiness check."
+            if tail:
+                message += f"\n{tail}"
+            raise RuntimeError(message)
+
+    def generate(self, prompt: str, seed: int) -> Image.Image:
+        self.load()
+        with tempfile.TemporaryDirectory(prefix="z-image-") as temporary_dir:
+            temporary = Path(temporary_dir)
+            prompt_path = temporary / "prompt.txt"
+            output = temporary / "image.png"
+            prompt_path.write_text(prompt, encoding="utf-8")
+            image = self.preset.image
+            command = [
+                str(self.settings.stable_diffusion_cpp_executable_path.resolve()),
+                "--diffusion-model",
+                str(self.settings.z_image_diffusion_path.resolve()),
+                "--llm",
+                str(self.settings.z_image_text_encoder_path.resolve()),
+                "--vae",
+                str(self.settings.z_image_vae_path.resolve()),
+                "--prompt-file",
+                str(prompt_path),
+                "--output",
+                str(output),
+                "--steps",
+                str(image.steps),
+                "--cfg-scale",
+                str(image.guidance),
+                "--width",
+                str(image.width),
+                "--height",
+                str(image.height),
+                "--seed",
+                str(seed),
+                "--rng",
+                "cpu",
+                "--diffusion-fa",
+                "--vae-tiling",
+                "--vae-conv-direct",
+                "--auto-fit",
+                "--max-vram",
+                "cuda0=10.5",
+            ]
+            try:
+                completed = subprocess.run(
+                    command,
+                    env=self._environment,
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=self.settings.image_timeout_seconds,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(
+                    "Z-Image generation timed out after "
+                    f"{self.settings.image_timeout_seconds} seconds."
+                ) from exc
+            if completed.returncode != 0 or not output.is_file():
+                tail = completed.stdout[-4000:].strip()
+                message = "Z-Image generation failed."
+                if tail:
+                    message += f"\n{tail}"
+                raise RuntimeError(message)
+            with Image.open(output) as generated:
+                return generated.convert("RGB")
+
+    @property
+    def _environment(self) -> dict[str, str]:
+        binary_dir = self.settings.stable_diffusion_cpp_executable_path.parent.resolve()
+        existing = os.environ.get("LD_LIBRARY_PATH")
+        library_path = (
+            str(binary_dir) if not existing else f"{binary_dir}:{existing}"
+        )
+        return {**os.environ, "LD_LIBRARY_PATH": library_path}
 
     def move_to_cpu(self) -> None:
         return
@@ -705,7 +847,9 @@ def create_backends(
     settings: Settings, preset: PipelinePreset
 ) -> tuple[ImageBackend, AssetBackend]:
     image: ImageBackend
-    if preset.image.backend == "stable-diffusion-3.5" and preset.asset.backend in {
+    if preset.image.backend == "z-image-cpp":
+        image = ZImageCppBackend(settings, preset)
+    elif preset.image.backend == "stable-diffusion-3.5" and preset.asset.backend in {
         "pixal3d",
         "trellis-cpp",
     }:
@@ -721,8 +865,10 @@ def create_backends(
     return image, StableFast3DBackend(settings, preset)
 
 
-def _require_revision(model_path: Path, expected: str) -> None:
-    revision_file = model_path / ".model-revision"
+def _require_revision(
+    model_path: Path, expected: str, *, marker: str = ".model-revision"
+) -> None:
+    revision_file = model_path / marker
     installed = (
         revision_file.read_text(encoding="utf-8").strip()
         if revision_file.is_file()

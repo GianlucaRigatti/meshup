@@ -16,6 +16,7 @@ from app.backends import (
     IsolatedDiffusersImageBackend,
     Pixal3DBackend,
     TrellisCppBackend,
+    ZImageCppBackend,
     create_backends,
 )
 from app.config import Settings
@@ -125,6 +126,20 @@ def test_sd35_trellis2_profiles_use_matching_quantization(quantization: str) -> 
     assert preset.asset.texture_resolution == 2048
 
 
+@pytest.mark.parametrize("quantization", ["q4", "q6"])
+def test_zimage_trellis2_profiles_use_native_quantized_image_runtime(
+    quantization: str,
+) -> None:
+    preset = PRESETS[f"wsl-cuda-zimage-{quantization}-trellis2-q4"]
+
+    assert preset.image.backend == "z-image-cpp"
+    assert preset.image.quantization == quantization
+    assert preset.image.steps == 8
+    assert preset.image.guidance == 1.0
+    assert (preset.image.width, preset.image.height) == (1024, 1024)
+    assert preset.asset == PRESETS["wsl-cuda-sd35-trellis2-q4"].asset
+
+
 def test_sd35_backend_selects_quantized_loader(tmp_path, monkeypatch) -> None:
     preset = PRESETS["wsl-cuda-sd35-pixal3d"]
     model_path = tmp_path / "models" / preset.image.directory_name
@@ -220,6 +235,63 @@ def test_sd35_trellis2_uses_isolated_image_backend(
 
     assert isinstance(image, IsolatedDiffusersImageBackend)
     assert isinstance(asset, TrellisCppBackend)
+
+
+@pytest.mark.parametrize("quantization", ["q4", "q6"])
+def test_zimage_trellis2_uses_native_isolated_image_backend(
+    tmp_path, quantization: str
+) -> None:
+    settings = Settings(MODEL_CACHE_DIR=tmp_path)
+    preset = PRESETS[f"wsl-cuda-zimage-{quantization}-trellis2-q4"]
+
+    image, asset = create_backends(settings, preset)
+
+    assert isinstance(image, ZImageCppBackend)
+    assert image.isolated_process is True
+    assert isinstance(asset, TrellisCppBackend)
+
+
+def test_zimage_cpp_backend_invokes_memory_bounded_native_cli(
+    tmp_path, monkeypatch
+) -> None:
+    preset = PRESETS["wsl-cuda-zimage-q6-trellis2-q4"]
+    executable = tmp_path / "runtime" / "bin" / "sd-cli"
+    settings = SimpleNamespace(
+        stable_diffusion_cpp_executable_path=executable,
+        z_image_diffusion_path=tmp_path / "models" / "z-image-q6.gguf",
+        z_image_text_encoder_path=tmp_path / "models" / "qwen-q4.gguf",
+        z_image_vae_path=tmp_path / "models" / "ae.safetensors",
+        image_timeout_seconds=600,
+    )
+    calls = []
+
+    def run(command, **kwargs):
+        prompt_path = Path(command[command.index("--prompt-file") + 1])
+        calls.append((command, kwargs, prompt_path.read_text()))
+        output = Path(command[command.index("--output") + 1])
+        Image.new("RGB", (12, 10), "blue").save(output)
+        return SimpleNamespace(returncode=0, stdout="")
+
+    backend = ZImageCppBackend(settings, preset)
+    monkeypatch.setattr(backend, "load", lambda: None)
+    monkeypatch.setattr("app.backends.subprocess.run", run)
+
+    image = backend.generate("private test prompt", 123)
+
+    command, kwargs, prompt = calls[0]
+    assert command[0] == str(executable.resolve())
+    assert "private test prompt" not in command
+    assert prompt == "private test prompt"
+    assert command[command.index("--steps") + 1] == "8"
+    assert command[command.index("--cfg-scale") + 1] == "1.0"
+    assert command[command.index("--width") + 1] == "1024"
+    assert command[command.index("--height") + 1] == "1024"
+    assert command[command.index("--max-vram") + 1] == "cuda0=10.5"
+    assert "--auto-fit" in command
+    assert "--diffusion-fa" in command
+    assert "--vae-tiling" in command
+    assert str(executable.parent.resolve()) in kwargs["env"]["LD_LIBRARY_PATH"]
+    assert image.size == (12, 10)
 
 
 def test_trellis_cpp_backend_invokes_pinned_quality_cli(tmp_path, monkeypatch) -> None:
