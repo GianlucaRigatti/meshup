@@ -24,6 +24,7 @@ inference settings reproducible.
 | `wsl-cuda-zimage-q6-trellis2-q4` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q6 (8 steps, 1024px) → TRELLIS.2 GGUF Q4 | 2048px UV/PBR GLB |
 | `wsl-cuda-zimage-q4-trellis2-fast` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q4 (8 steps, 1024px) → TRELLIS.2 Q4 light path | 1024px UV/PBR GLB |
 | `wsl-cuda-zimage-q3-trellis2-turbo` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q3 (6 steps, 768px) → TRELLIS.2 Q4 light path | 1024px box-UV/PBR GLB |
+| `wsl-cuda-zimage-q4-instantmesh-fast` | WSL 2/NVIDIA | Z-Image Turbo GGUF Q4 → InstantMesh Base low-VRAM experiment | 512px UV/PBR GLB |
 
 `PIPELINE_PROFILE=auto` selects `macos-mlx` on Apple Silicon and
 `windows-cuda-sana` on supported Windows systems, or `linux-cuda-sana` on
@@ -376,6 +377,41 @@ model download if the original Z-Image Q4 preset is already installed. The
 turbo preset downloads only the approximately 3.14 GB Z-Image Q3 diffusion
 file. Select either profile in `.env` and restart the server.
 
+#### Experimental Z-Image/InstantMesh preset
+
+The InstantMesh experiment trades some geometry and unseen-side texture quality
+for lower reconstruction latency. It uses Z-Image Q4 at 1024px, then Zero123++
+at 30 steps to create four views, InstantMesh Base, a 96-cube extraction grid,
+and a 512px texture:
+
+```bash
+MAX_JOBS=2 uv run python scripts/download_models.py \
+  --profile wsl-cuda-zimage-q4-instantmesh-fast \
+  --accept-licenses
+```
+
+The installer creates an isolated InstantMesh Python environment and compiles
+its pinned nvdiffrast extension for CUDA 12.8. It downloads approximately 9 GB
+of additional weights. The runtime generates the views first, deletes
+Zero123++, clears CUDA allocations, and only then loads InstantMesh.
+The process exits after exporting the textured GLB, reclaiming all GPU and CPU
+memory before the next request. The server's existing background removal is
+reused; InstantMesh does not load another rembg model.
+
+Select the experiment in `.env`:
+
+```dotenv
+PIPELINE_PROFILE=wsl-cuda-zimage-q4-instantmesh-fast
+IMAGE_TIMEOUT_SECONDS=600
+INSTANTMESH_TIMEOUT_SECONDS=1800
+```
+
+This is intentionally not the default. Compare `reconstruction_ms` in the
+generated JSON metadata with the TRELLIS fast preset before deciding which
+quality/latency tradeoff to keep. If extraction still runs out of VRAM on a
+particular driver, change `grid_resolution=96` to `64` in the preset and rerun;
+the weights and runtime do not need to be reinstalled.
+
 ### 4. Run WSL server and connect Unity
 
 Inside WSL:
@@ -530,7 +566,8 @@ receives `generator_busy`; cached requests remain available.
   `wsl-cuda-sd35-pixal3d`, `wsl-cuda-sd35-trellis2-q4`,
   `wsl-cuda-sd35-trellis2-q8`, `wsl-cuda-zimage-q4-trellis2-q4`,
   `wsl-cuda-zimage-q6-trellis2-q4`, `wsl-cuda-zimage-q4-trellis2-fast`, or
-  `wsl-cuda-zimage-q3-trellis2-turbo`
+  `wsl-cuda-zimage-q3-trellis2-turbo`, or
+  `wsl-cuda-zimage-q4-instantmesh-fast`
 - `PUBLIC_BASE_URL`: public URL used in responses
 - `ASSET_OUTPUT_DIR`: generated GLB and metadata directory
 - `MODEL_CACHE_DIR`: models, pinned sources, and runtimes
@@ -538,6 +575,7 @@ receives `generator_busy`; cached requests remain available.
 - `IMAGE_TIMEOUT_SECONDS`: isolated SD 3.5 subprocess timeout (default: 600)
 - `PIXAL3D_TIMEOUT_SECONDS`: WSL Pixal3D subprocess timeout (default: 1800)
 - `TRELLIS_TIMEOUT_SECONDS`: WSL trellis.cpp subprocess timeout (default: 1800)
+- `INSTANTMESH_TIMEOUT_SECONDS`: WSL InstantMesh subprocess timeout (default: 1800)
 - `LOG_LEVEL`: server log level
 
 The former `GENERATION_DEVICE`, `HUNYUAN_STEPS`,

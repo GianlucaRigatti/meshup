@@ -83,6 +83,36 @@ def test_pixal3d_runtime_uses_absolute_virtualenv_python(tmp_path, monkeypatch) 
     assert any("einops==0.8.2" in command for command, _cwd, _env in calls)
 
 
+def test_instantmesh_runtime_pins_legacy_hub_with_cuda_128_torch(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.delenv("MAX_JOBS", raising=False)
+    monkeypatch.setattr(download_models.os, "cpu_count", lambda: 32)
+    settings = Settings(MODEL_CACHE_DIR=tmp_path / "models")
+    calls = []
+    monkeypatch.setattr(
+        download_models,
+        "run",
+        lambda command, cwd=None, env=None: calls.append((command, cwd, env)) or "",
+    )
+    monkeypatch.setattr(
+        download_models,
+        "_select_cuda_host_compilers",
+        lambda: ("/usr/bin/gcc-13", "/usr/bin/g++-13"),
+    )
+
+    python, env = download_models._install_instantmesh_runtime(
+        settings, "12.0", False
+    )
+
+    assert python.is_absolute()
+    assert env["MAX_JOBS"] == "2"
+    commands = [call[0] for call in calls]
+    assert any("torch==2.7.1" in command for command in commands)
+    assert any("diffusers==0.20.2" in command for command in commands)
+    assert any("huggingface-hub==0.17.3" in command for command in commands)
+
+
 def test_linux_install_does_not_use_visual_studio_or_windows_patch(
     tmp_path, monkeypatch
 ) -> None:
@@ -209,6 +239,38 @@ def test_linux_zimage_trellis_install_dispatches_to_both_native_runtimes(
     assert events == [
         ("z-image", (settings, preset, False, "12.0")),
         ("trellis", (settings, preset, False, "12.0")),
+    ]
+
+
+def test_linux_zimage_instantmesh_install_dispatches_to_both_runtimes(
+    tmp_path, monkeypatch
+) -> None:
+    settings = _settings(tmp_path)
+    events = []
+    monkeypatch.setattr(download_models.sys, "platform", "linux")
+    monkeypatch.setattr(download_models.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(
+        download_models,
+        "install_z_image_cpp",
+        lambda *args: events.append(("z-image", args)),
+    )
+    monkeypatch.setattr(
+        download_models,
+        "install_instantmesh",
+        lambda *args: events.append(("instantmesh", args)),
+    )
+    preset = PRESETS["wsl-cuda-zimage-q4-instantmesh-fast"]
+
+    download_models.install_linux(
+        settings,
+        preset,
+        False,
+        architecture="12.0",
+    )
+
+    assert events == [
+        ("z-image", (settings, preset, False, "12.0")),
+        ("instantmesh", (settings, preset, False, "12.0")),
     ]
 
 

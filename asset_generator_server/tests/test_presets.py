@@ -11,9 +11,11 @@ from PIL import Image
 
 from app.backends import (
     IMAGE_RUNNER,
+    INSTANTMESH_RUNNER,
     PIXAL3D_RUNNER,
     DiffusersImageBackend,
     IsolatedDiffusersImageBackend,
+    InstantMeshBackend,
     Pixal3DBackend,
     TrellisCppBackend,
     ZImageCppBackend,
@@ -163,6 +165,17 @@ def test_zimage_turbo_profile_uses_aggressive_latency_settings() -> None:
     assert preset.asset.box_uv is True
 
 
+def test_zimage_instantmesh_profile_uses_low_vram_latency_settings() -> None:
+    preset = PRESETS["wsl-cuda-zimage-q4-instantmesh-fast"]
+
+    assert preset.image == PRESETS["wsl-cuda-zimage-q4-trellis2-q4"].image
+    assert preset.asset.backend == "instantmesh"
+    assert preset.asset.steps == 30
+    assert preset.asset.views == 4
+    assert preset.asset.grid_resolution == 96
+    assert preset.asset.texture_resolution == 512
+
+
 def test_sd35_backend_selects_quantized_loader(tmp_path, monkeypatch) -> None:
     preset = PRESETS["wsl-cuda-sd35-pixal3d"]
     model_path = tmp_path / "models" / preset.image.directory_name
@@ -272,6 +285,17 @@ def test_zimage_trellis2_uses_native_isolated_image_backend(
     assert isinstance(image, ZImageCppBackend)
     assert image.isolated_process is True
     assert isinstance(asset, TrellisCppBackend)
+
+
+def test_zimage_instantmesh_uses_two_isolated_process_backends(tmp_path) -> None:
+    settings = Settings(MODEL_CACHE_DIR=tmp_path)
+    preset = PRESETS["wsl-cuda-zimage-q4-instantmesh-fast"]
+
+    image, asset = create_backends(settings, preset)
+
+    assert isinstance(image, ZImageCppBackend)
+    assert image.isolated_process is True
+    assert isinstance(asset, InstantMeshBackend)
 
 
 def test_zimage_cpp_backend_invokes_memory_bounded_native_cli(
@@ -384,6 +408,36 @@ def test_trellis_cpp_turbo_backend_uses_light_path_and_box_uv(
     assert command[command.index("--res") + 1] == "512"
     assert command[command.index("--atlas") + 1] == "1024"
     assert "--box-uv" in command
+
+
+def test_instantmesh_backend_invokes_sequential_low_vram_runner(
+    tmp_path, monkeypatch
+) -> None:
+    preset = PRESETS["wsl-cuda-zimage-q4-instantmesh-fast"]
+    settings = Settings(MODEL_CACHE_DIR=tmp_path)
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append((command, kwargs))
+        Path(command[command.index("--output") + 1]).write_bytes(b"glTF")
+        return SimpleNamespace(returncode=0, stdout="")
+
+    backend = InstantMeshBackend(settings, preset)
+    monkeypatch.setattr(backend, "load", lambda: None)
+    monkeypatch.setattr("app.backends.subprocess.run", run)
+    output = tmp_path / "job" / "asset.glb"
+    output.parent.mkdir()
+
+    backend.generate(Image.new("RGBA", (16, 16)), 123, output)
+
+    command, kwargs = calls[0]
+    assert command[0] == str(settings.instantmesh_python_path.absolute())
+    assert command[1] == str(INSTANTMESH_RUNNER)
+    assert command[command.index("--diffusion-steps") + 1] == "30"
+    assert command[command.index("--views") + 1] == "4"
+    assert command[command.index("--grid-resolution") + 1] == "96"
+    assert command[command.index("--texture-resolution") + 1] == "512"
+    assert kwargs["env"]["HF_HUB_OFFLINE"] == "1"
 
 
 def test_isolated_sd35_backend_passes_private_request_over_stdin(

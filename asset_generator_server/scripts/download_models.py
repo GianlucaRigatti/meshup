@@ -18,6 +18,7 @@ from app.config import Settings
 from app.presets import (
     DINOV2_LARGE_REVISION,
     HUNYUAN_SWIFT_REVISION,
+    INSTANTMESH_SOURCE_REVISION,
     PIXAL3D_SOURCE_REVISION,
     SF3D_SOURCE_REVISION,
     TRELLIS_CPP_MODEL_REVISION,
@@ -31,6 +32,7 @@ from app.presets import (
 HUNYUAN_REPOSITORY = "https://github.com/ZimengXiong/Hunyuan3D-Swift.git"
 SF3D_REPOSITORY = "https://github.com/Stability-AI/stable-fast-3d.git"
 PIXAL3D_REPOSITORY = "https://github.com/TencentARC/Pixal3D.git"
+INSTANTMESH_REPOSITORY = "https://github.com/TencentARC/InstantMesh.git"
 TRELLIS2_REPOSITORY = "https://github.com/microsoft/TRELLIS.2.git"
 TRELLIS_CPP_REPOSITORY = "https://github.com/pwilkin/trellis.cpp.git"
 STABLE_DIFFUSION_CPP_REPOSITORY = (
@@ -44,6 +46,12 @@ CUMESH_REPOSITORY = "https://github.com/JeffreyXiang/CuMesh.git"
 FLEXGEMM_REPOSITORY = "https://github.com/JeffreyXiang/FlexGEMM.git"
 NVDIFFRAST_REPOSITORY = "https://github.com/NVlabs/nvdiffrast.git"
 NAF_REPOSITORY = "https://github.com/valeoai/NAF.git"
+ZERO123_MODEL_REPOSITORY = "sudo-ai/zero123plus-v1.2"
+ZERO123_MODEL_REVISION = "2da07e89919e1a130c9b5add1584c70c7aa065fd"
+ZERO123_PIPELINE_REPOSITORY = "sudo-ai/zero123plus-pipeline"
+ZERO123_PIPELINE_REVISION = "983e66d28a3637ddd8e3e2fd8165cdff32230872"
+INSTANTMESH_DINO_REPOSITORY = "facebook/dino-vitb16"
+INSTANTMESH_DINO_REVISION = "f205d5d8e640a89a2b8ef0369670dfc37cc07fc2"
 TRELLIS2_SOURCE_REVISION = "75fbf0183001ed9876c8dbb35de6b68552ee08bd"
 CUMESH_SOURCE_REVISION = "12289e1062f0603f2f0d0771b02e1395d247f26f"
 FLEXGEMM_SOURCE_REVISION = "6dd94a859c26ee8246888502eada3dd8ad85532e"
@@ -932,6 +940,175 @@ def install_trellis_cpp(
     )
 
 
+def _install_instantmesh_runtime(
+    settings: Settings, architecture: str, force: bool
+) -> tuple[Path, dict[str, str]]:
+    runtime = settings.instantmesh_runtime_path.absolute()
+    if runtime.exists() and force:
+        shutil.rmtree(runtime)
+    python = runtime / ".venv" / "bin" / "python"
+    if not python.is_file():
+        runtime.mkdir(parents=True, exist_ok=True)
+        run(["uv", "venv", "--python", "3.11", str(runtime / ".venv")])
+
+    cc, cxx = _select_cuda_host_compilers()
+    build_jobs = os.environ.get(
+        "MAX_JOBS", str(min(2, max(1, (os.cpu_count() or 2) // 2)))
+    )
+    env = {
+        **_cuda_build_environment(architecture),
+        "CUDA_HOME": "/usr/local/cuda-12.8",
+        "CC": cc,
+        "CXX": cxx,
+        "CUDAHOSTCXX": cxx,
+        "NVCC_CCBIN": cc,
+        "MAX_JOBS": build_jobs,
+        "HF_HOME": str((runtime / "huggingface").resolve()),
+    }
+    run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            "--index-url",
+            "https://download.pytorch.org/whl/cu128",
+            "torch==2.7.1",
+            "torchvision==0.22.1",
+        ],
+        env=env,
+    )
+    run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            "setuptools==69.5.1",
+            "wheel==0.45.1",
+            "ninja==1.13.0",
+            "packaging==25.0",
+            "numpy==1.26.4",
+            "pillow==11.3.0",
+            "einops==0.8.1",
+            "omegaconf==2.3.0",
+            "opencv-python-headless==4.11.0.86",
+            "trimesh==4.10.1",
+            "xatlas==0.0.11",
+            "diffusers==0.20.2",
+            "transformers==4.34.1",
+            "huggingface-hub==0.17.3",
+            "accelerate==0.24.1",
+            "safetensors==0.7.0",
+            "requests==2.32.5",
+        ],
+        env=env,
+    )
+    return python, env
+
+
+def _download_instantmesh_models(settings: Settings, preset: PipelinePreset) -> None:
+    snapshot_download(
+        repo_id=preset.asset.model_id,
+        revision=preset.asset.revision,
+        local_dir=settings.asset_model_path,
+        allow_patterns=[
+            "README.md",
+            "diffusion_pytorch_model.bin",
+            "instant_mesh_base.ckpt",
+        ],
+    )
+    (settings.asset_model_path / ".model-revision").write_text(
+        preset.asset.revision + "\n", encoding="utf-8"
+    )
+    snapshot_download(
+        repo_id=ZERO123_MODEL_REPOSITORY,
+        revision=ZERO123_MODEL_REVISION,
+        local_dir=settings.zero123_model_path,
+    )
+    snapshot_download(
+        repo_id=ZERO123_PIPELINE_REPOSITORY,
+        revision=ZERO123_PIPELINE_REVISION,
+        local_dir=settings.zero123_pipeline_path,
+    )
+    snapshot_download(
+        repo_id=INSTANTMESH_DINO_REPOSITORY,
+        revision=INSTANTMESH_DINO_REVISION,
+        local_dir=settings.instantmesh_dino_path,
+        allow_patterns=[
+            "README.md",
+            "config.json",
+            "preprocessor_config.json",
+            "pytorch_model.bin",
+        ],
+    )
+
+
+def install_instantmesh(
+    settings: Settings,
+    preset: PipelinePreset,
+    force: bool,
+    architecture: str,
+) -> None:
+    if not _is_wsl():
+        raise RuntimeError("The InstantMesh profile requires WSL 2.")
+    install_source(
+        settings.instantmesh_source_path,
+        INSTANTMESH_REPOSITORY,
+        INSTANTMESH_SOURCE_REVISION,
+        "InstantMesh",
+        force,
+    )
+    python, env = _install_instantmesh_runtime(settings, architecture, force)
+    nvdiffrast_source = settings.model_cache_dir / "sources" / "nvdiffrast"
+    install_source(
+        nvdiffrast_source,
+        NVDIFFRAST_REPOSITORY,
+        NVDIFFRAST_SOURCE_REVISION,
+        "nvdiffrast",
+        force,
+    )
+    run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            "--reinstall",
+            "--no-deps",
+            "--no-build-isolation",
+            str(nvdiffrast_source.resolve()),
+        ],
+        env=env,
+    )
+    _download_instantmesh_models(settings, preset)
+    missing = [
+        path.resolve()
+        for path in settings.instantmesh_required_files
+        if not path.is_file()
+    ]
+    if missing:
+        raise RuntimeError(
+            "InstantMesh installation did not create the required files:\n- "
+            + "\n- ".join(str(path) for path in missing)
+        )
+    run(
+        [
+            str(python),
+            str(PROJECT_ROOT / "scripts" / "run_instantmesh.py"),
+            "--check",
+            "--source",
+            str(settings.instantmesh_source_path.resolve()),
+        ],
+        cwd=settings.instantmesh_source_path,
+        env={**env, "HF_HUB_OFFLINE": "1"},
+    )
+    print(f"Installed and verified InstantMesh at {settings.asset_model_path}")
+
+
 def install_linux(
     settings: Settings,
     preset: PipelinePreset,
@@ -953,6 +1130,9 @@ def install_linux(
         return
     if preset.asset.backend == "trellis-cpp":
         install_trellis_cpp(settings, preset, force, architecture)
+        return
+    if preset.asset.backend == "instantmesh":
+        install_instantmesh(settings, preset, force, architecture)
         return
     token = token or _require_hugging_face_token()
     install_source(
@@ -1179,6 +1359,7 @@ def main() -> None:
             "wsl-cuda-zimage-q6-trellis2-q4",
             "wsl-cuda-zimage-q4-trellis2-fast",
             "wsl-cuda-zimage-q3-trellis2-turbo",
+            "wsl-cuda-zimage-q4-instantmesh-fast",
         ],
     )
     parser.add_argument(
@@ -1211,7 +1392,7 @@ def main() -> None:
         token = _require_hugging_face_token()
     elif preset.platform == "linux":
         architecture = _validate_linux_cuda()
-        if preset.asset.backend in {"pixal3d", "trellis-cpp"}:
+        if preset.asset.backend in {"pixal3d", "trellis-cpp", "instantmesh"}:
             _select_cuda_host_compilers()
         if (
             preset.asset.backend == "stable-fast-3d"

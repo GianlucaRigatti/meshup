@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     image_timeout_seconds: int = Field(default=600, alias="IMAGE_TIMEOUT_SECONDS")
     pixal3d_timeout_seconds: int = Field(default=1800, alias="PIXAL3D_TIMEOUT_SECONDS")
     trellis_timeout_seconds: int = Field(default=1800, alias="TRELLIS_TIMEOUT_SECONDS")
+    instantmesh_timeout_seconds: int = Field(
+        default=1800, alias="INSTANTMESH_TIMEOUT_SECONDS"
+    )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     @property
@@ -174,4 +177,50 @@ class Settings(BaseSettings):
             self.pixal3d_python_path,
             self.pixal3d_source_path / "inference.py",
             self.asset_model_path / "pipeline.json",
+        )
+
+    @property
+    def instantmesh_source_path(self) -> Path:
+        return self.model_cache_dir / "sources" / "InstantMesh"
+
+    @property
+    def instantmesh_runtime_path(self) -> Path:
+        return self.model_cache_dir / "runtime" / "instantmesh"
+
+    @property
+    def instantmesh_python_path(self) -> Path:
+        return self.instantmesh_runtime_path / ".venv" / "bin" / "python"
+
+    @property
+    def zero123_model_path(self) -> Path:
+        return self.model_cache_dir / "models" / "zero123plus-v1.2"
+
+    @property
+    def zero123_pipeline_path(self) -> Path:
+        return self.model_cache_dir / "models" / "zero123plus-pipeline"
+
+    @property
+    def instantmesh_dino_path(self) -> Path:
+        return self.model_cache_dir / "models" / "dino-vitb16"
+
+    @property
+    def instantmesh_required_files(self) -> tuple[Path, ...]:
+        return (
+            self.instantmesh_python_path,
+            self.instantmesh_source_path / "configs" / "instant-mesh-base.yaml",
+            self.asset_model_path / "diffusion_pytorch_model.bin",
+            self.asset_model_path / "instant_mesh_base.ckpt",
+            self.zero123_model_path / "model_index.json",
+            self.zero123_model_path
+            / "unet"
+            / "diffusion_pytorch_model.safetensors",
+            self.zero123_model_path
+            / "vae"
+            / "diffusion_pytorch_model.safetensors",
+            self.zero123_model_path / "vision_encoder" / "model.safetensors",
+            self.zero123_model_path / "text_encoder" / "model.safetensors",
+            self.zero123_pipeline_path / "pipeline.py",
+            self.instantmesh_dino_path / "config.json",
+            self.instantmesh_dino_path / "preprocessor_config.json",
+            self.instantmesh_dino_path / "pytorch_model.bin",
         )

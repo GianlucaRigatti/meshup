@@ -23,6 +23,9 @@ from app.presets import (
 
 
 PIXAL3D_RUNNER = Path(__file__).resolve().parents[1] / "scripts" / "run_pixal3d.py"
+INSTANTMESH_RUNNER = (
+    Path(__file__).resolve().parents[1] / "scripts" / "run_instantmesh.py"
+)
 IMAGE_RUNNER = Path(__file__).resolve().parents[1] / "scripts" / "run_image_model.py"
 
 
@@ -845,6 +848,132 @@ class TrellisCppBackend:
         return
 
 
+class InstantMeshBackend:
+    """Run the low-VRAM InstantMesh experiment in a disposable process."""
+
+    output_mode = "pbr_texture"
+
+    def __init__(self, settings: Settings, preset: PipelinePreset) -> None:
+        self.settings = settings
+        self.preset = preset
+        self.device = "cuda:0"
+
+    def load(self) -> None:
+        if not _is_wsl():
+            raise RuntimeError("The InstantMesh profile currently requires WSL 2.")
+        missing = [
+            path.resolve()
+            for path in self.settings.instantmesh_required_files
+            if not path.is_file()
+        ]
+        if not INSTANTMESH_RUNNER.is_file():
+            missing.append(INSTANTMESH_RUNNER.resolve())
+        if missing:
+            raise FileNotFoundError(
+                "The InstantMesh runtime is incomplete. Missing files:\n- "
+                + "\n- ".join(str(path) for path in missing)
+                + "\nRerun the model installer for this profile."
+            )
+        _require_git_revision(
+            self.settings.instantmesh_source_path,
+            self.preset.asset.source_revision,
+        )
+        _require_revision(self.settings.asset_model_path, self.preset.asset.revision)
+        completed = subprocess.run(
+            [
+                str(self.settings.instantmesh_python_path.absolute()),
+                str(INSTANTMESH_RUNNER),
+                "--check",
+            ],
+            cwd=self.settings.instantmesh_source_path,
+            env=self._environment,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=60,
+        )
+        if completed.returncode != 0:
+            tail = completed.stdout[-4000:].strip()
+            message = "The InstantMesh runtime failed its readiness check."
+            if tail:
+                message += f"\n{tail}"
+            raise RuntimeError(message)
+
+    def generate(self, image: Image.Image, seed: int, output: Path) -> None:
+        self.load()
+        input_path = output.with_name("input.png")
+        image.save(input_path, format="PNG")
+        asset = self.preset.asset
+        command = [
+            str(self.settings.instantmesh_python_path.absolute()),
+            str(INSTANTMESH_RUNNER),
+            "--image",
+            str(input_path.resolve()),
+            "--output",
+            str(output.resolve()),
+            "--source",
+            str(self.settings.instantmesh_source_path.resolve()),
+            "--model-path",
+            str(self.settings.asset_model_path.resolve()),
+            "--zero123-model",
+            str(self.settings.zero123_model_path.resolve()),
+            "--zero123-pipeline",
+            str(self.settings.zero123_pipeline_path.resolve()),
+            "--dino-model",
+            str(self.settings.instantmesh_dino_path.resolve()),
+            "--seed",
+            str(seed),
+            "--diffusion-steps",
+            str(asset.steps),
+            "--views",
+            str(asset.views),
+            "--grid-resolution",
+            str(asset.grid_resolution),
+            "--texture-resolution",
+            str(asset.texture_resolution),
+        ]
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=self.settings.instantmesh_source_path,
+                env=self._environment,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=self.settings.instantmesh_timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                "InstantMesh generation timed out after "
+                f"{self.settings.instantmesh_timeout_seconds} seconds."
+            ) from exc
+        if completed.returncode != 0 or not output.is_file():
+            tail = completed.stdout[-4000:].strip()
+            message = "InstantMesh generation failed."
+            if tail:
+                message += f"\n{tail}"
+            raise RuntimeError(message)
+
+    @property
+    def _environment(self) -> dict[str, str]:
+        runtime = self.settings.instantmesh_runtime_path.resolve()
+        return {
+            **os.environ,
+            "HF_HOME": str(runtime / "huggingface"),
+            "HF_HUB_OFFLINE": "1",
+            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+            "TOKENIZERS_PARALLELISM": "false",
+        }
+
+    def move_to_cpu(self) -> None:
+        return
+
+    def release_device_memory(self) -> None:
+        return
+
+
 def create_backends(
     settings: Settings, preset: PipelinePreset
 ) -> tuple[ImageBackend, AssetBackend]:
@@ -864,6 +993,8 @@ def create_backends(
         return image, Pixal3DBackend(settings, preset)
     if preset.asset.backend == "trellis-cpp":
         return image, TrellisCppBackend(settings, preset)
+    if preset.asset.backend == "instantmesh":
+        return image, InstantMeshBackend(settings, preset)
     return image, StableFast3DBackend(settings, preset)
 
 

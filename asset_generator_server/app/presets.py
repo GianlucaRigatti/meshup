@@ -22,6 +22,7 @@ ProfileName: TypeAlias = Literal[
     "wsl-cuda-zimage-q6-trellis2-q4",
     "wsl-cuda-zimage-q4-trellis2-fast",
     "wsl-cuda-zimage-q3-trellis2-turbo",
+    "wsl-cuda-zimage-q4-instantmesh-fast",
 ]
 
 
@@ -45,7 +46,9 @@ class ImagePreset:
 
 @dataclass(frozen=True)
 class AssetPreset:
-    backend: Literal["hunyuan-mlx", "stable-fast-3d", "pixal3d", "trellis-cpp"]
+    backend: Literal[
+        "hunyuan-mlx", "stable-fast-3d", "pixal3d", "trellis-cpp", "instantmesh"
+    ]
     model_id: str
     revision: str
     directory_name: str
@@ -61,6 +64,8 @@ class AssetPreset:
     max_tokens: int | None = None
     camera_fov: float | None = None
     box_uv: bool = False
+    views: int | None = None
+    grid_resolution: int | None = None
 
 
 @dataclass(frozen=True)
@@ -92,6 +97,8 @@ STABLE_DIFFUSION_CPP_SOURCE_REVISION = (
 Z_IMAGE_TURBO_GGUF_REVISION = "c61c0e422dc8b541b7548cf33a4ef8302b0f8085"
 Z_IMAGE_TEXT_ENCODER_REVISION = "a06e946bb6b655725eafa393f4a9745d460374c9"
 Z_IMAGE_VAE_REVISION = "08d04455279082882deaabc8d0d09fc914c071e1"
+INSTANTMESH_SOURCE_REVISION = "08822c52fdc399b93ea00e4fa9e596344ed52ccc"
+INSTANTMESH_MODEL_REVISION = "b785b4ecfb6636ef34a08c748f96f6a5686244d0"
 
 
 SD35_MEDIUM_NF4 = ImagePreset(
@@ -453,6 +460,25 @@ PRESETS: dict[str, PipelinePreset] = {
             pipeline_resolution=512,
             max_tokens=49152,
             box_uv=True,
+        ),
+    ),
+    "wsl-cuda-zimage-q4-instantmesh-fast": PipelinePreset(
+        name="wsl-cuda-zimage-q4-instantmesh-fast",
+        schema_version=1,
+        platform="linux",
+        device="cuda:0",
+        image=z_image_turbo("q4"),
+        asset=AssetPreset(
+            backend="instantmesh",
+            model_id="TencentARC/InstantMesh",
+            revision=INSTANTMESH_MODEL_REVISION,
+            directory_name="instantmesh-base",
+            source_revision=INSTANTMESH_SOURCE_REVISION,
+            output_mode="pbr_texture",
+            steps=30,
+            texture_resolution=512,
+            views=4,
+            grid_resolution=96,
         ),
     ),
 }

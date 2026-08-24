@@ -117,3 +117,20 @@ stable-diffusion.cpp runtime against the local CUDA 12.8 toolkit. Z-Image Turbo
 and the referenced model repositories identify their weights as Apache 2.0.
 Review each linked model card and the runtime's bundled third-party components
 before redistribution.
+
+## InstantMesh and Zero123++
+
+- InstantMesh source: <https://github.com/TencentARC/InstantMesh>
+- Pinned source revision: `08822c52fdc399b93ea00e4fa9e596344ed52ccc`
+- InstantMesh weights: <https://huggingface.co/TencentARC/InstantMesh>
+- Pinned weight revision: `b785b4ecfb6636ef34a08c748f96f6a5686244d0`
+- Zero123++ v1.2: <https://huggingface.co/sudo-ai/zero123plus-v1.2>
+- Zero123++ pipeline: <https://huggingface.co/sudo-ai/zero123plus-pipeline>
+- DINO ViT-B/16 encoder: <https://huggingface.co/facebook/dino-vitb16>
+
+The optional `wsl-cuda-zimage-q4-instantmesh-fast` preset installs InstantMesh
+and its dependencies in an isolated runtime. InstantMesh identifies its source
+and model repository as Apache 2.0. Zero123++ identifies its weights under the
+CreativeML Open RAIL-M license. nvdiffrast and some bundled NVIDIA source files
+have their own NVIDIA license terms. Review all linked repositories and bundled
+notices before use or redistribution.
