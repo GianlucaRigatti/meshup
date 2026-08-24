@@ -248,9 +248,13 @@ keeps all three SD 3.5 text encoders, but loads both its main transformer and
 T5-XXL encoder in 4-bit NF4 with BF16 computation. Automatic placement is
 capped at 9 GiB GPU memory, leaving roughly 3 GiB of a 12 GB card for
 activations and VAE decoding; overflow can use system RAM. VAE tiling further
-limits the 1024px decode peak. SD is destroyed and CUDA caches are emptied
-before the separate Pixal3D low-VRAM process starts, so their VRAM footprints
-do not overlap.
+limits the 1024px decode peak. SD 3.5 runs in its own short-lived subprocess;
+after it writes the input PNG, the process exits before Pixal3D starts. This
+guarantees that its CPU allocations, CUDA context, and VRAM are released rather
+than relying on Python or glibc to return cached memory. It increases cold-start
+latency on every uncached request but prevents the two models' RAM and VRAM
+footprints from overlapping. Set `IMAGE_TIMEOUT_SECONDS` higher than 600 if the
+28-step image stage is unusually slow.
 
 ### 4. Run WSL server and connect Unity
 
@@ -408,6 +412,7 @@ receives `generator_busy`; cached requests remain available.
 - `ASSET_OUTPUT_DIR`: generated GLB and metadata directory
 - `MODEL_CACHE_DIR`: models, pinned sources, and runtimes
 - `HUNYUAN_TIMEOUT_SECONDS`: macOS Hunyuan subprocess timeout
+- `IMAGE_TIMEOUT_SECONDS`: isolated SD 3.5 subprocess timeout (default: 600)
 - `PIXAL3D_TIMEOUT_SECONDS`: WSL Pixal3D subprocess timeout (default: 1800)
 - `LOG_LEVEL`: server log level
 

@@ -128,7 +128,9 @@ class AssetGenerator:
 
             seed = int(asset_id[:16], 16) % (2**31)
             timings: dict[str, int] = {}
-            if self.preset.platform != "macos":
+            if self.preset.platform != "macos" and not getattr(
+                self.image_backend, "isolated_process", False
+            ):
                 import torch
 
                 torch.cuda.reset_peak_memory_stats(0)
@@ -317,6 +319,8 @@ class AssetGenerator:
                 if image_peak_memory is not None
                 else {}
             )
+        if getattr(self.image_backend, "isolated_process", False):
+            return {}
         try:
             import torch
 

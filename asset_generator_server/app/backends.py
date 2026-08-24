@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import gc
+import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Protocol
 
@@ -16,6 +18,7 @@ from app.presets import DINOV2_LARGE_REVISION, PipelinePreset
 
 
 PIXAL3D_RUNNER = Path(__file__).resolve().parents[1] / "scripts" / "run_pixal3d.py"
+IMAGE_RUNNER = Path(__file__).resolve().parents[1] / "scripts" / "run_image_model.py"
 
 
 def _trim_process_heap() -> None:
@@ -227,6 +230,78 @@ class DiffusersImageBackend:
             self._torch.mps.empty_cache()
         elif self.preset.platform != "macos" and self._torch.cuda.is_available():
             self._torch.cuda.empty_cache()
+        _trim_process_heap()
+
+
+class IsolatedDiffusersImageBackend:
+    """Run a large image model in a disposable process to reclaim all memory."""
+
+    isolated_process = True
+
+    def __init__(self, settings: Settings, preset: PipelinePreset) -> None:
+        self.settings = settings
+        self.preset = preset
+        self.device = "cuda:0"
+
+    def load(self) -> None:
+        if not _is_wsl():
+            raise RuntimeError("The isolated SD 3.5 profile currently requires WSL 2.")
+        if not self.settings.image_model_path.is_dir():
+            raise FileNotFoundError(
+                f"Image model is missing at {self.settings.image_model_path}."
+            )
+        _require_revision(self.settings.image_model_path, self.preset.image.revision)
+        if not IMAGE_RUNNER.is_file():
+            raise FileNotFoundError(f"Image runner is missing at {IMAGE_RUNNER}.")
+
+    def generate(self, prompt: str, seed: int) -> Image.Image:
+        self.load()
+        with tempfile.TemporaryDirectory(prefix="asset-image-") as temporary_dir:
+            output = Path(temporary_dir) / "image.png"
+            command = [
+                sys.executable,
+                str(IMAGE_RUNNER),
+                "--model-cache",
+                str(self.settings.model_cache_dir.resolve()),
+                "--profile",
+                self.preset.name,
+                "--output",
+                str(output),
+            ]
+            try:
+                completed = subprocess.run(
+                    command,
+                    cwd=IMAGE_RUNNER.parent.parent,
+                    env={
+                        **os.environ,
+                        "HF_HUB_OFFLINE": "1",
+                        "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+                    },
+                    input=json.dumps({"prompt": prompt, "seed": seed}),
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=self.settings.image_timeout_seconds,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(
+                    "Isolated SD 3.5 generation timed out after "
+                    f"{self.settings.image_timeout_seconds} seconds."
+                ) from exc
+            if completed.returncode != 0 or not output.is_file():
+                tail = completed.stdout[-4000:].strip()
+                message = "Isolated SD 3.5 generation failed."
+                if tail:
+                    message += f"\n{tail}"
+                raise RuntimeError(message)
+            with Image.open(output) as generated:
+                return generated.convert("RGB")
+
+    def move_to_cpu(self) -> None:
+        return
+
+    def release_device_memory(self) -> None:
         _trim_process_heap()
 
 
@@ -522,7 +597,14 @@ class Pixal3DBackend:
 def create_backends(
     settings: Settings, preset: PipelinePreset
 ) -> tuple[ImageBackend, AssetBackend]:
-    image = DiffusersImageBackend(settings, preset)
+    image: ImageBackend
+    if (
+        preset.image.backend == "stable-diffusion-3.5"
+        and preset.asset.backend == "pixal3d"
+    ):
+        image = IsolatedDiffusersImageBackend(settings, preset)
+    else:
+        image = DiffusersImageBackend(settings, preset)
     if preset.asset.backend == "hunyuan-mlx":
         return image, HunyuanMlxBackend(settings, preset)
     if preset.asset.backend == "pixal3d":

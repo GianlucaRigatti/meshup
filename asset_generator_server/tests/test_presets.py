@@ -9,7 +9,14 @@ import pytest
 import trimesh
 from PIL import Image
 
-from app.backends import PIXAL3D_RUNNER, DiffusersImageBackend, Pixal3DBackend
+from app.backends import (
+    IMAGE_RUNNER,
+    PIXAL3D_RUNNER,
+    DiffusersImageBackend,
+    IsolatedDiffusersImageBackend,
+    Pixal3DBackend,
+    create_backends,
+)
 from app.config import Settings
 from app.generator import AssetGenerator, GenerationError
 from app.presets import PRESETS, resolve_profile
@@ -177,6 +184,44 @@ def test_sd35_quantized_loader_uses_supported_balanced_device_map(
     assert pipeline_options["device_map"] == "balanced"
     assert pipeline_options["max_memory"] == {0: "9GiB", "cpu": "24GiB"}
     assert backend._pipeline.vae_tiling_enabled is True
+
+
+def test_sd35_pixal3d_uses_isolated_image_backend(tmp_path) -> None:
+    settings = Settings(MODEL_CACHE_DIR=tmp_path)
+    preset = PRESETS["wsl-cuda-sd35-pixal3d"]
+
+    image, asset = create_backends(settings, preset)
+
+    assert isinstance(image, IsolatedDiffusersImageBackend)
+    assert isinstance(asset, Pixal3DBackend)
+
+
+def test_isolated_sd35_backend_passes_private_request_over_stdin(
+    tmp_path, monkeypatch
+) -> None:
+    settings = Settings(MODEL_CACHE_DIR=tmp_path)
+    backend = IsolatedDiffusersImageBackend(
+        settings, PRESETS["wsl-cuda-sd35-pixal3d"]
+    )
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append((command, kwargs))
+        output = Path(command[command.index("--output") + 1])
+        Image.new("RGB", (12, 10), "red").save(output)
+        return SimpleNamespace(returncode=0, stdout="")
+
+    monkeypatch.setattr(backend, "load", lambda: None)
+    monkeypatch.setattr("app.backends.subprocess.run", run)
+
+    image = backend.generate("private test prompt", 123)
+
+    command, kwargs = calls[0]
+    assert command[1] == str(IMAGE_RUNNER)
+    assert "private test prompt" not in command
+    assert kwargs["input"] == '{"prompt": "private test prompt", "seed": 123}'
+    assert kwargs["env"]["HF_HUB_OFFLINE"] == "1"
+    assert image.size == (12, 10)
 
 
 def test_pixal3d_backend_invokes_pinned_low_vram_cli(tmp_path, monkeypatch) -> None:
@@ -380,6 +425,34 @@ def test_image_device_is_released_before_asset_generation(tmp_path) -> None:
     generator.generate("a chair")
     assert events.index("image:cpu") < events.index("asset:generate")
     assert events.index("image:release") < events.index("asset:generate")
+
+
+def test_isolated_image_generation_does_not_initialize_parent_cuda(
+    tmp_path, monkeypatch
+) -> None:
+    import torch
+
+    settings = Settings(
+        ASSET_OUTPUT_DIR=tmp_path / "assets", MODEL_CACHE_DIR=tmp_path / "models"
+    )
+    settings.asset_output_dir.mkdir()
+    image = _ImageBackend()
+    image.isolated_process = True
+    generator = AssetGenerator(
+        settings,
+        image_backend=image,
+        asset_backend=_AssetBackend("vertex_color"),
+        preset=PRESETS["wsl-cuda-sd35-pixal3d"],
+    )
+    generator._remove_background = lambda value: value.convert("RGBA")
+    generator.ready = True
+    monkeypatch.setattr(
+        torch.cuda,
+        "reset_peak_memory_stats",
+        lambda *_args: pytest.fail("parent process initialized CUDA statistics"),
+    )
+
+    generator.generate("a chair")
 
 
 class _ImageBackend:

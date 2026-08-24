@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     )
     pipeline_profile: str = Field(default="auto", alias="PIPELINE_PROFILE")
     hunyuan_timeout_seconds: int = Field(default=300, alias="HUNYUAN_TIMEOUT_SECONDS")
+    image_timeout_seconds: int = Field(default=600, alias="IMAGE_TIMEOUT_SECONDS")
     pixal3d_timeout_seconds: int = Field(default=1800, alias="PIXAL3D_TIMEOUT_SECONDS")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
