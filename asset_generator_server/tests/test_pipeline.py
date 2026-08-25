@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import threading
+import types
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -88,6 +91,55 @@ def test_constant_birefnet_prediction_produces_empty_mask() -> None:
 
     assert mask.size == (8, 6)
     assert np.asarray(mask).max() == 0
+
+
+def test_birefnet_load_suppresses_only_pinned_timm_deprecations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeModel:
+        def eval(self):
+            return self
+
+        def requires_grad_(self, value: bool):
+            return self
+
+        def to(self, **kwargs):
+            return self
+
+    class FakeAutoModel:
+        @classmethod
+        def from_pretrained(cls, *args, **kwargs):
+            warnings.warn(
+                "Importing from timm.models.layers is deprecated, "
+                "please import via timm.layers",
+                FutureWarning,
+            )
+            warnings.warn(
+                "Importing from timm.models.registry is deprecated, "
+                "please import via timm.models",
+                FutureWarning,
+            )
+            warnings.warn("unrelated future warning", FutureWarning)
+            return FakeModel()
+
+    fake_torch = types.SimpleNamespace(
+        cuda=types.SimpleNamespace(is_available=lambda: True),
+        float16=object(),
+        set_float32_matmul_precision=lambda value: None,
+    )
+    fake_transformers = types.SimpleNamespace(
+        AutoModelForImageSegmentation=FakeAutoModel
+    )
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+    model_path = tmp_path / "birefnet"
+    model_path.mkdir()
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        TorchBiRefNet(model_path).load()
+
+    assert [str(item.message) for item in caught] == ["unrelated future warning"]
 
 
 def test_success_creates_three_artifacts_without_storing_prompt(

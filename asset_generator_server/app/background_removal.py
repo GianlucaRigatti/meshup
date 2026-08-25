@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import time
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -36,11 +37,30 @@ class TorchBiRefNet:
             )
 
         torch.set_float32_matmul_precision("high")
-        self.model = AutoModelForImageSegmentation.from_pretrained(
-            str(self.model_path.resolve()),
-            trust_remote_code=True,
-            local_files_only=True,
-        )
+        # The pinned BiRefNet remote code still uses timm's compatibility import
+        # paths. Suppress only those known deprecations while loading it.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=(
+                    r"Importing from timm\.models\.layers is deprecated, "
+                    r"please import via timm\.layers"
+                ),
+                category=FutureWarning,
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=(
+                    r"Importing from timm\.models\.registry is deprecated, "
+                    r"please import via timm\.models"
+                ),
+                category=FutureWarning,
+            )
+            self.model = AutoModelForImageSegmentation.from_pretrained(
+                str(self.model_path.resolve()),
+                trust_remote_code=True,
+                local_files_only=True,
+            )
         self.model.eval().requires_grad_(False)
         self.model.to(device="cpu", dtype=torch.float16)
 
