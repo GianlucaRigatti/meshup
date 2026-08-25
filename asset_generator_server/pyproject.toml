@@ -1,7 +1,7 @@
 [project]
 name = "asset-generator-server"
-version = "0.2.0"
-description = "Fixed FLUX.2 Klein to TRELLIS.2 FastAPI server"
+version = "0.3.0"
+description = "Local speech-or-text to textured 3D asset FastAPI server"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
@@ -11,6 +11,8 @@ dependencies = [
     "kornia>=0.7,<1; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "numpy>=1.26,<2",
     "pillow>=10.4,<12",
+    "python-multipart>=0.0.20,<1",
+    "qwen-asr==0.0.6; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "safetensors>=0.4,<1",
     "timm>=1.0,<2; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "torch==2.7.1; sys_platform == 'linux' and platform_machine == 'x86_64'",
@@ -29,6 +31,7 @@ dev = [
 addopts = "-q"
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = ["real_models: requires installed model weights, WSL, and CUDA"]
 
 [tool.uv]
 package = false

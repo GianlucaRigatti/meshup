@@ -11,6 +11,8 @@ from pathlib import Path
 IMAGE_GENERATOR = "flux2-klein-9b-q4-k-m-fast"
 MODEL_3D = "trellis2-turbo"
 BACKGROUND_REMOVAL_MODEL = "birefnet-general"
+SPEECH_TO_TEXT_MODEL = "qwen3-asr-1.7b"
+PROMPT_ENHANCER_MODEL = "qwen3.5-4b"
 DEVICE = "cuda:0"
 OUTPUT_MODE = "pbr_texture"
 
@@ -32,6 +34,36 @@ FLUX_VAE_FILENAME = "split_files/vae/flux2-vae.safetensors"
 BIREFNET_MODEL_ID = "ZhengPeng7/BiRefNet"
 BIREFNET_MODEL_REVISION = "b7d7f31fed203ab364ac756d62053ee467502434"
 
+ASR_MODEL_ID = "Qwen/Qwen3-ASR-1.7B"
+ASR_MODEL_REVISION = "7278e1e70fe206f11671096ffdd38061171dd6e5"
+ASR_MODEL_FILES = (
+    "chat_template.json",
+    "config.json",
+    "generation_config.json",
+    "merges.txt",
+    "model-00001-of-00002.safetensors",
+    "model-00002-of-00002.safetensors",
+    "model.safetensors.index.json",
+    "preprocessor_config.json",
+    "tokenizer_config.json",
+    "vocab.json",
+)
+PROMPT_ENHANCER_MODEL_ID = "Qwen/Qwen3.5-4B"
+PROMPT_ENHANCER_MODEL_REVISION = "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+PROMPT_ENHANCER_MODEL_FILES = (
+    "chat_template.jinja",
+    "config.json",
+    "merges.txt",
+    "model.safetensors-00001-of-00002.safetensors",
+    "model.safetensors-00002-of-00002.safetensors",
+    "model.safetensors.index.json",
+    "preprocessor_config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "video_preprocessor_config.json",
+    "vocab.json",
+)
+
 TRELLIS_MODEL_ID = "ilintar/trellis2-gguf"
 TRELLIS_MODEL_REVISION = "a57397bd3d351599d9729fc144b3f87c3f87d65b"
 TRELLIS_MODEL_FILENAMES = (
@@ -45,7 +77,18 @@ TRELLIS_MODEL_FILENAMES = (
 )
 
 PIPELINE_SCHEMA_VERSION = 2
+AUDIO_PIPELINE_SCHEMA_VERSION = 1
 PROMPT_SUFFIX = ", one isolated subject, complete subject fully visible, centered, three-quarter front view, camera near subject height, faithful subject-specific anatomy, characteristic colors and materials, natural coherent shape, strong clean silhouette, limbs and appendages clearly visible and separated where applicable, balanced proportions, soft diffuse studio lighting, shadowless presentation, sharp focus, weak-perspective product view, solid white background, no floor, no pedestal, no environment, no text, no extra objects, no cropping, no occlusion"
+PROMPT_ENHANCEMENT_INSTRUCTION = (
+    "Rewrite the speech transcript as one concise English prompt for generating one "
+    "isolated 3D asset. Correct likely recognition errors from context and preserve "
+    "the requested subject, named entities, style, and every explicit constraint. "
+    "Add only plausible visible details that improve geometry and texturing, such as "
+    "materials, construction, proportions, colors, surface treatment, and distinctive "
+    "parts. Do not add another subject, an environment, a narrative, camera or lighting "
+    "instructions, commentary, labels, or details that contradict the transcript. "
+    "Return only the final prompt on one line, no more than 350 characters."
+)
 
 _PIPELINE_IDENTITY = {
     "schema": PIPELINE_SCHEMA_VERSION,
@@ -80,6 +123,34 @@ _PIPELINE_DIGEST = hashlib.sha256(
 ).hexdigest()[:16]
 PIPELINE_VERSION = f"flux2-klein-9b-trellis2-turbo-{_PIPELINE_DIGEST}"
 
+_AUDIO_PIPELINE_IDENTITY = {
+    "schema": AUDIO_PIPELINE_SCHEMA_VERSION,
+    "downstream_pipeline": PIPELINE_VERSION,
+    "speech_to_text": {
+        "id": ASR_MODEL_ID,
+        "revision": ASR_MODEL_REVISION,
+        "dtype": "bfloat16",
+        "max_new_tokens": 512,
+        "language": "auto",
+    },
+    "prompt_enhancer": {
+        "id": PROMPT_ENHANCER_MODEL_ID,
+        "revision": PROMPT_ENHANCER_MODEL_REVISION,
+        "dtype": "bfloat16",
+        "thinking": False,
+        "do_sample": False,
+        "max_new_tokens": 160,
+        "instruction": PROMPT_ENHANCEMENT_INSTRUCTION,
+    },
+    "audio": {"sample_rate": 16000, "channels": 1, "sample_format": "s16"},
+}
+_AUDIO_PIPELINE_DIGEST = hashlib.sha256(
+    json.dumps(_AUDIO_PIPELINE_IDENTITY, sort_keys=True).encode()
+).hexdigest()[:16]
+AUDIO_PIPELINE_VERSION = (
+    f"qwen3-asr-qwen3.5-{PIPELINE_VERSION}-{_AUDIO_PIPELINE_DIGEST}"
+)
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -88,6 +159,11 @@ class Settings:
     model_cache_dir: Path = Path(".model_sources")
     image_timeout_seconds: int = 600
     trellis_timeout_seconds: int = 1800
+    audio_max_bytes: int = 10 * 1024 * 1024
+    audio_max_duration_seconds: int = 60
+    audio_decode_timeout_seconds: int = 30
+    asr_timeout_seconds: int = 300
+    prompt_enhancement_timeout_seconds: int = 300
     log_level: str = "INFO"
 
     @classmethod
@@ -109,6 +185,26 @@ class Settings:
             trellis_timeout_seconds=_positive_int(
                 values.get("TRELLIS_TIMEOUT_SECONDS", "1800"),
                 "TRELLIS_TIMEOUT_SECONDS",
+            ),
+            audio_max_bytes=_positive_int(
+                values.get("AUDIO_MAX_BYTES", str(10 * 1024 * 1024)),
+                "AUDIO_MAX_BYTES",
+            ),
+            audio_max_duration_seconds=_positive_int(
+                values.get("AUDIO_MAX_DURATION_SECONDS", "60"),
+                "AUDIO_MAX_DURATION_SECONDS",
+            ),
+            audio_decode_timeout_seconds=_positive_int(
+                values.get("AUDIO_DECODE_TIMEOUT_SECONDS", "30"),
+                "AUDIO_DECODE_TIMEOUT_SECONDS",
+            ),
+            asr_timeout_seconds=_positive_int(
+                values.get("ASR_TIMEOUT_SECONDS", "300"),
+                "ASR_TIMEOUT_SECONDS",
+            ),
+            prompt_enhancement_timeout_seconds=_positive_int(
+                values.get("PROMPT_ENHANCEMENT_TIMEOUT_SECONDS", "300"),
+                "PROMPT_ENHANCEMENT_TIMEOUT_SECONDS",
             ),
             log_level=values.get("LOG_LEVEL", "INFO"),
         )
@@ -166,6 +262,14 @@ class Settings:
         return self.model_cache_dir / "models" / BACKGROUND_REMOVAL_MODEL
 
     @property
+    def asr_model_path(self) -> Path:
+        return self.model_cache_dir / "models" / SPEECH_TO_TEXT_MODEL
+
+    @property
+    def prompt_enhancer_model_path(self) -> Path:
+        return self.model_cache_dir / "models" / PROMPT_ENHANCER_MODEL
+
+    @property
     def required_files(self) -> tuple[Path, ...]:
         return (
             self.stable_diffusion_executable_path,
@@ -173,6 +277,13 @@ class Settings:
             self.flux_diffusion_path,
             self.flux_text_encoder_path,
             self.flux_vae_path,
+            self.asr_model_path / ".model-revision",
+            self.prompt_enhancer_model_path / ".model-revision",
+            *(self.asr_model_path / name for name in ASR_MODEL_FILES),
+            *(
+                self.prompt_enhancer_model_path / name
+                for name in PROMPT_ENHANCER_MODEL_FILES
+            ),
             *(self.trellis_model_path / name for name in TRELLIS_MODEL_FILENAMES),
         )
 

@@ -15,6 +15,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.config import (
+    ASR_MODEL_ID,
+    ASR_MODEL_REVISION,
     BIREFNET_MODEL_ID,
     BIREFNET_MODEL_REVISION,
     FLUX_MODEL_FILENAME,
@@ -23,6 +25,8 @@ from app.config import (
     FLUX_VAE_FILENAME,
     FLUX_VAE_MODEL_ID,
     FLUX_VAE_REVISION,
+    PROMPT_ENHANCER_MODEL_ID,
+    PROMPT_ENHANCER_MODEL_REVISION,
     QWEN_MODEL_FILENAME,
     QWEN_MODEL_ID,
     QWEN_MODEL_REVISION,
@@ -68,7 +72,15 @@ def run(
 def validate_host() -> str:
     if not is_wsl() or platform.machine().lower() not in {"amd64", "x86_64"}:
         raise RuntimeError("The installer requires x86-64 WSL 2.")
-    required = ("git", "cmake", "ninja", "nvcc", "nvidia-smi")
+    required = (
+        "git",
+        "cmake",
+        "ninja",
+        "nvcc",
+        "nvidia-smi",
+        "ffmpeg",
+        "ffprobe",
+    )
     missing = [tool for tool in required if shutil.which(tool) is None]
     if missing:
         raise RuntimeError("Missing required tools: " + ", ".join(missing))
@@ -249,6 +261,23 @@ def download_models(settings: Settings) -> None:
         BIREFNET_MODEL_REVISION,
     )
 
+    snapshot_download(
+        repo_id=ASR_MODEL_ID,
+        revision=ASR_MODEL_REVISION,
+        local_dir=settings.asr_model_path,
+    )
+    _write_marker(settings.asr_model_path / ".model-revision", ASR_MODEL_REVISION)
+
+    snapshot_download(
+        repo_id=PROMPT_ENHANCER_MODEL_ID,
+        revision=PROMPT_ENHANCER_MODEL_REVISION,
+        local_dir=settings.prompt_enhancer_model_path,
+    )
+    _write_marker(
+        settings.prompt_enhancer_model_path / ".model-revision",
+        PROMPT_ENHANCER_MODEL_REVISION,
+    )
+
     settings.trellis_model_root.mkdir(parents=True, exist_ok=True)
     for filename in TRELLIS_MODEL_FILENAMES:
         hf_hub_download(
@@ -321,7 +350,10 @@ def install(settings: Settings, *, force: bool) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Install the fixed FLUX.2 Klein and TRELLIS.2 native pipeline."
+        description=(
+            "Install the fixed Qwen speech-to-prompt, FLUX.2 Klein, and "
+            "TRELLIS.2 pipeline."
+        )
     )
     parser.add_argument(
         "--accept-licenses",
@@ -349,7 +381,7 @@ def main(argv: list[str] | None = None) -> None:
         install(settings, force=args.force)
     except (RuntimeError, ValueError) as exc:
         parser.exit(1, f"error: {exc}\n")
-    print("Installed and verified the fixed FLUX.2 Klein to TRELLIS.2 pipeline.")
+    print("Installed and verified the fixed speech-to-3D asset pipeline.")
 
 
 def _run_help(executable: Path, binary_dir: Path) -> None:

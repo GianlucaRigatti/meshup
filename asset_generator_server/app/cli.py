@@ -5,14 +5,24 @@ from dataclasses import replace
 
 import uvicorn
 
-from app.config import IMAGE_GENERATOR, MODEL_3D, Settings, is_wsl
+from app.config import (
+    IMAGE_GENERATOR,
+    MODEL_3D,
+    PROMPT_ENHANCER_MODEL,
+    SPEECH_TO_TEXT_MODEL,
+    Settings,
+    is_wsl,
+)
 from app.main import create_app
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="asset-generator-server",
-        description=(f"Run the fixed WSL CUDA {IMAGE_GENERATOR} to {MODEL_3D} server."),
+        description=(
+            f"Run the fixed WSL CUDA {SPEECH_TO_TEXT_MODEL} / "
+            f"{PROMPT_ENHANCER_MODEL} / {IMAGE_GENERATOR} / {MODEL_3D} server."
+        ),
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
@@ -34,7 +44,10 @@ def main(argv: list[str] | None = None) -> None:
     if args.log_level:
         settings = replace(settings, log_level=args.log_level)
 
-    print(f"Starting image={IMAGE_GENERATOR} 3d={MODEL_3D}")
+    print(
+        f"Starting speech={SPEECH_TO_TEXT_MODEL} "
+        f"prompt={PROMPT_ENHANCER_MODEL} image={IMAGE_GENERATOR} 3d={MODEL_3D}"
+    )
     uvicorn.run(
         create_app(settings),
         host=args.host,

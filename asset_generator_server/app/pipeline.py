@@ -4,11 +4,14 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -16,6 +19,10 @@ from PIL import Image
 
 from app.background_removal import TorchBiRefNet, prepare_foreground
 from app.config import (
+    ASR_MODEL_ID,
+    ASR_MODEL_REVISION,
+    AUDIO_PIPELINE_SCHEMA_VERSION,
+    AUDIO_PIPELINE_VERSION,
     BACKGROUND_REMOVAL_MODEL,
     BIREFNET_MODEL_ID,
     BIREFNET_MODEL_REVISION,
@@ -29,6 +36,8 @@ from app.config import (
     OUTPUT_MODE,
     PIPELINE_SCHEMA_VERSION,
     PIPELINE_VERSION,
+    PROMPT_ENHANCER_MODEL_ID,
+    PROMPT_ENHANCER_MODEL_REVISION,
     PROMPT_SUFFIX,
     QWEN_MODEL_ID,
     QWEN_MODEL_REVISION,
@@ -43,6 +52,7 @@ from app.config import (
 LOGGER = logging.getLogger(__name__)
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 CommandRunner = Callable[[list[str], dict[str, str], int, str], None]
+CaptureRunner = Callable[[list[str], int, str], str]
 
 
 class BusyError(RuntimeError):
@@ -53,12 +63,43 @@ class GenerationError(RuntimeError):
     pass
 
 
+class InvalidAudioError(ValueError):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class EmptyTranscriptError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class GenerationResult:
+    asset_id: str
+    cached: bool
+    timings: dict[str, int]
+
+    def __iter__(self):
+        return iter((self.asset_id, self.cached, self.timings))
+
+    def __getitem__(self, index: int):
+        return (self.asset_id, self.cached, self.timings)[index]
+
+
+@dataclass(frozen=True)
+class AudioGenerationResult(GenerationResult):
+    transcript: str
+    transcript_language: str
+    enhanced_prompt: str
+
+
 class AssetGenerator:
     def __init__(
         self,
         settings: Settings,
         *,
         runner: CommandRunner | None = None,
+        capture_runner: CaptureRunner | None = None,
         background_remover: TorchBiRefNet | None = None,
         pipeline_version: str = PIPELINE_VERSION,
     ) -> None:
@@ -66,6 +107,7 @@ class AssetGenerator:
         self.output_dir = settings.asset_output_dir
         self.pipeline_version = pipeline_version
         self._runner = runner or _run_native
+        self._capture_runner = capture_runner or _run_capture
         self._background_remover = background_remover
         self._lock = threading.Lock()
         self.ready = False
@@ -97,82 +139,31 @@ class AssetGenerator:
         self.load_error = None
         LOGGER.info("Asset generator ready: image=%s 3d=%s", IMAGE_GENERATOR, MODEL_3D)
 
-    def generate(self, prompt: str) -> tuple[str, bool, dict[str, int]]:
+    def generate(self, prompt: str) -> GenerationResult:
         if not self.ready:
             raise RuntimeError("The asset generator is not ready.")
 
         normalized_prompt = " ".join(prompt.split())
         asset_id = self.asset_id(normalized_prompt)
         if self._cache_exists(asset_id):
-            return asset_id, True, _cached_timings()
+            return GenerationResult(asset_id, True, _cached_timings())
         if not self._lock.acquire(blocking=False):
             if self._cache_exists(asset_id):
-                return asset_id, True, _cached_timings()
+                return GenerationResult(asset_id, True, _cached_timings())
             raise BusyError
 
         started = time.perf_counter()
         try:
             if self._cache_exists(asset_id):
-                return asset_id, True, _cached_timings()
-            self._remove_artifacts(asset_id)
-            seed = self.seed(asset_id)
-            timings: dict[str, int] = {}
-            with tempfile.TemporaryDirectory(
-                dir=self.output_dir.parent, prefix="asset-generator-"
-            ) as temporary_dir:
-                temporary = Path(temporary_dir)
-                prompt_path = temporary / "prompt.txt"
-                source_image = temporary / "source.png"
-                temporary_glb = temporary / "asset.glb"
-                cutout_image = temporary / "input.png"
-                prompt_path.write_text(
-                    normalized_prompt + PROMPT_SUFFIX, encoding="utf-8"
-                )
-
-                stage = time.perf_counter()
-                self._runner(
-                    self._flux_command(prompt_path, source_image, seed),
-                    _runtime_environment(
-                        self.settings.stable_diffusion_executable_path.parent
-                    ),
-                    self.settings.image_timeout_seconds,
-                    "FLUX.2 Klein",
-                )
-                _require_signature(source_image, PNG_SIGNATURE, "FLUX output PNG")
-                timings["text_to_image_ms"] = _elapsed_ms(stage)
-
-                stage = time.perf_counter()
-                if self._background_remover is None:
-                    raise RuntimeError("BiRefNet has not been loaded.")
-                with Image.open(source_image) as generated:
-                    cutout = prepare_foreground(
-                        generated.convert("RGB"), self._background_remover
-                    )
-                cutout.save(cutout_image, format="PNG")
-                _require_signature(cutout_image, PNG_SIGNATURE, "BiRefNet cutout PNG")
-                timings["preprocess_ms"] = _elapsed_ms(stage)
-                timings.update(self._background_remover.last_timings)
-
-                stage = time.perf_counter()
-                self._runner(
-                    self._trellis_command(cutout_image, temporary_glb, seed),
-                    _runtime_environment(self.settings.trellis_build_path),
-                    self.settings.trellis_timeout_seconds,
-                    "TRELLIS.2",
-                )
-                _require_signature(temporary_glb, b"glTF", "TRELLIS output GLB")
-                timings["reconstruction_ms"] = _elapsed_ms(stage)
-                timings["total_ms"] = _elapsed_ms(started)
-
-                os.replace(temporary_glb, self._asset_path(asset_id))
-                os.replace(cutout_image, self._image_path(asset_id))
-                self._write_metadata(
-                    self._metadata_path(asset_id),
-                    self._metadata(asset_id, normalized_prompt, seed, timings),
-                )
-            return asset_id, False, timings
-        except BusyError:
-            raise
+                return GenerationResult(asset_id, True, _cached_timings())
+            return self._generate_locked(
+                normalized_prompt,
+                asset_id=asset_id,
+                pipeline_version=self.pipeline_version,
+                schema_version=PIPELINE_SCHEMA_VERSION,
+                started=started,
+                timings={},
+            )
         except Exception as exc:
             LOGGER.exception("Asset generation failed for asset %s", asset_id)
             self._remove_artifacts(asset_id)
@@ -180,10 +171,192 @@ class AssetGenerator:
         finally:
             self._lock.release()
 
-    def asset_id(self, prompt: str) -> str:
+    def generate_from_audio(self, audio_path: Path) -> AudioGenerationResult:
+        if not self.ready:
+            raise RuntimeError("The asset generator is not ready.")
+        if not self._lock.acquire(blocking=False):
+            raise BusyError
+
+        started = time.perf_counter()
+        asset_id: str | None = None
+        try:
+            if audio_path.stat().st_size > self.settings.audio_max_bytes:
+                raise InvalidAudioError(
+                    "audio_too_large",
+                    f"Audio must be at most {self.settings.audio_max_bytes} bytes.",
+                )
+            timings: dict[str, int] = {}
+            with tempfile.TemporaryDirectory(
+                dir=self.output_dir.parent, prefix="asset-generator-audio-"
+            ) as temporary_dir:
+                temporary = Path(temporary_dir)
+                normalized_audio = temporary / "audio.wav"
+                transcript_path = temporary / "transcript.json"
+                enhanced_prompt_path = temporary / "enhanced-prompt.txt"
+
+                stage = time.perf_counter()
+                self._prepare_audio(audio_path, normalized_audio)
+                timings["audio_preprocess_ms"] = _elapsed_ms(stage)
+
+                stage = time.perf_counter()
+                self._runner(
+                    self._asr_command(normalized_audio, transcript_path),
+                    _python_environment(),
+                    self.settings.asr_timeout_seconds,
+                    "Qwen3-ASR-1.7B",
+                )
+                transcript, language = _read_transcript(transcript_path)
+                timings["transcription_ms"] = _elapsed_ms(stage)
+
+                stage = time.perf_counter()
+                self._runner(
+                    self._prompt_enhancement_command(
+                        transcript_path, enhanced_prompt_path
+                    ),
+                    _python_environment(),
+                    self.settings.prompt_enhancement_timeout_seconds,
+                    "Qwen3.5-4B",
+                )
+                enhanced_prompt = _read_enhanced_prompt(enhanced_prompt_path)
+                timings["prompt_enhancement_ms"] = _elapsed_ms(stage)
+
+                asset_id = self.asset_id(
+                    enhanced_prompt, pipeline_version=AUDIO_PIPELINE_VERSION
+                )
+                metadata_extra = {
+                    "input_type": "audio",
+                    "transcript_hash": hashlib.sha256(transcript.encode()).hexdigest(),
+                    "enhanced_prompt_hash": hashlib.sha256(
+                        enhanced_prompt.encode()
+                    ).hexdigest(),
+                    "transcript_language": language,
+                    "audio_settings": {
+                        "sample_rate": 16000,
+                        "channels": 1,
+                        "sample_format": "s16",
+                        "max_duration_seconds": self.settings.audio_max_duration_seconds,
+                    },
+                    "audio_models": {
+                        "speech_to_text": {
+                            "id": ASR_MODEL_ID,
+                            "revision": ASR_MODEL_REVISION,
+                        },
+                        "prompt_enhancer": {
+                            "id": PROMPT_ENHANCER_MODEL_ID,
+                            "revision": PROMPT_ENHANCER_MODEL_REVISION,
+                        },
+                    },
+                }
+                if self._cache_exists(asset_id):
+                    timings.update(_cached_downstream_timings())
+                    timings["total_ms"] = _elapsed_ms(started)
+                    generated = GenerationResult(asset_id, True, timings)
+                else:
+                    generated = self._generate_locked(
+                        enhanced_prompt,
+                        asset_id=asset_id,
+                        pipeline_version=AUDIO_PIPELINE_VERSION,
+                        schema_version=AUDIO_PIPELINE_SCHEMA_VERSION,
+                        started=started,
+                        timings=timings,
+                        metadata_extra=metadata_extra,
+                    )
+            return AudioGenerationResult(
+                asset_id=generated.asset_id,
+                cached=generated.cached,
+                timings=generated.timings,
+                transcript=transcript,
+                transcript_language=language,
+                enhanced_prompt=enhanced_prompt,
+            )
+        except (InvalidAudioError, EmptyTranscriptError):
+            raise
+        except Exception as exc:
+            LOGGER.exception("Audio asset generation failed.")
+            if asset_id is not None:
+                self._remove_artifacts(asset_id)
+            raise GenerationError from exc
+        finally:
+            self._lock.release()
+
+    def _generate_locked(
+        self,
+        prompt: str,
+        *,
+        asset_id: str,
+        pipeline_version: str,
+        schema_version: int,
+        started: float,
+        timings: dict[str, int],
+        metadata_extra: dict | None = None,
+    ) -> GenerationResult:
+        self._remove_artifacts(asset_id)
+        seed = self.seed(asset_id)
+        with tempfile.TemporaryDirectory(
+            dir=self.output_dir.parent, prefix="asset-generator-"
+        ) as temporary_dir:
+            temporary = Path(temporary_dir)
+            prompt_path = temporary / "prompt.txt"
+            source_image = temporary / "source.png"
+            temporary_glb = temporary / "asset.glb"
+            cutout_image = temporary / "input.png"
+            prompt_path.write_text(prompt + PROMPT_SUFFIX, encoding="utf-8")
+
+            stage = time.perf_counter()
+            self._runner(
+                self._flux_command(prompt_path, source_image, seed),
+                _runtime_environment(
+                    self.settings.stable_diffusion_executable_path.parent
+                ),
+                self.settings.image_timeout_seconds,
+                "FLUX.2 Klein",
+            )
+            _require_signature(source_image, PNG_SIGNATURE, "FLUX output PNG")
+            timings["text_to_image_ms"] = _elapsed_ms(stage)
+
+            stage = time.perf_counter()
+            if self._background_remover is None:
+                raise RuntimeError("BiRefNet has not been loaded.")
+            with Image.open(source_image) as generated:
+                cutout = prepare_foreground(
+                    generated.convert("RGB"), self._background_remover
+                )
+            cutout.save(cutout_image, format="PNG")
+            _require_signature(cutout_image, PNG_SIGNATURE, "BiRefNet cutout PNG")
+            timings["preprocess_ms"] = _elapsed_ms(stage)
+            timings.update(self._background_remover.last_timings)
+
+            stage = time.perf_counter()
+            self._runner(
+                self._trellis_command(cutout_image, temporary_glb, seed),
+                _runtime_environment(self.settings.trellis_build_path),
+                self.settings.trellis_timeout_seconds,
+                "TRELLIS.2",
+            )
+            _require_signature(temporary_glb, b"glTF", "TRELLIS output GLB")
+            timings["reconstruction_ms"] = _elapsed_ms(stage)
+            timings["total_ms"] = _elapsed_ms(started)
+
+            os.replace(temporary_glb, self._asset_path(asset_id))
+            os.replace(cutout_image, self._image_path(asset_id))
+            self._write_metadata(
+                self._metadata_path(asset_id),
+                self._metadata(
+                    asset_id,
+                    prompt,
+                    seed,
+                    timings,
+                    pipeline_version=pipeline_version,
+                    schema_version=schema_version,
+                    extra=metadata_extra,
+                ),
+            )
+        return GenerationResult(asset_id, False, timings)
+
+    def asset_id(self, prompt: str, *, pipeline_version: str | None = None) -> str:
         normalized = " ".join(prompt.split())
         return hashlib.sha256(
-            f"{self.pipeline_version}\0{normalized}".encode()
+            f"{pipeline_version or self.pipeline_version}\0{normalized}".encode()
         ).hexdigest()[:32]
 
     @staticmethod
@@ -193,6 +366,13 @@ class AssetGenerator:
     def _validate_installation(self) -> None:
         if not is_wsl():
             raise RuntimeError("The asset generator requires WSL 2.")
+        missing_tools = [
+            tool for tool in ("ffmpeg", "ffprobe") if shutil.which(tool) is None
+        ]
+        if missing_tools:
+            raise RuntimeError(
+                "Missing required audio tools: " + ", ".join(missing_tools)
+            )
         missing = [
             path.resolve()
             for path in self.settings.required_files
@@ -231,6 +411,13 @@ class AssetGenerator:
             self.settings.background_removal_model_path / ".model-revision",
             BIREFNET_MODEL_REVISION,
         )
+        _require_marker(
+            self.settings.asr_model_path / ".model-revision", ASR_MODEL_REVISION
+        )
+        _require_marker(
+            self.settings.prompt_enhancer_model_path / ".model-revision",
+            PROMPT_ENHANCER_MODEL_REVISION,
+        )
         _check_help(
             self.settings.stable_diffusion_executable_path,
             _runtime_environment(self.settings.stable_diffusion_executable_path.parent),
@@ -239,6 +426,94 @@ class AssetGenerator:
             self.settings.trellis_executable_path,
             _runtime_environment(self.settings.trellis_build_path),
         )
+
+    def _prepare_audio(self, source: Path, output: Path) -> None:
+        try:
+            probe = self._capture_runner(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "a:0",
+                    "-show_entries",
+                    "stream=codec_name,duration:format=duration,format_name",
+                    "-of",
+                    "json",
+                    str(source.resolve()),
+                ],
+                self.settings.audio_decode_timeout_seconds,
+                "audio probe",
+            )
+        except RuntimeError as exc:
+            raise InvalidAudioError(
+                "invalid_audio", "The uploaded file is not valid audio."
+            ) from exc
+        codec, container, duration = _parse_audio_probe(probe)
+        if not _supported_audio_format(codec, container):
+            raise InvalidAudioError(
+                "unsupported_audio_type", "The uploaded audio type is not supported."
+            )
+        if duration > self.settings.audio_max_duration_seconds:
+            raise InvalidAudioError(
+                "audio_too_long",
+                f"Audio must be at most {self.settings.audio_max_duration_seconds} seconds.",
+            )
+        try:
+            self._runner(
+                [
+                    "ffmpeg",
+                    "-v",
+                    "error",
+                    "-nostdin",
+                    "-y",
+                    "-i",
+                    str(source.resolve()),
+                    "-map",
+                    "0:a:0",
+                    "-ac",
+                    "1",
+                    "-ar",
+                    "16000",
+                    "-c:a",
+                    "pcm_s16le",
+                    str(output.resolve()),
+                ],
+                dict(os.environ),
+                self.settings.audio_decode_timeout_seconds,
+                "Audio preprocessing",
+            )
+            _require_signature(output, b"RIFF", "normalized audio WAV")
+        except RuntimeError as exc:
+            raise InvalidAudioError(
+                "invalid_audio", "The uploaded file is not valid audio."
+            ) from exc
+
+    def _asr_command(self, audio: Path, output: Path) -> list[str]:
+        return [
+            sys.executable,
+            "-m",
+            "app.run_asr",
+            "--model",
+            str(self.settings.asr_model_path.resolve()),
+            "--audio",
+            str(audio.resolve()),
+            "--output",
+            str(output.resolve()),
+        ]
+
+    def _prompt_enhancement_command(self, transcript: Path, output: Path) -> list[str]:
+        return [
+            sys.executable,
+            "-m",
+            "app.run_prompt_enhancer",
+            "--model",
+            str(self.settings.prompt_enhancer_model_path.resolve()),
+            "--transcript",
+            str(transcript.resolve()),
+            "--output",
+            str(output.resolve()),
+        ]
 
     def _flux_command(self, prompt: Path, output: Path, seed: int) -> list[str]:
         return [
@@ -331,10 +606,14 @@ class AssetGenerator:
         prompt: str,
         seed: int,
         timings: dict[str, int],
+        *,
+        pipeline_version: str,
+        schema_version: int,
+        extra: dict | None = None,
     ) -> dict:
-        return {
-            "schema_version": PIPELINE_SCHEMA_VERSION,
-            "pipeline_version": self.pipeline_version,
+        metadata = {
+            "schema_version": schema_version,
+            "pipeline_version": pipeline_version,
             "asset_id": asset_id,
             "prompt_hash": hashlib.sha256(prompt.encode()).hexdigest(),
             "seed": seed,
@@ -377,6 +656,9 @@ class AssetGenerator:
             "created_at": datetime.now(UTC).isoformat(),
             "timings": timings,
         }
+        if extra:
+            metadata.update(extra)
+        return metadata
 
     @staticmethod
     def _write_metadata(path: Path, metadata: dict) -> None:
@@ -408,11 +690,36 @@ def _run_native(
         raise RuntimeError(message)
 
 
+def _run_capture(command: list[str], timeout: int, label: str) -> str:
+    try:
+        completed = subprocess.run(
+            command,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"{label} timed out after {timeout} seconds.") from exc
+    if completed.returncode != 0:
+        raise RuntimeError(f"{label} failed with exit code {completed.returncode}.")
+    return completed.stdout
+
+
 def _runtime_environment(binary_dir: Path) -> dict[str, str]:
     binary_dir = binary_dir.resolve()
     existing = os.environ.get("LD_LIBRARY_PATH")
     library_path = str(binary_dir) if not existing else f"{binary_dir}:{existing}"
     return {**os.environ, "LD_LIBRARY_PATH": library_path}
+
+
+def _python_environment() -> dict[str, str]:
+    return {
+        **os.environ,
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1",
+    }
 
 
 def _check_help(executable: Path, environment: dict[str, str]) -> None:
@@ -454,6 +761,68 @@ def _require_signature(path: Path, signature: bytes, label: str) -> None:
 
 def _cached_timings() -> dict[str, int]:
     return {"text_to_image_ms": 0, "reconstruction_ms": 0, "total_ms": 0}
+
+
+def _cached_downstream_timings() -> dict[str, int]:
+    return {"text_to_image_ms": 0, "reconstruction_ms": 0}
+
+
+def _parse_audio_probe(payload: str) -> tuple[str, str, float]:
+    try:
+        data = json.loads(payload)
+        streams = data.get("streams") or []
+        stream = streams[0]
+        codec = str(stream["codec_name"]).lower()
+        format_data = data.get("format") or {}
+        container = str(format_data["format_name"]).lower()
+        duration_value = stream.get("duration") or format_data.get("duration")
+        duration = float(duration_value)
+    except (IndexError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise InvalidAudioError(
+            "invalid_audio", "The uploaded file is not valid audio."
+        ) from exc
+    if not codec or not container or duration <= 0:
+        raise InvalidAudioError(
+            "invalid_audio", "The uploaded file is not valid audio."
+        )
+    return codec, container, duration
+
+
+def _supported_audio_format(codec: str, container: str) -> bool:
+    containers = set(container.split(","))
+    return any(
+        (
+            codec.startswith("pcm_") and "wav" in containers,
+            codec == "mp3" and "mp3" in containers,
+            codec == "flac" and "flac" in containers,
+            codec == "vorbis" and "ogg" in containers,
+            codec == "aac" and bool(containers & {"mov", "mp4", "m4a", "aac"}),
+        )
+    )
+
+
+def _read_transcript(path: Path) -> tuple[str, str]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        transcript = " ".join(str(payload["text"]).split())
+        language = " ".join(str(payload["language"]).split()) or "Unknown"
+    except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("Qwen3-ASR produced invalid output.") from exc
+    if not transcript:
+        raise EmptyTranscriptError("No speech was recognized in the audio sample.")
+    if len(transcript) > 4000:
+        raise RuntimeError("Qwen3-ASR transcript exceeded the safety limit.")
+    return transcript, language
+
+
+def _read_enhanced_prompt(path: Path) -> str:
+    try:
+        prompt = " ".join(path.read_text(encoding="utf-8").split())
+    except OSError as exc:
+        raise RuntimeError("Qwen3.5 produced invalid output.") from exc
+    if not prompt or len(prompt) > 500:
+        raise RuntimeError("Qwen3.5 produced an invalid prompt.")
+    return prompt
 
 
 def _elapsed_ms(started: float) -> int:

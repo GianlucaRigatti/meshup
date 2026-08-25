@@ -31,6 +31,24 @@ is permitted before downloading or using the quantized derivative.
 
 Review the repository model card and license.
 
+## Qwen3-ASR-1.7B
+
+- Model: <https://huggingface.co/Qwen/Qwen3-ASR-1.7B>
+- Pinned revision: `7278e1e70fe206f11671096ffdd38061171dd6e5`
+- Runtime package: <https://github.com/QwenLM/Qwen3-ASR>, version `0.0.6`
+
+The model and official inference package are distributed under Apache-2.0.
+Review their model cards, licenses, dependencies, and acceptable-use guidance
+before use or redistribution.
+
+## Qwen3.5-4B
+
+- Model: <https://huggingface.co/Qwen/Qwen3.5-4B>
+- Pinned revision: `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`
+
+The checkpoint is distributed under Apache-2.0. Review its model card, license,
+dependencies, and acceptable-use guidance before use or redistribution.
+
 ## FLUX.2 VAE
 
 - Files: <https://huggingface.co/Comfy-Org/flux2-klein-4B>

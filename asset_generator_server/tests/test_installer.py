@@ -5,10 +5,13 @@ from pathlib import Path
 import pytest
 
 from app.config import (
+    ASR_MODEL_FILES,
+    ASR_MODEL_ID,
     BIREFNET_MODEL_ID,
     FLUX_MODEL_FILENAME,
     FLUX_MODEL_ID,
     FLUX_VAE_FILENAME,
+    PROMPT_ENHANCER_MODEL_ID,
     QWEN_MODEL_FILENAME,
     STABLE_DIFFUSION_CPP_REPOSITORY,
     TRELLIS_CPP_REPOSITORY,
@@ -77,7 +80,11 @@ def test_downloads_only_fixed_components(tmp_path: Path, monkeypatch) -> None:
         (TRELLIS_MODEL_ID, f"q4/{filename}") for filename in TRELLIS_MODEL_FILENAMES
     ]
     assert len(calls) == 3 + len(TRELLIS_MODEL_FILENAMES)
-    assert snapshots == [BIREFNET_MODEL_ID]
+    assert snapshots == [
+        BIREFNET_MODEL_ID,
+        ASR_MODEL_ID,
+        PROMPT_ENHANCER_MODEL_ID,
+    ]
 
 
 def test_install_dispatches_only_two_pinned_runtimes(
@@ -194,4 +201,19 @@ def test_verification_detects_missing_required_weight(
     monkeypatch.setattr(install_models, "_run_help", lambda *args: None)
 
     with pytest.raises(RuntimeError, match="required files"):
+        install_models.verify_installation(settings)
+
+
+def test_verification_detects_missing_asr_shard(tmp_path: Path, monkeypatch) -> None:
+    settings = Settings(model_cache_dir=tmp_path / "cache")
+    missing = settings.asr_model_path / ASR_MODEL_FILES[0]
+    for path in settings.required_files:
+        if path == missing:
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"file")
+    settings.background_removal_model_path.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(install_models, "_run_help", lambda *args: None)
+
+    with pytest.raises(RuntimeError, match=str(missing.resolve())):
         install_models.verify_installation(settings)

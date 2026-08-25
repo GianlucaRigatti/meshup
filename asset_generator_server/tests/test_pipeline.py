@@ -14,13 +14,15 @@ from conftest import FakeBackgroundRemover, FakeRunner
 from PIL import Image
 
 from app.background_removal import TorchBiRefNet, prepare_foreground
-from app.config import PROMPT_SUFFIX, Settings
+from app.config import AUDIO_PIPELINE_VERSION, PROMPT_SUFFIX, Settings
 from app.pipeline import (
     PNG_SIGNATURE,
     AssetGenerator,
     BusyError,
+    EmptyTranscriptError,
     GenerationError,
     _run_native,
+    _supported_audio_format,
 )
 
 
@@ -64,6 +66,131 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
     assert "--require-gpu" in trellis
     assert trellis[trellis.index("--seed") + 1] == str(service.seed(asset_id))
     assert runner.trellis_input_modes == ["RGBA"]
+
+
+def test_audio_pipeline_is_sequential_and_private(
+    tmp_path: Path,
+    settings: Settings,
+    generator: tuple[AssetGenerator, FakeRunner],
+) -> None:
+    service, runner = generator
+    audio = tmp_path / "spoken-description.bin"
+    audio.write_bytes(b"private audio")
+
+    result = service.generate_from_audio(audio)
+
+    assert [call[3] for call in runner.calls] == [
+        "Audio preprocessing",
+        "Qwen3-ASR-1.7B",
+        "Qwen3.5-4B",
+        "FLUX.2 Klein",
+        "TRELLIS.2",
+    ]
+    assert runner.prompts == [runner.enhanced_prompt + PROMPT_SUFFIX]
+    commands = " ".join(part for call in runner.calls for part in call[0])
+    assert runner.transcript not in commands
+    assert runner.enhanced_prompt not in commands
+    metadata_text = (settings.asset_output_dir / f"{result.asset_id}.json").read_text(
+        encoding="utf-8"
+    )
+    assert runner.transcript not in metadata_text
+    assert runner.enhanced_prompt not in metadata_text
+    metadata = json.loads(metadata_text)
+    assert metadata["pipeline_version"] == AUDIO_PIPELINE_VERSION
+    assert metadata["input_type"] == "audio"
+    assert not list(tmp_path.glob("asset-generator-audio-*"))
+
+
+def test_audio_cache_reruns_text_stages_but_skips_asset_stages(
+    tmp_path: Path,
+    generator: tuple[AssetGenerator, FakeRunner],
+) -> None:
+    service, runner = generator
+    audio = tmp_path / "sample.wav"
+    audio.write_bytes(b"audio")
+    first = service.generate_from_audio(audio)
+    runner.calls.clear()
+
+    second = service.generate_from_audio(audio)
+
+    assert second.asset_id == first.asset_id
+    assert second.cached is True
+    assert [call[3] for call in runner.calls] == [
+        "Audio preprocessing",
+        "Qwen3-ASR-1.7B",
+        "Qwen3.5-4B",
+    ]
+    assert second.timings["text_to_image_ms"] == 0
+    assert second.timings["reconstruction_ms"] == 0
+    assert second.transcript == runner.transcript
+    assert second.enhanced_prompt == runner.enhanced_prompt
+
+
+def test_audio_identity_does_not_change_text_identity(
+    generator: tuple[AssetGenerator, FakeRunner],
+) -> None:
+    service, runner = generator
+    assert service.asset_id(runner.enhanced_prompt) != service.asset_id(
+        runner.enhanced_prompt, pipeline_version=AUDIO_PIPELINE_VERSION
+    )
+
+
+@pytest.mark.parametrize(
+    ("codec", "container"),
+    [
+        ("pcm_s16le", "wav"),
+        ("mp3", "mp3"),
+        ("flac", "flac"),
+        ("vorbis", "ogg"),
+        ("aac", "mov,mp4,m4a,3gp,3g2,mj2"),
+        ("aac", "aac"),
+    ],
+)
+def test_supported_audio_formats(codec: str, container: str) -> None:
+    assert _supported_audio_format(codec, container)
+
+
+@pytest.mark.parametrize(
+    ("codec", "container"),
+    [("opus", "ogg"), ("aac", "matroska"), ("pcm_s16le", "matroska")],
+)
+def test_unsupported_audio_formats(codec: str, container: str) -> None:
+    assert not _supported_audio_format(codec, container)
+
+
+def test_empty_transcript_is_rejected_and_lock_is_released(
+    tmp_path: Path,
+    settings: Settings,
+    generator: tuple[AssetGenerator, FakeRunner],
+) -> None:
+    service, runner = generator
+    runner.transcript = "   "
+    audio = tmp_path / "sample.wav"
+    audio.write_bytes(b"audio")
+
+    with pytest.raises(EmptyTranscriptError):
+        service.generate_from_audio(audio)
+
+    assert service.busy is False
+    assert list(settings.asset_output_dir.iterdir()) == []
+    assert not list(tmp_path.glob("asset-generator-audio-*"))
+
+
+def test_invalid_enhanced_prompt_is_sanitized_and_cleans_up(
+    tmp_path: Path,
+    settings: Settings,
+    generator: tuple[AssetGenerator, FakeRunner],
+) -> None:
+    service, runner = generator
+    runner.enhanced_prompt = "x" * 501
+    audio = tmp_path / "sample.wav"
+    audio.write_bytes(b"audio")
+
+    with pytest.raises(GenerationError):
+        service.generate_from_audio(audio)
+
+    assert service.busy is False
+    assert list(settings.asset_output_dir.iterdir()) == []
 
 
 def test_preprocessing_restores_old_crop_scale_and_centering() -> None:

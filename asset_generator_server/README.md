@@ -1,7 +1,9 @@
 # Local 3D Asset Generator
 
-This FastAPI service converts a text prompt into a textured GLB with one fixed
-local pipeline:
+This FastAPI service converts a text prompt or a spoken description into a
+textured GLB with a fixed local pipeline. Audio requests first run through
+`qwen3-asr-1.7b` and a `qwen3.5-4b` prompt-enrichment stage; text requests keep
+their original behavior and skip both stages.
 
 - `flux2-klein-9b-q4-k-m-fast` generates a 768×768 source image.
 - The full FP16 `birefnet-general` checkpoint removes the background at 1024px,
@@ -23,7 +25,7 @@ Install the build prerequisites inside Ubuntu:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y build-essential cmake git ninja-build
+sudo apt-get install -y build-essential cmake ffmpeg git ninja-build
 ```
 
 Install CUDA Toolkit 12.8 so `nvcc --version` reports release 12.8. CUDA 12.8
@@ -49,11 +51,11 @@ MAX_JOBS=2 uv run python scripts/install_models.py --accept-licenses
 ```
 
 The installer builds only `sd-cli` and `trellis-cli`, downloads the fixed FLUX
-Q4_K_M components, the full BiRefNet-General checkpoint, and the TRELLIS Q4
-weights needed by the 512 path. It pins every revision and verifies both native
-executables. Use `MAX_JOBS=1` if WSL is under memory pressure. `--force`
-replaces and rebuilds only the two native source trees; downloaded weights are
-retained.
+Q4_K_M components, the full Qwen3-ASR-1.7B and Qwen3.5-4B checkpoints, the full
+BiRefNet-General checkpoint, and the TRELLIS Q4 weights needed by the 512 path.
+The two new checkpoints add roughly 13 GB to the installation. Every revision
+is pinned. Use `MAX_JOBS=1` if WSL is under memory pressure. `--force` replaces
+and rebuilds only the two native source trees; downloaded weights are retained.
 
 Weights and source builds are stored under `.model_sources/` by default. No
 Hugging Face token is required for the pinned repositories.
@@ -84,6 +86,8 @@ The readiness response identifies the fixed pipeline:
   "image_generator": "flux2-klein-9b-q4-k-m-fast",
   "model_3d": "trellis2-turbo",
   "background_removal_model": "birefnet-general",
+  "speech_to_text_model": "qwen3-asr-1.7b",
+  "prompt_enhancer_model": "qwen3.5-4b",
   "device": "cuda:0",
   "output_mode": "pbr_texture"
 }
@@ -121,6 +125,35 @@ arguments or saved in metadata.
 The server accepts one uncached generation at a time. Other uncached requests
 receive `generator_busy`; complete cached assets remain available.
 
+## Generate an asset from audio
+
+Upload a complete spoken description as multipart form data:
+
+```bash
+curl --fail \
+  --request POST \
+  --form 'audio=@description.m4a' \
+  http://127.0.0.1:8000/generate_asset_from_audio
+```
+
+The `audio` field accepts WAV, MP3, FLAC, OGG/Vorbis, and M4A/AAC files up to
+10 MiB and 60 seconds. The server validates the actual media with `ffprobe`,
+converts it to mono 16 kHz PCM, detects the spoken language, transcribes it,
+and rewrites the transcript as a concise English asset prompt. A successful
+response includes `transcript`, `transcript_language`, `enhanced_prompt`, and
+timings for all stages in addition to the normal asset fields.
+
+ASR and prompt enrichment run in separate short-lived GPU subprocesses before
+the existing asset pipeline. This keeps the 10 GiB VRAM target but adds model
+loading latency to every audio request. Both text values are returned only in
+the immediate response; the upload, transcript, and enhanced prompt are deleted
+after the request and never stored in generated-asset metadata.
+
+Audio assets use a separate cache identity containing both Qwen revisions and
+the fixed enrichment policy. A cache lookup happens after transcription and
+enrichment. On a cache hit those two stages still run, while image and mesh
+generation report zero milliseconds.
+
 ## Artifacts and cache
 
 Each successful uncached request atomically creates:
@@ -146,6 +179,11 @@ Only operational settings remain:
   `.model_sources`.
 - `IMAGE_TIMEOUT_SECONDS`: FLUX subprocess timeout; default 600.
 - `TRELLIS_TIMEOUT_SECONDS`: TRELLIS subprocess timeout; default 1800.
+- `AUDIO_MAX_BYTES`: maximum audio upload size; default 10485760.
+- `AUDIO_MAX_DURATION_SECONDS`: maximum decoded duration; default 60.
+- `AUDIO_DECODE_TIMEOUT_SECONDS`: `ffprobe`/`ffmpeg` timeout; default 30.
+- `ASR_TIMEOUT_SECONDS`: Qwen3-ASR subprocess timeout; default 300.
+- `PROMPT_ENHANCEMENT_TIMEOUT_SECONDS`: Qwen3.5 subprocess timeout; default 300.
 - `LOG_LEVEL`: server log level; default `INFO`.
 
 Values can be exported in the environment or written to `.env`. There are no
@@ -160,6 +198,8 @@ model selectors or pipeline profiles.
   pair such as `gcc-14` and `g++-14`.
 - If native builds exhaust WSL memory, lower `MAX_JOBS` and allocate more WSL
   memory/swap.
+- If an audio upload is rejected, confirm that `ffmpeg` and `ffprobe` are
+  installed and that the file contains one of the documented codecs.
 - Native stderr/stdout tails are logged server-side on failure, while API
   errors remain intentionally generic.
 
@@ -171,3 +211,11 @@ uv run pytest
 
 The test suite mocks native execution and downloads; it does not require WSL,
 CUDA, or model weights.
+
+After installing every model, an end-to-end audio smoke test can be run with a
+short supported speech sample:
+
+```bash
+RUN_REAL_MODEL_TESTS=1 AUDIO_SAMPLE_PATH=/path/to/sample.wav \
+  uv run pytest tests/test_real_audio_pipeline.py
+```

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import threading
 from pathlib import Path
 
@@ -17,9 +18,15 @@ class FakeRunner:
         self.calls: list[tuple[list[str], dict[str, str], int, str]] = []
         self.prompts: list[str] = []
         self.fail = False
+        self.fail_label: str | None = None
         self.started: threading.Event | None = None
         self.release: threading.Event | None = None
         self.trellis_input_modes: list[str] = []
+        self.transcript = "a small medieval treasure chest"
+        self.language = "English"
+        self.enhanced_prompt = (
+            "A compact medieval treasure chest made from dark oak with iron bands"
+        )
 
     def __call__(
         self,
@@ -29,7 +36,7 @@ class FakeRunner:
         label: str,
     ) -> None:
         self.calls.append((command, environment, timeout, label))
-        if self.fail:
+        if self.fail or self.fail_label == label:
             raise RuntimeError("private native model failure")
         if label == "FLUX.2 Klein":
             prompt_path = Path(command[command.index("--prompt-file") + 1])
@@ -40,6 +47,20 @@ class FakeRunner:
                 self.started.set()
             if self.release is not None:
                 assert self.release.wait(timeout=2)
+            return
+        if label == "Audio preprocessing":
+            Path(command[-1]).write_bytes(b"RIFF" + b"fake-wave")
+            return
+        if label == "Qwen3-ASR-1.7B":
+            output = Path(command[command.index("--output") + 1])
+            output.write_text(
+                json.dumps({"text": self.transcript, "language": self.language}),
+                encoding="utf-8",
+            )
+            return
+        if label == "Qwen3.5-4B":
+            output = Path(command[command.index("--output") + 1])
+            output.write_text(self.enhanced_prompt, encoding="utf-8")
             return
         output = Path(command[2])
         with Image.open(command[1]) as image:
@@ -78,6 +99,12 @@ def generator(settings: Settings) -> tuple[AssetGenerator, FakeRunner]:
     service = AssetGenerator(
         settings,
         runner=runner,
+        capture_runner=lambda command, timeout, label: json.dumps(
+            {
+                "streams": [{"codec_name": "pcm_s16le", "duration": "1.0"}],
+                "format": {"duration": "1.0", "format_name": "wav"},
+            }
+        ),
         background_remover=FakeBackgroundRemover(),
     )
     service.ready = True
