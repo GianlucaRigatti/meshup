@@ -12,8 +12,13 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
+from PIL import Image
+
+from app.background_removal import TorchBiRefNet, prepare_foreground
 from app.config import (
     BACKGROUND_REMOVAL_MODEL,
+    BIREFNET_MODEL_ID,
+    BIREFNET_MODEL_REVISION,
     DEVICE,
     FLUX_MODEL_ID,
     FLUX_MODEL_REVISION,
@@ -54,12 +59,14 @@ class AssetGenerator:
         settings: Settings,
         *,
         runner: CommandRunner | None = None,
+        background_remover: TorchBiRefNet | None = None,
         pipeline_version: str = PIPELINE_VERSION,
     ) -> None:
         self.settings = settings
         self.output_dir = settings.asset_output_dir
         self.pipeline_version = pipeline_version
         self._runner = runner or _run_native
+        self._background_remover = background_remover
         self._lock = threading.Lock()
         self.ready = False
         self.load_error: str | None = None
@@ -76,6 +83,11 @@ class AssetGenerator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         try:
             self._validate_installation()
+            if self._background_remover is None:
+                self._background_remover = TorchBiRefNet(
+                    self.settings.background_removal_model_path
+                )
+            self._background_remover.load()
         except Exception as exc:
             self.ready = False
             self.load_error = str(exc)
@@ -112,7 +124,7 @@ class AssetGenerator:
                 prompt_path = temporary / "prompt.txt"
                 source_image = temporary / "source.png"
                 temporary_glb = temporary / "asset.glb"
-                cutout_image = temporary / "asset_cutout.png"
+                cutout_image = temporary / "input.png"
                 prompt_path.write_text(
                     normalized_prompt + PROMPT_SUFFIX, encoding="utf-8"
                 )
@@ -130,14 +142,25 @@ class AssetGenerator:
                 timings["text_to_image_ms"] = _elapsed_ms(stage)
 
                 stage = time.perf_counter()
+                if self._background_remover is None:
+                    raise RuntimeError("BiRefNet has not been loaded.")
+                with Image.open(source_image) as generated:
+                    cutout = prepare_foreground(
+                        generated.convert("RGB"), self._background_remover
+                    )
+                cutout.save(cutout_image, format="PNG")
+                _require_signature(cutout_image, PNG_SIGNATURE, "BiRefNet cutout PNG")
+                timings["preprocess_ms"] = _elapsed_ms(stage)
+                timings.update(self._background_remover.last_timings)
+
+                stage = time.perf_counter()
                 self._runner(
-                    self._trellis_command(source_image, temporary_glb, seed),
+                    self._trellis_command(cutout_image, temporary_glb, seed),
                     _runtime_environment(self.settings.trellis_build_path),
                     self.settings.trellis_timeout_seconds,
                     "TRELLIS.2",
                 )
                 _require_signature(temporary_glb, b"glTF", "TRELLIS output GLB")
-                _require_signature(cutout_image, PNG_SIGNATURE, "TRELLIS cutout PNG")
                 timings["reconstruction_ms"] = _elapsed_ms(stage)
                 timings["total_ms"] = _elapsed_ms(started)
 
@@ -181,6 +204,10 @@ class AssetGenerator:
                 + "\n- ".join(str(path) for path in missing)
                 + "\nRun `uv run python scripts/install_models.py --accept-licenses`."
             )
+        if not self.settings.background_removal_model_path.is_dir():
+            raise FileNotFoundError(
+                "The BiRefNet checkpoint is missing. Run the model installer."
+            )
         _require_git_revision(
             self.settings.stable_diffusion_source_path,
             STABLE_DIFFUSION_CPP_REVISION,
@@ -199,6 +226,10 @@ class AssetGenerator:
         _require_marker(
             self.settings.trellis_model_root / ".model-revision",
             TRELLIS_MODEL_REVISION,
+        )
+        _require_marker(
+            self.settings.background_removal_model_path / ".model-revision",
+            BIREFNET_MODEL_REVISION,
         )
         _check_help(
             self.settings.stable_diffusion_executable_path,
@@ -262,9 +293,6 @@ class AssetGenerator:
             "1024",
             "--webp",
             "off",
-            "--bg-removal",
-            "birefnet",
-            "--dump-bg",
             "--box-uv",
             "--require-gpu",
         ]
@@ -327,6 +355,10 @@ class AssetGenerator:
                     "id": TRELLIS_MODEL_ID,
                     "revision": TRELLIS_MODEL_REVISION,
                 },
+                "background_removal": {
+                    "id": BIREFNET_MODEL_ID,
+                    "revision": BIREFNET_MODEL_REVISION,
+                },
             },
             "runtimes": {
                 "stable_diffusion_cpp": STABLE_DIFFUSION_CPP_REVISION,
@@ -336,6 +368,8 @@ class AssetGenerator:
             "output_mode": OUTPUT_MODE,
             "output_settings": {
                 "image_resolution": [768, 768],
+                "background_removal_resolution": 1024,
+                "foreground_ratio": 435 / 512,
                 "geometry_resolution": 512,
                 "texture_resolution": 1024,
                 "box_uv": True,

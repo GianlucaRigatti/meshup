@@ -1,0 +1,8 @@
+.DS_Store
+
+# Imported Unity samples
+/meshup-game/Assets/Samples/
+/meshup-game/Assets/Samples.meta
+
+# Unity Burst compiler debug output
+/meshup-game/*_BurstDebugInformation_DoNotShip/

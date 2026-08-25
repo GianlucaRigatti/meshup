@@ -8,13 +8,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, snapshot_download
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.config import (
+    BIREFNET_MODEL_ID,
+    BIREFNET_MODEL_REVISION,
     FLUX_MODEL_FILENAME,
     FLUX_MODEL_ID,
     FLUX_MODEL_REVISION,
@@ -237,6 +239,16 @@ def download_models(settings: Settings) -> None:
     )
     _write_marker(settings.flux_model_path / ".vae-revision", FLUX_VAE_REVISION)
 
+    snapshot_download(
+        repo_id=BIREFNET_MODEL_ID,
+        revision=BIREFNET_MODEL_REVISION,
+        local_dir=settings.background_removal_model_path,
+    )
+    _write_marker(
+        settings.background_removal_model_path / ".model-revision",
+        BIREFNET_MODEL_REVISION,
+    )
+
     settings.trellis_model_root.mkdir(parents=True, exist_ok=True)
     for filename in TRELLIS_MODEL_FILENAMES:
         hf_hub_download(
@@ -252,6 +264,8 @@ def download_models(settings: Settings) -> None:
 
 def verify_installation(settings: Settings) -> None:
     missing = [path.resolve() for path in settings.required_files if not path.is_file()]
+    if not settings.background_removal_model_path.is_dir():
+        missing.append(settings.background_removal_model_path.resolve())
     if missing:
         raise RuntimeError(
             "Installation did not create the required files:\n- "

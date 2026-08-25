@@ -1,11 +1,13 @@
 # Local 3D Asset Generator
 
-This FastAPI service converts a text prompt into a textured GLB with one fixed,
-native pipeline:
+This FastAPI service converts a text prompt into a textured GLB with one fixed
+local pipeline:
 
 - `flux2-klein-9b-q4-k-m-fast` generates a 768×768 source image.
-- `trellis2-turbo` removes the background and reconstructs a 512-resolution,
-  1024px box-UV textured mesh.
+- The full FP16 `birefnet-general` checkpoint removes the background at 1024px,
+  then crops and recenters the subject on a transparent 768px canvas.
+- `trellis2-turbo` receives that prematted RGBA image and reconstructs a
+  512-resolution, 1024px box-UV textured mesh.
 
 The former cross-platform/model-comparison implementation is preserved in
 [`../model_experiments`](../model_experiments). It is not part of this server.
@@ -46,11 +48,12 @@ Klein 9B non-commercial terms, then run:
 MAX_JOBS=2 uv run python scripts/install_models.py --accept-licenses
 ```
 
-The installer builds only `sd-cli` and `trellis-cli`, downloads only the fixed
-FLUX Q4_K_M pipeline components and the TRELLIS Q4 weights needed by the 512
-path, pins every revision, and verifies both executables. Use `MAX_JOBS=1` if
-WSL is under memory pressure. `--force` replaces and rebuilds only the two
-native source trees; downloaded weights are retained.
+The installer builds only `sd-cli` and `trellis-cli`, downloads the fixed FLUX
+Q4_K_M components, the full BiRefNet-General checkpoint, and the TRELLIS Q4
+weights needed by the 512 path. It pins every revision and verifies both native
+executables. Use `MAX_JOBS=1` if WSL is under memory pressure. `--force`
+replaces and rebuilds only the two native source trees; downloaded weights are
+retained.
 
 Weights and source builds are stored under `.model_sources/` by default. No
 Hugging Face token is required for the pinned repositories.
@@ -123,8 +126,9 @@ receive `generator_busy`; complete cached assets remain available.
 Each successful uncached request atomically creates:
 
 - `generated_assets/<asset-id>.glb`: textured binary glTF.
-- `generated_assets/<asset-id>.png`: TRELLIS's built-in BiRefNet cutout, which
-  is the image actually conditioned by the 3D pipeline.
+- `generated_assets/<asset-id>.png`: the full-resolution BiRefNet RGBA cutout,
+  cropped and centered exactly as in the archived preprocessing path. This is
+  the image actually conditioned by TRELLIS.
 - `generated_assets/<asset-id>.json`: prompt hash, seed, pinned revisions,
   fixed settings, timestamp, and stage timings.
 

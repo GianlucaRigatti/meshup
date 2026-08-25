@@ -49,6 +49,15 @@ The installer builds the CUDA `trellis-cli` target from this revision. The
 runtime is MIT-licensed and contains bundled third-party components with their
 own notices and terms.
 
+## BiRefNet-General background removal
+
+- Model: <https://huggingface.co/ZhengPeng7/BiRefNet>
+- Pinned revision: `b7d7f31fed203ab364ac756d62053ee467502434`
+
+The service runs this full checkpoint in FP16 at 1024px before TRELLIS. Review
+the repository model card, source, license, and terms before use or
+redistribution.
+
 ## TRELLIS.2 Q4 GGUF weights
 
 - Quantized weights: <https://huggingface.co/ilintar/trellis2-gguf>
@@ -56,7 +65,8 @@ own notices and terms.
 - Original model: <https://huggingface.co/microsoft/TRELLIS.2-4B>
 
 Only the Q4 files needed by the 512-resolution path are downloaded. The bundle
-includes DINOv3 image-conditioning and BiRefNet background-removal weights in
-addition to the TRELLIS flow and decoder weights. Review the quantized-weight
-repository, the original Microsoft model terms, and the upstream DINOv3 and
-BiRefNet licenses before redistribution.
+includes DINOv3 image-conditioning weights in addition to the TRELLIS flow and
+decoder weights. Its bundled quantized BiRefNet file is not downloaded because
+the server supplies a prematted RGBA image. Review the quantized-weight
+repository, the original Microsoft model terms, and the upstream DINOv3
+license before redistribution.

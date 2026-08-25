@@ -5,9 +5,12 @@ import subprocess
 import threading
 from pathlib import Path
 
+import numpy as np
 import pytest
-from conftest import FakeRunner
+from conftest import FakeBackgroundRemover, FakeRunner
+from PIL import Image
 
+from app.background_removal import TorchBiRefNet, prepare_foreground
 from app.config import PROMPT_SUFFIX, Settings
 from app.pipeline import (
     PNG_SIGNATURE,
@@ -52,11 +55,39 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
     assert trellis[trellis.index("--res") + 1] == "512"
     assert trellis[trellis.index("--max-tokens") + 1] == "49152"
     assert trellis[trellis.index("--atlas") + 1] == "1024"
-    assert trellis[trellis.index("--bg-removal") + 1] == "birefnet"
-    assert "--dump-bg" in trellis
+    assert "--bg-removal" not in trellis
+    assert "--dump-bg" not in trellis
     assert "--box-uv" in trellis
     assert "--require-gpu" in trellis
     assert trellis[trellis.index("--seed") + 1] == str(service.seed(asset_id))
+    assert runner.trellis_input_modes == ["RGBA"]
+
+
+def test_preprocessing_restores_old_crop_scale_and_centering() -> None:
+    source = Image.new("RGB", (200, 100), "white")
+    remover = FakeBackgroundRemover()
+
+    result = prepare_foreground(source, remover)
+
+    assert result.mode == "RGBA"
+    assert result.size == (768, 768)
+    alpha_bbox = result.getchannel("A").getbbox()
+    assert alpha_bbox is not None
+    width = alpha_bbox[2] - alpha_bbox[0]
+    height = alpha_bbox[3] - alpha_bbox[1]
+    assert 650 <= width <= 654
+    assert abs((alpha_bbox[0] + alpha_bbox[2]) / 2 - 384) <= 1
+    assert abs((alpha_bbox[1] + alpha_bbox[3]) / 2 - 384) <= 1
+    assert height < width
+
+
+def test_constant_birefnet_prediction_produces_empty_mask() -> None:
+    prediction = np.ones((1, 1, 4, 4), dtype=np.float32)
+
+    mask = TorchBiRefNet._mask_from_prediction(prediction, (8, 6))
+
+    assert mask.size == (8, 6)
+    assert np.asarray(mask).max() == 0
 
 
 def test_success_creates_three_artifacts_without_storing_prompt(
@@ -71,12 +102,17 @@ def test_success_creates_three_artifacts_without_storing_prompt(
     metadata_path = settings.asset_output_dir / f"{asset_id}.json"
     assert glb.read_bytes().startswith(b"glTF")
     assert image.read_bytes().startswith(PNG_SIGNATURE)
+    with Image.open(image) as cutout:
+        assert cutout.mode == "RGBA"
+        assert cutout.size == (768, 768)
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     assert metadata["asset_id"] == asset_id
     assert "prompt_hash" in metadata
     assert "prompt" not in metadata
     assert "a confidential object" not in metadata_path.read_text(encoding="utf-8")
     assert metadata["timings"] == timings
+    assert metadata["models"]["background_removal"]["id"] == "ZhengPeng7/BiRefNet"
+    assert metadata["output_settings"]["background_removal_resolution"] == 1024
     assert "memory" not in metadata
 
 
@@ -168,7 +204,11 @@ def test_invalid_native_artifact_is_rejected_and_cleaned(
         if label == "FLUX.2 Klein":
             Path(command[command.index("--output") + 1]).write_bytes(b"not-png")
 
-    service = AssetGenerator(settings, runner=invalid_runner)
+    service = AssetGenerator(
+        settings,
+        runner=invalid_runner,
+        background_remover=FakeBackgroundRemover(),
+    )
     service.ready = True
     with pytest.raises(GenerationError):
         service.generate("invalid object")

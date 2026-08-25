@@ -5,10 +5,11 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from app.config import Settings
 from app.main import create_app
-from app.pipeline import PNG_SIGNATURE, AssetGenerator
+from app.pipeline import AssetGenerator
 
 
 class FakeRunner:
@@ -18,6 +19,7 @@ class FakeRunner:
         self.fail = False
         self.started: threading.Event | None = None
         self.release: threading.Event | None = None
+        self.trellis_input_modes: list[str] = []
 
     def __call__(
         self,
@@ -33,17 +35,31 @@ class FakeRunner:
             prompt_path = Path(command[command.index("--prompt-file") + 1])
             self.prompts.append(prompt_path.read_text(encoding="utf-8"))
             output = Path(command[command.index("--output") + 1])
-            output.write_bytes(PNG_SIGNATURE + b"source")
+            Image.new("RGB", (64, 64), "blue").save(output, format="PNG")
             if self.started is not None:
                 self.started.set()
             if self.release is not None:
                 assert self.release.wait(timeout=2)
             return
         output = Path(command[2])
+        with Image.open(command[1]) as image:
+            self.trellis_input_modes.append(image.mode)
         output.write_bytes(b"glTF" + b"asset")
-        output.with_name(f"{output.stem}_cutout.png").write_bytes(
-            PNG_SIGNATURE + b"cutout"
-        )
+
+
+class FakeBackgroundRemover:
+    def __init__(self) -> None:
+        self.last_timings = {"background_inference_ms": 1}
+
+    def load(self) -> None:
+        return
+
+    def remove(self, image: Image.Image) -> Image.Image:
+        result = image.convert("RGBA")
+        alpha = Image.new("L", image.size, 0)
+        alpha.paste(255, (8, 8, image.width - 8, image.height - 8))
+        result.putalpha(alpha)
+        return result
 
 
 @pytest.fixture
@@ -59,7 +75,11 @@ def settings(tmp_path: Path) -> Settings:
 @pytest.fixture
 def generator(settings: Settings) -> tuple[AssetGenerator, FakeRunner]:
     runner = FakeRunner()
-    service = AssetGenerator(settings, runner=runner)
+    service = AssetGenerator(
+        settings,
+        runner=runner,
+        background_remover=FakeBackgroundRemover(),
+    )
     service.ready = True
     return service, runner
 

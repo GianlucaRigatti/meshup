@@ -29,10 +29,12 @@ FLUX_VAE_MODEL_ID = "Comfy-Org/flux2-klein-4B"
 FLUX_VAE_REVISION = "5f526678002e43af5551dadb73ce2e8c91b43afe"
 FLUX_VAE_FILENAME = "split_files/vae/flux2-vae.safetensors"
 
+BIREFNET_MODEL_ID = "ZhengPeng7/BiRefNet"
+BIREFNET_MODEL_REVISION = "b7d7f31fed203ab364ac756d62053ee467502434"
+
 TRELLIS_MODEL_ID = "ilintar/trellis2-gguf"
 TRELLIS_MODEL_REVISION = "a57397bd3d351599d9729fc144b3f87c3f87d65b"
 TRELLIS_MODEL_FILENAMES = (
-    "birefnet.gguf",
     "dinov3.gguf",
     "ss_flow.gguf",
     "ss_dec.gguf",
@@ -42,7 +44,7 @@ TRELLIS_MODEL_FILENAMES = (
     "tex_dec.gguf",
 )
 
-PIPELINE_SCHEMA_VERSION = 1
+PIPELINE_SCHEMA_VERSION = 2
 PROMPT_SUFFIX = ", one isolated subject, complete subject fully visible, centered, three-quarter front view, camera near subject height, faithful subject-specific anatomy, characteristic colors and materials, natural coherent shape, strong clean silhouette, limbs and appendages clearly visible and separated where applicable, balanced proportions, soft diffuse studio lighting, shadowless presentation, sharp focus, weak-perspective product view, solid white background, no floor, no pedestal, no environment, no text, no extra objects, no cropping, no occlusion"
 
 _PIPELINE_IDENTITY = {
@@ -54,6 +56,7 @@ _PIPELINE_IDENTITY = {
     "flux": FLUX_MODEL_REVISION,
     "qwen": QWEN_MODEL_REVISION,
     "vae": FLUX_VAE_REVISION,
+    "background_removal": BIREFNET_MODEL_REVISION,
     "trellis": TRELLIS_MODEL_REVISION,
     "prompt_suffix": PROMPT_SUFFIX,
     "image": {
@@ -68,7 +71,8 @@ _PIPELINE_IDENTITY = {
         "max_tokens": 49152,
         "atlas": 1024,
         "box_uv": True,
-        "background_removal": "birefnet",
+        "background_removal": "external-birefnet-general-fp16-1024",
+        "foreground_ratio": 435 / 512,
     },
 }
 _PIPELINE_DIGEST = hashlib.sha256(
@@ -156,6 +160,10 @@ class Settings:
     @property
     def trellis_model_path(self) -> Path:
         return self.trellis_model_root / "q4"
+
+    @property
+    def background_removal_model_path(self) -> Path:
+        return self.model_cache_dir / "models" / BACKGROUND_REMOVAL_MODEL
 
     @property
     def required_files(self) -> tuple[Path, ...]:

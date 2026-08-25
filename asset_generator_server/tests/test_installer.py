@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from app.config import (
+    BIREFNET_MODEL_ID,
     FLUX_MODEL_FILENAME,
     FLUX_MODEL_ID,
     FLUX_VAE_FILENAME,
@@ -49,6 +50,7 @@ def test_validate_host_uses_nvidia_tools_without_torch(monkeypatch) -> None:
 def test_downloads_only_fixed_components(tmp_path: Path, monkeypatch) -> None:
     settings = Settings(model_cache_dir=tmp_path / "cache")
     calls: list[tuple[str, str]] = []
+    snapshots: list[str] = []
 
     def fake_download(*, repo_id, revision, filename, local_dir):
         calls.append((repo_id, filename))
@@ -58,6 +60,12 @@ def test_downloads_only_fixed_components(tmp_path: Path, monkeypatch) -> None:
         return str(destination)
 
     monkeypatch.setattr(install_models, "hf_hub_download", fake_download)
+
+    def fake_snapshot(*, repo_id, revision, local_dir):
+        snapshots.append(repo_id)
+        Path(local_dir).mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(install_models, "snapshot_download", fake_snapshot)
     install_models.download_models(settings)
 
     assert calls[:3] == [
@@ -69,6 +77,7 @@ def test_downloads_only_fixed_components(tmp_path: Path, monkeypatch) -> None:
         (TRELLIS_MODEL_ID, f"q4/{filename}") for filename in TRELLIS_MODEL_FILENAMES
     ]
     assert len(calls) == 3 + len(TRELLIS_MODEL_FILENAMES)
+    assert snapshots == [BIREFNET_MODEL_ID]
 
 
 def test_install_dispatches_only_two_pinned_runtimes(
@@ -158,6 +167,7 @@ def test_readiness_detects_revision_marker_mismatch(
     for path in settings.required_files:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"file")
+    settings.background_removal_model_path.mkdir(parents=True, exist_ok=True)
     settings.flux_model_path.joinpath(".model-revision").write_text(
         "wrong\n", encoding="utf-8"
     )
@@ -180,6 +190,7 @@ def test_verification_detects_missing_required_weight(
     for path in settings.required_files[:-1]:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"file")
+    settings.background_removal_model_path.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(install_models, "_run_help", lambda *args: None)
 
     with pytest.raises(RuntimeError, match="required files"):
