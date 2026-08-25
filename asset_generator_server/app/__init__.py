@@ -1,1 +1,1 @@
-"""Local 3D asset generator service."""
+"""Fixed FLUX.2 Klein to TRELLIS.2 asset generator service."""

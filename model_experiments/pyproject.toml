@@ -1,0 +1,66 @@
+[project]
+name = "asset-generator-server"
+version = "0.1.0"
+description = "Cross-platform local text-to-3D FastAPI server"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "accelerate>=1.2,<2",
+    "bitsandbytes>=0.46,<1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "diffusers>=0.33,<1",
+    "einops>=0.7,<1; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",
+    "fastapi>=0.115,<1",
+    "huggingface-hub>=0.27,<1",
+    "jaxtyping>=0.2.31,<1; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",
+    "kornia>=0.7,<1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "ninja>=1.11,<2; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",
+    "numpy>=1.26,<2",
+    "onnxruntime>=1.20,<2",
+    "omegaconf>=2.3,<3; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",
+    "open-clip-torch>=2.24,<3; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",
+    "pillow>=10.4,<12",
+    "gpytoolbox>=0.2,<1; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",
+    "pynanoinstantmeshes==0.0.3; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",
+    "pydantic-settings>=2.7,<3",
+    "rembg>=2.0.61,<3",
+    "safetensors>=0.4,<1",
+    "sentencepiece>=0.2,<1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "setuptools==69.5.1; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",
+    "timm>=1.0,<2; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torch==2.5.1; sys_platform == 'darwin'",
+    "torch==2.7.1; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",
+    "torchvision==0.22.1; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",
+    "transformers>=4.47,<5",
+    "trimesh>=4.5,<5",
+    "uvicorn[standard]>=0.34,<1",
+    "wheel>=0.45,<1; sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28,<1",
+    "pytest>=8.3,<9",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+markers = [
+    "real_models: tests that require downloaded model weights",
+]
+testpaths = ["tests"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')" },
+]
+torchvision = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true

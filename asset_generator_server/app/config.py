@@ -1,286 +1,206 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import os
+import platform
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+IMAGE_GENERATOR = "flux2-klein-9b-q4-k-m-fast"
+MODEL_3D = "trellis2-turbo"
+BACKGROUND_REMOVAL_MODEL = "birefnet-general"
+DEVICE = "cuda:0"
+OUTPUT_MODE = "pbr_texture"
 
-from app.presets import (
-    DEFAULT_IMAGE_GENERATOR,
-    DEFAULT_MODEL_3D,
-    PipelinePreset,
-    resolve_models,
-    resolve_profile,
+STABLE_DIFFUSION_CPP_REPOSITORY = "https://github.com/leejet/stable-diffusion.cpp.git"
+STABLE_DIFFUSION_CPP_REVISION = "97d2990807fe6d558e395f8764198d7c7e7b411c"
+TRELLIS_CPP_REPOSITORY = "https://github.com/pwilkin/trellis.cpp.git"
+TRELLIS_CPP_REVISION = "06fc9000719c912ddc4929d21db075972c26ac3e"
+
+FLUX_MODEL_ID = "unsloth/FLUX.2-klein-9B-GGUF"
+FLUX_MODEL_REVISION = "fde8634245fe6b749a221c25b34672b5b8fbd079"
+FLUX_MODEL_FILENAME = "flux-2-klein-9b-Q4_K_M.gguf"
+QWEN_MODEL_ID = "Qwen/Qwen3-8B-GGUF"
+QWEN_MODEL_REVISION = "7c41481f57cb95916b40956ab2f0b139b296d974"
+QWEN_MODEL_FILENAME = "Qwen3-8B-Q4_K_M.gguf"
+FLUX_VAE_MODEL_ID = "Comfy-Org/flux2-klein-4B"
+FLUX_VAE_REVISION = "5f526678002e43af5551dadb73ce2e8c91b43afe"
+FLUX_VAE_FILENAME = "split_files/vae/flux2-vae.safetensors"
+
+TRELLIS_MODEL_ID = "ilintar/trellis2-gguf"
+TRELLIS_MODEL_REVISION = "a57397bd3d351599d9729fc144b3f87c3f87d65b"
+TRELLIS_MODEL_FILENAMES = (
+    "birefnet.gguf",
+    "dinov3.gguf",
+    "ss_flow.gguf",
+    "ss_dec.gguf",
+    "shape_flow_512.gguf",
+    "shape_dec.gguf",
+    "tex_flow_512.gguf",
+    "tex_dec.gguf",
 )
 
+PIPELINE_SCHEMA_VERSION = 1
+PROMPT_SUFFIX = ", one isolated subject, complete subject fully visible, centered, three-quarter front view, camera near subject height, faithful subject-specific anatomy, characteristic colors and materials, natural coherent shape, strong clean silhouette, limbs and appendages clearly visible and separated where applicable, balanced proportions, soft diffuse studio lighting, shadowless presentation, sharp focus, weak-perspective product view, solid white background, no floor, no pedestal, no environment, no text, no extra objects, no cropping, no occlusion"
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
+_PIPELINE_IDENTITY = {
+    "schema": PIPELINE_SCHEMA_VERSION,
+    "image_generator": IMAGE_GENERATOR,
+    "model_3d": MODEL_3D,
+    "stable_diffusion_cpp": STABLE_DIFFUSION_CPP_REVISION,
+    "trellis_cpp": TRELLIS_CPP_REVISION,
+    "flux": FLUX_MODEL_REVISION,
+    "qwen": QWEN_MODEL_REVISION,
+    "vae": FLUX_VAE_REVISION,
+    "trellis": TRELLIS_MODEL_REVISION,
+    "prompt_suffix": PROMPT_SUFFIX,
+    "image": {
+        "width": 768,
+        "height": 768,
+        "steps": 4,
+        "cfg": 1.0,
+        "max_vram_gib": 11,
+    },
+    "asset": {
+        "resolution": 512,
+        "max_tokens": 49152,
+        "atlas": 1024,
+        "box_uv": True,
+        "background_removal": "birefnet",
+    },
+}
+_PIPELINE_DIGEST = hashlib.sha256(
+    json.dumps(_PIPELINE_IDENTITY, sort_keys=True).encode()
+).hexdigest()[:16]
+PIPELINE_VERSION = f"flux2-klein-9b-trellis2-turbo-{_PIPELINE_DIGEST}"
 
-    public_base_url: str | None = Field(default=None, alias="PUBLIC_BASE_URL")
-    asset_output_dir: Path = Field(
-        default=Path("generated_assets"), alias="ASSET_OUTPUT_DIR"
-    )
-    model_cache_dir: Path = Field(
-        default=Path(".model_sources"), alias="MODEL_CACHE_DIR"
-    )
-    image_generator: str = Field(
-        default=DEFAULT_IMAGE_GENERATOR, alias="IMAGE_GENERATOR"
-    )
-    model_3d: str = Field(default=DEFAULT_MODEL_3D, alias="MODEL_3D")
-    background_removal_model: Literal["birefnet-general", "u2netp"] = Field(
-        default="birefnet-general", alias="BACKGROUND_REMOVAL_MODEL"
-    )
-    # Deprecated internal compatibility switch. New launch/install CLIs do not
-    # expose legacy platform profiles.
-    pipeline_profile: str | None = Field(default=None, alias="PIPELINE_PROFILE")
-    hunyuan_timeout_seconds: int = Field(default=300, alias="HUNYUAN_TIMEOUT_SECONDS")
-    image_timeout_seconds: int = Field(default=600, alias="IMAGE_TIMEOUT_SECONDS")
-    pixal3d_timeout_seconds: int = Field(default=1800, alias="PIXAL3D_TIMEOUT_SECONDS")
-    trellis_timeout_seconds: int = Field(default=1800, alias="TRELLIS_TIMEOUT_SECONDS")
-    instantmesh_timeout_seconds: int = Field(
-        default=1800, alias="INSTANTMESH_TIMEOUT_SECONDS"
-    )
-    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
-    @property
-    def preset(self) -> PipelinePreset:
-        if self.pipeline_profile is not None:
-            return resolve_profile(self.pipeline_profile)
-        return resolve_models(self.image_generator, self.model_3d)
+@dataclass(frozen=True)
+class Settings:
+    public_base_url: str | None = None
+    asset_output_dir: Path = Path("generated_assets")
+    model_cache_dir: Path = Path(".model_sources")
+    image_timeout_seconds: int = 600
+    trellis_timeout_seconds: int = 1800
+    log_level: str = "INFO"
 
-    @property
-    def image_model_path(self) -> Path:
-        return self.model_cache_dir / "models" / self.preset.image.directory_name
-
-    @property
-    def asset_model_path(self) -> Path:
-        return self.model_cache_dir / "models" / self.preset.asset.directory_name
-
-    @property
-    def background_removal_model_path(self) -> Path:
-        if (
-            self.background_removal_model == "birefnet-general"
-            and self.preset.platform == "linux"
-        ):
-            return self.model_cache_dir / "models" / "birefnet-general"
-        filename = {
-            "birefnet-general": "birefnet-general.onnx",
-            "u2netp": "u2netp.onnx",
-        }[self.background_removal_model]
-        return self.model_cache_dir / "models" / "rembg" / filename
-
-    @property
-    def sd_turbo_path(self) -> Path:
-        return self.model_cache_dir / "models" / "sd-turbo"
-
-    @property
-    def hunyuan_model_path(self) -> Path:
-        return self.model_cache_dir / "models" / "hunyuan3d-mlx-shape-small"
-
-    @property
-    def hunyuan_source_path(self) -> Path:
-        return self.model_cache_dir / "sources" / "Hunyuan3D-Swift"
-
-    @property
-    def hunyuan_runtime_path(self) -> Path:
-        return self.model_cache_dir / "runtime" / "hunyuan"
-
-    @property
-    def sf3d_source_path(self) -> Path:
-        return self.model_cache_dir / "sources" / "stable-fast-3d"
-
-    @property
-    def dinov2_model_path(self) -> Path:
-        return self.model_cache_dir / "models" / "dinov2-large"
-
-    @property
-    def pixal3d_source_path(self) -> Path:
-        return self.model_cache_dir / "sources" / "Pixal3D"
-
-    @property
-    def trellis2_source_path(self) -> Path:
-        return self.model_cache_dir / "sources" / "TRELLIS.2"
-
-    @property
-    def trellis_cpp_source_path(self) -> Path:
-        return self.model_cache_dir / "sources" / "trellis.cpp"
-
-    @property
-    def trellis_cpp_build_path(self) -> Path:
-        return self.trellis_cpp_source_path / ".build"
-
-    @property
-    def trellis_cpp_executable_path(self) -> Path:
-        return self.trellis_cpp_build_path / "trellis-cli"
-
-    @property
-    def trellis_cpp_model_path(self) -> Path:
-        quantization = self.preset.asset.quantization
-        if quantization not in {"q4", "q8"}:
-            raise ValueError("The selected preset does not use TRELLIS.2 GGUF weights.")
-        return self.asset_model_path / quantization
-
-    @property
-    def trellis_cpp_required_files(self) -> tuple[Path, ...]:
-        models = (
-            "birefnet.gguf",
-            "dinov3.gguf",
-            "ss_flow.gguf",
-            "ss_dec.gguf",
-            "shape_flow_512.gguf",
-            "shape_flow_1024.gguf",
-            "shape_dec.gguf",
-            "tex_flow_512.gguf",
-            "tex_flow_1024.gguf",
-            "tex_dec.gguf",
-        )
-        return (
-            self.trellis_cpp_executable_path,
-            *(self.trellis_cpp_model_path / name for name in models),
+    @classmethod
+    def from_env(
+        cls,
+        environment: Mapping[str, str] | None = None,
+        env_file: Path = Path(".env"),
+    ) -> Settings:
+        values = _read_env_file(env_file)
+        values.update(os.environ if environment is None else environment)
+        return cls(
+            public_base_url=values.get("PUBLIC_BASE_URL") or None,
+            asset_output_dir=Path(values.get("ASSET_OUTPUT_DIR", "generated_assets")),
+            model_cache_dir=Path(values.get("MODEL_CACHE_DIR", ".model_sources")),
+            image_timeout_seconds=_positive_int(
+                values.get("IMAGE_TIMEOUT_SECONDS", "600"),
+                "IMAGE_TIMEOUT_SECONDS",
+            ),
+            trellis_timeout_seconds=_positive_int(
+                values.get("TRELLIS_TIMEOUT_SECONDS", "1800"),
+                "TRELLIS_TIMEOUT_SECONDS",
+            ),
+            log_level=values.get("LOG_LEVEL", "INFO"),
         )
 
     @property
-    def stable_diffusion_cpp_source_path(self) -> Path:
+    def stable_diffusion_source_path(self) -> Path:
         return self.model_cache_dir / "sources" / "stable-diffusion.cpp"
 
     @property
-    def stable_diffusion_cpp_build_path(self) -> Path:
-        return self.stable_diffusion_cpp_source_path / ".build"
+    def stable_diffusion_build_path(self) -> Path:
+        return self.stable_diffusion_source_path / ".build"
 
     @property
-    def stable_diffusion_cpp_executable_path(self) -> Path:
-        return self.stable_diffusion_cpp_build_path / "bin" / "sd-cli"
+    def stable_diffusion_executable_path(self) -> Path:
+        return self.stable_diffusion_build_path / "bin" / "sd-cli"
 
     @property
-    def z_image_diffusion_path(self) -> Path:
-        filenames = {
-            "q3": "z_image_turbo-Q3_K.gguf",
-            "q4": "z_image_turbo-Q4_K.gguf",
-            "q6": "z_image_turbo-Q6_K.gguf",
-        }
-        try:
-            filename = filenames[self.preset.image.quantization]
-        except KeyError as exc:
-            raise ValueError("The selected preset does not use Z-Image GGUF.") from exc
-        return self.image_model_path / filename
+    def trellis_source_path(self) -> Path:
+        return self.model_cache_dir / "sources" / "trellis.cpp"
 
     @property
-    def z_image_components_path(self) -> Path:
-        return self.model_cache_dir / "models" / "z-image-components"
+    def trellis_build_path(self) -> Path:
+        return self.trellis_source_path / ".build"
 
     @property
-    def z_image_text_encoder_path(self) -> Path:
-        return self.z_image_components_path / "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+    def trellis_executable_path(self) -> Path:
+        return self.trellis_build_path / "trellis-cli"
 
     @property
-    def z_image_vae_path(self) -> Path:
-        return self.z_image_components_path / "split_files" / "vae" / "ae.safetensors"
+    def flux_model_path(self) -> Path:
+        return self.model_cache_dir / "models" / IMAGE_GENERATOR
 
     @property
-    def z_image_required_files(self) -> tuple[Path, ...]:
+    def flux_diffusion_path(self) -> Path:
+        return self.flux_model_path / FLUX_MODEL_FILENAME
+
+    @property
+    def flux_text_encoder_path(self) -> Path:
+        return self.flux_model_path / QWEN_MODEL_FILENAME
+
+    @property
+    def flux_vae_path(self) -> Path:
+        return self.flux_model_path / FLUX_VAE_FILENAME
+
+    @property
+    def trellis_model_root(self) -> Path:
+        return self.model_cache_dir / "models" / MODEL_3D
+
+    @property
+    def trellis_model_path(self) -> Path:
+        return self.trellis_model_root / "q4"
+
+    @property
+    def required_files(self) -> tuple[Path, ...]:
         return (
-            self.stable_diffusion_cpp_executable_path,
-            self.z_image_diffusion_path,
-            self.z_image_text_encoder_path,
-            self.z_image_vae_path,
+            self.stable_diffusion_executable_path,
+            self.trellis_executable_path,
+            self.flux_diffusion_path,
+            self.flux_text_encoder_path,
+            self.flux_vae_path,
+            *(self.trellis_model_path / name for name in TRELLIS_MODEL_FILENAMES),
         )
 
-    @property
-    def flux2_klein_diffusion_path(self) -> Path:
-        filenames = {
-            "fp8": "flux-2-klein-4b-fp8.safetensors",
-            "q4_k_m": "flux-2-klein-9b-Q4_K_M.gguf",
-            "q5_k_m": "flux-2-klein-9b-Q5_K_M.gguf",
-        }
-        try:
-            filename = filenames[self.preset.image.quantization]
-        except KeyError as exc:
-            raise ValueError("The selected image model is not FLUX.2 Klein.") from exc
-        return self.image_model_path / filename
 
-    @property
-    def flux2_klein_text_encoder_path(self) -> Path:
-        filename = self.preset.image.text_encoder_filename
-        if filename is None:
-            raise ValueError("The selected image model has no FLUX.2 text encoder.")
-        return self.image_model_path / filename
+def is_wsl() -> bool:
+    if platform.system() != "Linux":
+        return False
+    try:
+        release = Path("/proc/sys/kernel/osrelease").read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return "microsoft" in release.lower()
 
-    @property
-    def flux2_klein_vae_path(self) -> Path:
-        filename = self.preset.image.vae_filename
-        if filename is None:
-            raise ValueError("The selected image model has no FLUX.2 VAE.")
-        return self.image_model_path / filename
 
-    @property
-    def flux2_klein_required_files(self) -> tuple[Path, ...]:
-        return (
-            self.stable_diffusion_cpp_executable_path,
-            self.flux2_klein_diffusion_path,
-            self.flux2_klein_text_encoder_path,
-            self.flux2_klein_vae_path,
-        )
+def _read_env_file(path: Path) -> dict[str, str]:
+    if not path.is_file():
+        return {}
+    values: dict[str, str] = {}
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+            value = value[1:-1]
+        values[key] = value
+    return values
 
-    @property
-    def pixal3d_runtime_path(self) -> Path:
-        return self.model_cache_dir / "runtime" / "pixal3d"
 
-    @property
-    def pixal3d_python_path(self) -> Path:
-        return self.pixal3d_runtime_path / ".venv" / "bin" / "python"
-
-    @property
-    def pixal3d_required_files(self) -> tuple[Path, ...]:
-        return (
-            self.pixal3d_python_path,
-            self.pixal3d_source_path / "inference.py",
-            self.asset_model_path / "pipeline.json",
-        )
-
-    @property
-    def instantmesh_source_path(self) -> Path:
-        return self.model_cache_dir / "sources" / "InstantMesh"
-
-    @property
-    def instantmesh_runtime_path(self) -> Path:
-        return self.model_cache_dir / "runtime" / "instantmesh"
-
-    @property
-    def instantmesh_python_path(self) -> Path:
-        return self.instantmesh_runtime_path / ".venv" / "bin" / "python"
-
-    @property
-    def zero123_model_path(self) -> Path:
-        return self.model_cache_dir / "models" / "zero123plus-v1.2"
-
-    @property
-    def zero123_pipeline_path(self) -> Path:
-        return self.model_cache_dir / "models" / "zero123plus-pipeline"
-
-    @property
-    def instantmesh_dino_path(self) -> Path:
-        return self.model_cache_dir / "models" / "dino-vitb16"
-
-    @property
-    def instantmesh_required_files(self) -> tuple[Path, ...]:
-        return (
-            self.instantmesh_python_path,
-            self.instantmesh_source_path / "configs" / "instant-mesh-base.yaml",
-            self.asset_model_path / "diffusion_pytorch_model.bin",
-            self.asset_model_path / "instant_mesh_base.ckpt",
-            self.zero123_model_path / "model_index.json",
-            self.zero123_model_path / "unet" / "diffusion_pytorch_model.safetensors",
-            self.zero123_model_path / "vae" / "diffusion_pytorch_model.safetensors",
-            self.zero123_model_path / "vision_encoder" / "model.safetensors",
-            self.zero123_model_path / "text_encoder" / "model.safetensors",
-            self.zero123_pipeline_path / "pipeline.py",
-            self.instantmesh_dino_path / "config.json",
-            self.instantmesh_dino_path / "preprocessor_config.json",
-            self.instantmesh_dino_path / "pytorch_model.bin",
-        )
+def _positive_int(value: str, name: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a positive integer.") from exc
+    if parsed <= 0:
+        raise ValueError(f"{name} must be a positive integer.")
+    return parsed

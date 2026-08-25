@@ -11,15 +11,8 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.config import (
-    BACKGROUND_REMOVAL_MODEL,
-    DEVICE,
-    IMAGE_GENERATOR,
-    MODEL_3D,
-    OUTPUT_MODE,
-    Settings,
-)
-from app.pipeline import AssetGenerator, BusyError, GenerationError
+from app.config import Settings
+from app.generator import AssetGenerator, BusyError, GenerationError
 
 
 class GenerateRequest(BaseModel):
@@ -39,7 +32,7 @@ def create_app(
     settings: Settings | None = None,
     generator: AssetGenerator | None = None,
 ) -> FastAPI:
-    settings = settings or Settings.from_env()
+    settings = settings or Settings()
     settings.asset_output_dir.mkdir(parents=True, exist_ok=True)
     provided_generator = generator
 
@@ -68,22 +61,22 @@ def create_app(
 
     @application.get("/readyz")
     async def readyz(request: Request):
-        service: AssetGenerator = request.app.state.generator
+        service = request.app.state.generator
         content = {
             "status": "ready" if service.ready else "not_ready",
             "ready": service.ready,
             "busy": service.busy,
-            "image_generator": IMAGE_GENERATOR,
-            "model_3d": MODEL_3D,
-            "background_removal_model": BACKGROUND_REMOVAL_MODEL,
-            "device": DEVICE,
-            "output_mode": OUTPUT_MODE,
+            "image_generator": settings.image_generator,
+            "model_3d": settings.model_3d,
+            "background_removal_model": settings.background_removal_model,
+            "device": service.preset.device,
+            "output_mode": service.output_mode,
         }
         return content if service.ready else JSONResponse(content, status_code=503)
 
     @application.post("/generate_asset")
     async def generate_asset(payload: GenerateRequest, request: Request):
-        service: AssetGenerator = request.app.state.generator
+        service = request.app.state.generator
         if not service.ready:
             return _error(
                 503, "generator_not_ready", "The asset generator is not ready."
