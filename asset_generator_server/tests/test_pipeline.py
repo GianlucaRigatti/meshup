@@ -74,6 +74,10 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
         service.generation_seed("private test object")
     )
     assert runner.trellis_input_modes == ["RGBA"]
+    assert "minimal shading gradients" in PROMPT_SUFFIX
+    assert "no cast shadows" in PROMPT_SUFFIX
+    assert "no reflections" in PROMPT_SUFFIX
+    assert "no specular highlights" in PROMPT_SUFFIX
 
 
 def test_audio_pipeline_is_sequential_and_private(
