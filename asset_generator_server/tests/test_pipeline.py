@@ -148,13 +148,19 @@ def test_audio_helpers_use_separate_transformers_runtimes(
     generator: tuple[AssetGenerator, FakeRunner],
 ) -> None:
     service, _ = generator
+    base_python = tmp_path / "base-python"
+    base_python.write_bytes(b"python")
+    sidecar_python = service.settings.prompt_enhancer_python_path
+    sidecar_python.parent.mkdir(parents=True)
+    sidecar_python.symlink_to(base_python)
     asr = service._asr_command(tmp_path / "audio.wav", tmp_path / "asr.json")
     enhancer = service._prompt_enhancement_command(
         tmp_path / "asr.json", tmp_path / "prompt.txt"
     )
 
     assert asr[0] == sys.executable
-    assert enhancer[0] == str(service.settings.prompt_enhancer_python_path.resolve())
+    assert enhancer[0] == str(sidecar_python.absolute())
+    assert enhancer[0] != str(sidecar_python.resolve())
 
 
 @pytest.mark.parametrize(

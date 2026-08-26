@@ -180,8 +180,10 @@ def test_prompt_runtime_installs_transformers_5_and_reuses_project_torch(
         commands.append(command)
         if command[:2] == ["uv", "venv"]:
             settings.prompt_enhancer_python_path.parent.mkdir(parents=True)
-            settings.prompt_enhancer_python_path.write_bytes(b"python")
-        if command[0] == str(settings.prompt_enhancer_python_path.resolve()):
+            base_python = tmp_path / "base-python"
+            base_python.write_bytes(b"python")
+            settings.prompt_enhancer_python_path.symlink_to(base_python)
+        if command[0] == str(settings.prompt_enhancer_python_path.absolute()):
             return str(child_site)
         return ""
 
@@ -195,6 +197,8 @@ def test_prompt_runtime_installs_transformers_5_and_reuses_project_torch(
     assert any(
         command[:3] == ["uv", "pip", "install"]
         and f"transformers=={PROMPT_ENHANCER_TRANSFORMERS_VERSION}" in command
+        and command[command.index("--python") + 1]
+        == str(settings.prompt_enhancer_python_path.absolute())
         for command in commands
     )
     assert child_site.joinpath("asset-generator-project-runtime.pth").read_text(

@@ -314,7 +314,7 @@ def install_prompt_runtime(settings: Settings) -> None:
             "pip",
             "install",
             "--python",
-            str(python.resolve()),
+            str(python.absolute()),
             f"transformers=={PROMPT_ENHANCER_TRANSFORMERS_VERSION}",
         ]
     )
@@ -332,7 +332,7 @@ def install_prompt_runtime(settings: Settings) -> None:
     child_site = Path(
         run(
             [
-                str(python.resolve()),
+                str(python.absolute()),
                 "-c",
                 "import site; print(site.getsitepackages()[0])",
             ]
@@ -366,7 +366,7 @@ def verify_installation(settings: Settings) -> None:
 def _verify_prompt_runtime(python: Path) -> None:
     run(
         [
-            str(python.resolve()),
+            str(python.absolute()),
             "-c",
             (
                 "import torch, transformers; "

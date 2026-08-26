@@ -516,7 +516,7 @@ class AssetGenerator:
 
     def _prompt_enhancement_command(self, transcript: Path, output: Path) -> list[str]:
         return [
-            str(self.settings.prompt_enhancer_python_path.resolve()),
+            str(self.settings.prompt_enhancer_python_path.absolute()),
             "-m",
             "app.run_prompt_enhancer",
             "--model",
@@ -750,7 +750,7 @@ def _check_prompt_runtime(python: Path) -> None:
         "from transformers import AutoModelForMultimodalLM, AutoProcessor"
     )
     _run_native(
-        [str(python.resolve()), "-c", code],
+        [str(python.absolute()), "-c", code],
         _python_environment(),
         60,
         "Qwen3.5 Python runtime",
