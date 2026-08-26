@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 IMAGE_GENERATOR = "flux2-klein-9b-q4-k-m-fast"
-MODEL_3D = "trellis2-turbo"
+MODEL_3D = "trellis2-fast"
 BACKGROUND_REMOVAL_MODEL = "birefnet-general"
 SPEECH_TO_TEXT_MODEL = "qwen3-asr-1.7b"
 PROMPT_ENHANCER_MODEL = "qwen3.5-4b"
@@ -17,10 +17,10 @@ DEVICE = "cuda:0"
 OUTPUT_MODE = "pbr_texture"
 
 # Preserve the deterministic sampling namespace used by the archived explicit
-# FLUX.2 Klein + TRELLIS.2 Turbo composition. Cache identity remains governed
+# FLUX.2 Klein + TRELLIS.2 Fast composition. Cache identity remains governed
 # independently by PIPELINE_VERSION below.
 GENERATION_SEED_VERSION = (
-    "wsl-flux2-klein-9b-q4-k-m-fast--trellis2-turbo-f1bbd4ac8df2ad4c"
+    "wsl-flux2-klein-9b-q4-k-m-fast--trellis2-fast-f1b5d5085b10f1a2"
 )
 
 STABLE_DIFFUSION_CPP_REPOSITORY = "https://github.com/leejet/stable-diffusion.cpp.git"
@@ -121,7 +121,7 @@ _PIPELINE_IDENTITY = {
         "resolution": 512,
         "max_tokens": 49152,
         "atlas": 1024,
-        "box_uv": True,
+        "box_uv": False,
         "background_removal": "external-birefnet-general-fp16-1024",
         "foreground_ratio": 435 / 512,
     },
@@ -129,7 +129,7 @@ _PIPELINE_IDENTITY = {
 _PIPELINE_DIGEST = hashlib.sha256(
     json.dumps(_PIPELINE_IDENTITY, sort_keys=True).encode()
 ).hexdigest()[:16]
-PIPELINE_VERSION = f"flux2-klein-9b-trellis2-turbo-{_PIPELINE_DIGEST}"
+PIPELINE_VERSION = f"flux2-klein-9b-trellis2-fast-{_PIPELINE_DIGEST}"
 
 _AUDIO_PIPELINE_IDENTITY = {
     "schema": AUDIO_PIPELINE_SCHEMA_VERSION,

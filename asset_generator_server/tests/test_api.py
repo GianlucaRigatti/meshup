@@ -48,7 +48,7 @@ def test_health_and_ready(client) -> None:
         "ready": True,
         "busy": False,
         "image_generator": "flux2-klein-9b-q4-k-m-fast",
-        "model_3d": "trellis2-turbo",
+        "model_3d": "trellis2-fast",
         "background_removal_model": "birefnet-general",
         "speech_to_text_model": "qwen3-asr-1.7b",
         "prompt_enhancer_model": "qwen3.5-4b",

@@ -8,8 +8,8 @@ their original behavior and skip both stages.
 - `flux2-klein-9b-q4-k-m-fast` generates a 768×768 source image.
 - The full FP16 `birefnet-general` checkpoint removes the background at 1024px,
   then crops and recenters the subject on a transparent 768px canvas.
-- `trellis2-turbo` receives that prematted RGBA image and reconstructs a
-  512-resolution, 1024px box-UV textured mesh.
+- `trellis2-fast` receives that prematted RGBA image and reconstructs a
+  512-resolution, 1024px xatlas-UV textured mesh.
 
 The former cross-platform/model-comparison implementation is preserved in
 [`../model_experiments`](../model_experiments). It is not part of this server.
@@ -84,7 +84,7 @@ The readiness response identifies the fixed pipeline:
   "ready": true,
   "busy": false,
   "image_generator": "flux2-klein-9b-q4-k-m-fast",
-  "model_3d": "trellis2-turbo",
+  "model_3d": "trellis2-fast",
   "background_removal_model": "birefnet-general",
   "speech_to_text_model": "qwen3-asr-1.7b",
   "prompt_enhancer_model": "qwen3.5-4b",

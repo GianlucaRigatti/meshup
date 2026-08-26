@@ -39,8 +39,8 @@ def test_asset_identity_normalizes_prompt_and_includes_pipeline_version(
 
     assert first.asset_id("  a   red chair ") == first.asset_id("a red chair")
     assert first.asset_id("a red chair") != second.asset_id("a red chair")
-    assert first.generation_seed("  a   red chair ") == 1878854426
-    assert first.generation_seed("a red chair") == 1878854426
+    assert first.generation_seed("  a   red chair ") == 1897674197
+    assert first.generation_seed("a red chair") == 1897674197
 
 
 def test_fixed_commands_are_sequential_and_prompt_is_private(
@@ -68,7 +68,7 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
     assert trellis[trellis.index("--atlas") + 1] == "1024"
     assert "--bg-removal" not in trellis
     assert "--dump-bg" not in trellis
-    assert "--box-uv" in trellis
+    assert "--box-uv" not in trellis
     assert "--require-gpu" in trellis
     assert trellis[trellis.index("--seed") + 1] == str(
         service.generation_seed("private test object")
@@ -301,6 +301,7 @@ def test_success_creates_three_artifacts_without_storing_prompt(
     assert metadata["timings"] == timings
     assert metadata["models"]["background_removal"]["id"] == "ZhengPeng7/BiRefNet"
     assert metadata["output_settings"]["background_removal_resolution"] == 1024
+    assert metadata["output_settings"]["box_uv"] is False
     assert "memory" not in metadata
 
 

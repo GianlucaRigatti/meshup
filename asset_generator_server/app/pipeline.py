@@ -573,7 +573,6 @@ class AssetGenerator:
             "1024",
             "--webp",
             "off",
-            "--box-uv",
             "--require-gpu",
         ]
 
@@ -657,7 +656,7 @@ class AssetGenerator:
                 "foreground_ratio": 435 / 512,
                 "geometry_resolution": 512,
                 "texture_resolution": 1024,
-                "box_uv": True,
+                "box_uv": False,
             },
             "created_at": datetime.now(UTC).isoformat(),
             "timings": timings,
