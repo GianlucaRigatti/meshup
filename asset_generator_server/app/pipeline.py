@@ -50,6 +50,7 @@ from app.config import (
     Settings,
     is_wsl,
 )
+from app.run_prompt_enhancer import sanitize_subject_prompt
 
 LOGGER = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -220,7 +221,9 @@ class AssetGenerator:
                     self.settings.prompt_enhancement_timeout_seconds,
                     "Qwen3.5-4B",
                 )
-                enhanced_prompt = _read_enhanced_prompt(enhanced_prompt_path)
+                enhanced_prompt = _read_enhanced_prompt(
+                    enhanced_prompt_path, transcript
+                )
                 timings["prompt_enhancement_ms"] = _elapsed_ms(stage)
 
                 asset_id = self.asset_id(
@@ -846,10 +849,10 @@ def _read_transcript(path: Path) -> tuple[str, str]:
     return transcript, language
 
 
-def _read_enhanced_prompt(path: Path) -> str:
+def _read_enhanced_prompt(path: Path, transcript: str) -> str:
     try:
-        prompt = " ".join(path.read_text(encoding="utf-8").split())
-    except OSError as exc:
+        prompt = sanitize_subject_prompt(path.read_text(encoding="utf-8"), transcript)
+    except (OSError, ValueError) as exc:
         raise RuntimeError("Qwen3.5 produced invalid output.") from exc
     if not prompt or len(prompt) > 500:
         raise RuntimeError("Qwen3.5 produced an invalid prompt.")

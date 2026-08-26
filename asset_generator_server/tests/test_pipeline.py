@@ -109,6 +109,27 @@ def test_audio_pipeline_is_sequential_and_private(
     assert not list(tmp_path.glob("asset-generator-audio-*"))
 
 
+def test_audio_pipeline_sanitizes_enhancer_output_before_flux(
+    tmp_path: Path,
+    generator: tuple[AssetGenerator, FakeRunner],
+) -> None:
+    service, runner = generator
+    runner.transcript = "A small red medieval chest with gold decorations."
+    runner.enhanced_prompt = (
+        "Isolated 3D medieval chest, small size, deep red wood, ornate gold inlay "
+        "decorations, intricate carvings, glossy finish, studio lighting, neutral "
+        "background."
+    )
+    audio = tmp_path / "sample.wav"
+    audio.write_bytes(b"audio")
+
+    result = service.generate_from_audio(audio)
+
+    expected = "Medieval chest, small size, deep red wood, gold-colored decorations"
+    assert result.enhanced_prompt == expected
+    assert runner.prompts == [expected + PROMPT_SUFFIX]
+
+
 def test_audio_cache_reruns_text_stages_but_skips_asset_stages(
     tmp_path: Path,
     generator: tuple[AssetGenerator, FakeRunner],

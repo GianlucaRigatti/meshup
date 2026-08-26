@@ -2,9 +2,106 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 from app.config import PROMPT_ENHANCEMENT_INSTRUCTION
+
+_PRESENTATION_CLAUSE_PATTERNS = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        r"\b(?:background|backdrop)\b",
+        r"\blighting\b",
+        r"\b(?:camera\s+(?:angle|view|height|position)|viewed?\s+from)\b",
+        r"\b(?:orthographic|isometric|weak[- ]perspective)\b",
+        r"\b(?:front|rear|side|top|three[- ]quarter|product)\s+view\b",
+        r"\b(?:product\s+shot|sharp\s+focus|depth\s+of\s+field)\b",
+        r"\b(?:composition|framing)\b",
+        r"\b(?:no|without)\s+(?:floor|pedestal|environment|text|extra objects?)\b",
+        r"\b(?:on|against)\s+(?:an?\s+)?(?:floor|pedestal|background|backdrop)\b",
+        r"^(?:fully|completely)\s+visible$",
+        r"^(?:perfectly\s+)?cent(?:er|re)d$",
+        r"^(?:one\s+)?isolated\s+subject$",
+    )
+)
+
+_UNSUPPORTED_DETAIL_PATTERNS = (
+    (
+        re.compile(r"\b(?:ornate|intricate|elaborate)\b", re.IGNORECASE),
+        ("ornate", "intricat", "elaborat"),
+    ),
+    (
+        re.compile(r"\b(?:glossy|matte|polished)\s+finish\b", re.IGNORECASE),
+        ("gloss", "matte", "polish"),
+    ),
+    (
+        re.compile(r"\b(?:weathered|aged|worn|damaged|distressed)\b", re.IGNORECASE),
+        ("weather", "aged", "worn", "damage", "distress"),
+    ),
+    (
+        re.compile(
+            r"\b(?:intricate\s+)?carv(?:ing|ings|ed\s+details?)\b", re.IGNORECASE
+        ),
+        ("carv",),
+    ),
+    (
+        re.compile(r"\b(?:engraved|engravings?|embossed|embossing)\b", re.IGNORECASE),
+        ("engrav", "emboss"),
+    ),
+    (re.compile(r"\b(?:inlaid|inlay)\b", re.IGNORECASE), ("inlay", "inlaid")),
+)
+
+
+def sanitize_subject_prompt(prompt: str, transcript: str) -> str:
+    """Remove presentation instructions and unsupported decorative invention."""
+    normalized = " ".join(prompt.strip().strip("\"'").split())
+    transcript_lower = transcript.lower()
+    clauses: list[str] = []
+    for raw_clause in re.split(r"[,;]+", normalized):
+        clause = raw_clause.strip(" .")
+        if not clause:
+            continue
+        clause = re.sub(
+            r"^(?:(?:an?|one)\s+)?(?:isolated\s+)?(?:3d\s+)?"
+            r"(?:asset|model|render(?:ing)?|product\s+shot)\s+of\s+",
+            "",
+            clause,
+            flags=re.IGNORECASE,
+        )
+        clause = re.sub(
+            r"^(?:(?:an?|one)\s+)?isolated(?:\s+single)?\s+",
+            "",
+            clause,
+            flags=re.IGNORECASE,
+        )
+        if not re.search(r"\b(?:3d|three[- ]dimensional)\b", transcript_lower):
+            clause = re.sub(r"^3d\s+", "", clause, flags=re.IGNORECASE)
+        if any(pattern.search(clause) for pattern in _PRESENTATION_CLAUSE_PATTERNS):
+            continue
+
+        for pattern, evidence in _UNSUPPORTED_DETAIL_PATTERNS:
+            if not any(term in transcript_lower for term in evidence):
+                clause = pattern.sub("", clause)
+        if re.search(
+            r"\bgold(?:en)?\s+decorations?\b", transcript_lower
+        ) and not re.search(r"\b(?:solid\s+gold|inlay|inlaid)\b", transcript_lower):
+            clause = re.sub(
+                r"\bgold(?:en)?\s+(?=(?:decorations?|details?|accents?|trim)\b)",
+                "gold-colored ",
+                clause,
+                flags=re.IGNORECASE,
+            )
+        clause = re.sub(r"\s+", " ", clause).strip(" .")
+        clause = re.sub(
+            r"\b(?:with|and|featuring)\s*$", "", clause, flags=re.IGNORECASE
+        ).strip()
+        if clause:
+            clauses.append(clause)
+
+    result = ", ".join(clauses).strip(" ,.")
+    if not result:
+        raise ValueError("Prompt enrichment produced no usable subject description.")
+    return result[0].upper() + result[1:]
 
 
 def enhance(model_path: Path, transcript: str) -> str:
@@ -38,7 +135,8 @@ def enhance(model_path: Path, transcript: str) -> str:
     ).to(model.device)
     outputs = model.generate(**inputs, max_new_tokens=160, do_sample=False)
     generated = outputs[0][inputs["input_ids"].shape[-1] :]
-    return processor.decode(generated, skip_special_tokens=True).strip()
+    raw_prompt = processor.decode(generated, skip_special_tokens=True).strip()
+    return sanitize_subject_prompt(raw_prompt, transcript)
 
 
 def build_parser() -> argparse.ArgumentParser:

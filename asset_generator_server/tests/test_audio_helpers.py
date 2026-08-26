@@ -99,3 +99,33 @@ def test_prompt_enhancer_is_non_thinking_and_deterministic(
     assert calls["generate"]["max_new_tokens"] == 160
     assert calls["model_load"]["dtype"] == "bfloat16"
     assert calls["model_load"]["device_map"] == "cuda:0"
+    assert "separate fixed suffix" in calls["messages"][0]["content"][0]["text"]
+
+
+def test_prompt_sanitizer_removes_suffix_duplication_and_unsupported_details() -> None:
+    transcript = "A small red medieval chest with gold decorations."
+    raw_prompt = (
+        "Isolated 3D medieval chest, small size, deep red wood, ornate gold inlay "
+        "decorations, intricate carvings, glossy finish, studio lighting, neutral "
+        "background."
+    )
+
+    result = run_prompt_enhancer.sanitize_subject_prompt(raw_prompt, transcript)
+
+    assert result == (
+        "Medieval chest, small size, deep red wood, gold-colored decorations"
+    )
+
+
+def test_prompt_sanitizer_preserves_3d_and_camera_when_they_are_the_subject() -> None:
+    printer = run_prompt_enhancer.sanitize_subject_prompt(
+        "Isolated 3D printer, red enclosure, two filament spools, studio lighting",
+        "A red 3D printer with two filament spools.",
+    )
+    camera = run_prompt_enhancer.sanitize_subject_prompt(
+        "An isolated 3D asset of a vintage camera, matte black body, front view",
+        "A vintage camera with a matte black body.",
+    )
+
+    assert printer == "3D printer, red enclosure, two filament spools"
+    assert camera == "A vintage camera, matte black body"

@@ -143,9 +143,12 @@ curl --fail \
 The `audio` field accepts WAV, MP3, FLAC, OGG/Vorbis, and M4A/AAC files up to
 10 MiB and 60 seconds. The server validates the actual media with `ffprobe`,
 converts it to mono 16 kHz PCM, detects the spoken language, transcribes it,
-and rewrites the transcript as a concise English asset prompt. A successful
-response includes `transcript`, `transcript_language`, `enhanced_prompt`, and
-timings for all stages in addition to the normal asset fields.
+and rewrites the transcript as a concise English asset prompt. A deterministic
+sanitizer removes invented decorative treatments and any camera, composition,
+lighting, or background clauses already supplied by the fixed downstream
+suffix. A successful response includes `transcript`, `transcript_language`,
+`enhanced_prompt`, and timings for all stages in addition to the normal asset
+fields.
 
 ASR and prompt enrichment run in separate short-lived GPU subprocesses before
 the existing asset pipeline. This keeps the 10 GiB VRAM target but adds model

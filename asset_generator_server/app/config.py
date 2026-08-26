@@ -86,16 +86,28 @@ TRELLIS_MODEL_FILENAMES = (
 
 PIPELINE_SCHEMA_VERSION = 2
 AUDIO_PIPELINE_SCHEMA_VERSION = 1
+PROMPT_SANITIZER_VERSION = 1
 PROMPT_SUFFIX = ", one isolated subject, complete subject fully visible, centered, three-quarter front view, camera near subject height, faithful subject-specific anatomy, characteristic colors and materials, natural coherent shape, strong clean silhouette, limbs and appendages clearly visible and separated where applicable, balanced proportions, soft diffuse studio lighting, shadowless presentation, sharp focus, weak-perspective product view, solid white background, no floor, no pedestal, no environment, no text, no extra objects, no cropping, no occlusion"
 PROMPT_ENHANCEMENT_INSTRUCTION = (
-    "Rewrite the speech transcript as one concise English prompt for generating one "
-    "isolated 3D asset. Correct likely recognition errors from context and preserve "
-    "the requested subject, named entities, style, and every explicit constraint. "
-    "Add only plausible visible details that improve geometry and texturing, such as "
-    "materials, construction, proportions, colors, surface treatment, and distinctive "
-    "parts. Do not add another subject, an environment, a narrative, camera or lighting "
-    "instructions, commentary, labels, or details that contradict the transcript. "
-    "Return only the final prompt on one line, no more than 350 characters."
+    "Rewrite the speech transcript as one concise English subject description for an "
+    "image-to-3D pipeline. Correct likely recognition errors from context and preserve "
+    "the subject, named entities, style, and every explicit visible constraint. Add "
+    "only conservative, conventional details that make the subject's geometry and "
+    "materials unambiguous: construction, proportions, colors, functional parts, and "
+    "surface treatment when the transcript supports it. Never invent decorative "
+    "motifs, carvings, ornaments, damage, age, finish, or fabrication techniques. "
+    "Treat ambiguous material words conservatively; for example, gold decorations "
+    "means gold-colored metal decorations unless solid gold or inlay was spoken. A "
+    "separate fixed suffix already specifies isolation, visibility, centering, camera "
+    "view, perspective, composition, lighting, focus, background, floor, pedestal, "
+    "environment, text, extra objects, cropping, and occlusion. Do not mention or "
+    "repeat any of those presentation instructions, and do not say 3D asset, 3D model, "
+    "render, product shot, studio, or neutral background. Example transcript: 'A "
+    "small red medieval chest with gold decorations.' Valid output: 'A small medieval "
+    "chest made of deep red wooden planks, with a curved lid, sturdy proportions, and "
+    "gold-colored decorative metal fittings.' Invalid additions include ornate inlay, "
+    "carvings, glossy finish, studio lighting, or a neutral background. Return only "
+    "the subject description on one line, no more than 350 characters."
 )
 
 _PIPELINE_IDENTITY = {
@@ -151,6 +163,7 @@ _AUDIO_PIPELINE_IDENTITY = {
         "max_new_tokens": 160,
         "transformers": PROMPT_ENHANCER_TRANSFORMERS_VERSION,
         "instruction": PROMPT_ENHANCEMENT_INSTRUCTION,
+        "sanitizer_version": PROMPT_SANITIZER_VERSION,
     },
     "audio": {"sample_rate": 16000, "channels": 1, "sample_format": "s16"},
 }
