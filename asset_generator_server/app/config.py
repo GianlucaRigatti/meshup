@@ -16,6 +16,13 @@ PROMPT_ENHANCER_MODEL = "qwen3.5-4b"
 DEVICE = "cuda:0"
 OUTPUT_MODE = "pbr_texture"
 
+# Preserve the deterministic sampling namespace used by the archived explicit
+# FLUX.2 Klein + TRELLIS.2 Turbo composition. Cache identity remains governed
+# independently by PIPELINE_VERSION below.
+GENERATION_SEED_VERSION = (
+    "wsl-flux2-klein-9b-q4-k-m-fast--trellis2-turbo-f1bbd4ac8df2ad4c"
+)
+
 STABLE_DIFFUSION_CPP_REPOSITORY = "https://github.com/leejet/stable-diffusion.cpp.git"
 STABLE_DIFFUSION_CPP_REVISION = "97d2990807fe6d558e395f8764198d7c7e7b411c"
 TRELLIS_CPP_REPOSITORY = "https://github.com/pwilkin/trellis.cpp.git"
@@ -101,6 +108,7 @@ _PIPELINE_IDENTITY = {
     "vae": FLUX_VAE_REVISION,
     "background_removal": BIREFNET_MODEL_REVISION,
     "trellis": TRELLIS_MODEL_REVISION,
+    "generation_seed_version": GENERATION_SEED_VERSION,
     "prompt_suffix": PROMPT_SUFFIX,
     "image": {
         "width": 768,

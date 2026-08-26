@@ -14,7 +14,12 @@ from conftest import FakeBackgroundRemover, FakeRunner
 from PIL import Image
 
 from app.background_removal import TorchBiRefNet, prepare_foreground
-from app.config import AUDIO_PIPELINE_VERSION, PROMPT_SUFFIX, Settings
+from app.config import (
+    AUDIO_PIPELINE_VERSION,
+    GENERATION_SEED_VERSION,
+    PROMPT_SUFFIX,
+    Settings,
+)
 from app.pipeline import (
     PNG_SIGNATURE,
     AssetGenerator,
@@ -34,14 +39,15 @@ def test_asset_identity_normalizes_prompt_and_includes_pipeline_version(
 
     assert first.asset_id("  a   red chair ") == first.asset_id("a red chair")
     assert first.asset_id("a red chair") != second.asset_id("a red chair")
-    assert 0 <= first.seed(first.asset_id("a red chair")) < 2**31
+    assert first.generation_seed("  a   red chair ") == 1878854426
+    assert first.generation_seed("a red chair") == 1878854426
 
 
 def test_fixed_commands_are_sequential_and_prompt_is_private(
     generator: tuple[AssetGenerator, FakeRunner],
 ) -> None:
     service, runner = generator
-    asset_id, cached, _ = service.generate("private test object")
+    _asset_id, cached, _ = service.generate("private test object")
 
     assert cached is False
     assert [call[3] for call in runner.calls] == ["FLUX.2 Klein", "TRELLIS.2"]
@@ -64,7 +70,9 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
     assert "--dump-bg" not in trellis
     assert "--box-uv" in trellis
     assert "--require-gpu" in trellis
-    assert trellis[trellis.index("--seed") + 1] == str(service.seed(asset_id))
+    assert trellis[trellis.index("--seed") + 1] == str(
+        service.generation_seed("private test object")
+    )
     assert runner.trellis_input_modes == ["RGBA"]
 
 
@@ -287,6 +295,7 @@ def test_success_creates_three_artifacts_without_storing_prompt(
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     assert metadata["asset_id"] == asset_id
     assert "prompt_hash" in metadata
+    assert metadata["generation_seed_version"] == GENERATION_SEED_VERSION
     assert "prompt" not in metadata
     assert "a confidential object" not in metadata_path.read_text(encoding="utf-8")
     assert metadata["timings"] == timings

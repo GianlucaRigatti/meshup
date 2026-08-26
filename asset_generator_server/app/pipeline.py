@@ -31,6 +31,7 @@ from app.config import (
     FLUX_MODEL_REVISION,
     FLUX_VAE_MODEL_ID,
     FLUX_VAE_REVISION,
+    GENERATION_SEED_VERSION,
     IMAGE_GENERATOR,
     MODEL_3D,
     OUTPUT_MODE,
@@ -291,7 +292,7 @@ class AssetGenerator:
         metadata_extra: dict | None = None,
     ) -> GenerationResult:
         self._remove_artifacts(asset_id)
-        seed = self.seed(asset_id)
+        seed = self.generation_seed(prompt)
         with tempfile.TemporaryDirectory(
             dir=self.output_dir.parent, prefix="asset-generator-"
         ) as temporary_dir:
@@ -360,8 +361,12 @@ class AssetGenerator:
         ).hexdigest()[:32]
 
     @staticmethod
-    def seed(asset_id: str) -> int:
-        return int(asset_id[:16], 16) % (2**31)
+    def generation_seed(prompt: str) -> int:
+        normalized = " ".join(prompt.split())
+        legacy_asset_id = hashlib.sha256(
+            f"{GENERATION_SEED_VERSION}\0{normalized}".encode()
+        ).hexdigest()[:32]
+        return int(legacy_asset_id[:16], 16) % (2**31)
 
     def _validate_installation(self) -> None:
         if not is_wsl():
@@ -617,6 +622,7 @@ class AssetGenerator:
             "asset_id": asset_id,
             "prompt_hash": hashlib.sha256(prompt.encode()).hexdigest(),
             "seed": seed,
+            "generation_seed_version": GENERATION_SEED_VERSION,
             "image_generator": IMAGE_GENERATOR,
             "model_3d": MODEL_3D,
             "background_removal_model": BACKGROUND_REMOVAL_MODEL,
