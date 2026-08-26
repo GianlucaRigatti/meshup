@@ -24,9 +24,7 @@ class FakeRunner:
         self.trellis_input_modes: list[str] = []
         self.transcript = "a small medieval treasure chest"
         self.language = "English"
-        self.enhanced_prompt = (
-            "A compact medieval treasure chest made from dark oak with iron bands"
-        )
+        self.enhanced_prompt = "A small medieval treasure chest"
 
     def __call__(
         self,

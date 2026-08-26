@@ -65,7 +65,7 @@ def test_prompt_enhancer_is_non_thinking_and_deterministic(
 
         def decode(self, tokens, **kwargs):
             calls["decode"] = kwargs
-            return "A detailed oak chair"
+            return "A chair."
 
     class FakeModel:
         device = "cuda:0"
@@ -93,13 +93,14 @@ def test_prompt_enhancer_is_non_thinking_and_deterministic(
 
     result = run_prompt_enhancer.enhance(tmp_path / "model", "a chair")
 
-    assert result == "A detailed oak chair"
+    assert result == "A chair"
     assert calls["template"]["enable_thinking"] is False
     assert calls["generate"]["do_sample"] is False
     assert calls["generate"]["max_new_tokens"] == 160
     assert calls["model_load"]["dtype"] == "bfloat16"
     assert calls["model_load"]["device_map"] == "cuda:0"
     assert "separate fixed suffix" in calls["messages"][0]["content"][0]["text"]
+    assert "Do not add, infer, elaborate" in calls["messages"][0]["content"][0]["text"]
 
 
 def test_prompt_sanitizer_removes_suffix_duplication_and_unsupported_details() -> None:
@@ -112,9 +113,7 @@ def test_prompt_sanitizer_removes_suffix_duplication_and_unsupported_details() -
 
     result = run_prompt_enhancer.sanitize_subject_prompt(raw_prompt, transcript)
 
-    assert result == (
-        "Medieval chest, small size, deep red wood, gold-colored decorations"
-    )
+    assert result == "Medieval chest, small size, deep red wood, gold decorations"
 
 
 def test_prompt_sanitizer_preserves_3d_and_camera_when_they_are_the_subject() -> None:

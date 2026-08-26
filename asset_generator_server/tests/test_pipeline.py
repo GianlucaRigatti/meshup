@@ -129,7 +129,7 @@ def test_audio_pipeline_sanitizes_enhancer_output_before_flux(
 
     result = service.generate_from_audio(audio)
 
-    expected = "Medieval chest, small size, deep red wood, gold-colored decorations"
+    expected = "Medieval chest, small size, deep red wood, gold decorations"
     assert result.enhanced_prompt == expected
     assert runner.prompts == [expected + PROMPT_SUFFIX]
 

@@ -82,15 +82,6 @@ def sanitize_subject_prompt(prompt: str, transcript: str) -> str:
         for pattern, evidence in _UNSUPPORTED_DETAIL_PATTERNS:
             if not any(term in transcript_lower for term in evidence):
                 clause = pattern.sub("", clause)
-        if re.search(
-            r"\bgold(?:en)?\s+decorations?\b", transcript_lower
-        ) and not re.search(r"\b(?:solid\s+gold|inlay|inlaid)\b", transcript_lower):
-            clause = re.sub(
-                r"\bgold(?:en)?\s+(?=(?:decorations?|details?|accents?|trim)\b)",
-                "gold-colored ",
-                clause,
-                flags=re.IGNORECASE,
-            )
         clause = re.sub(r"\s+", " ", clause).strip(" .")
         clause = re.sub(
             r"\b(?:with|and|featuring)\s*$", "", clause, flags=re.IGNORECASE
@@ -100,7 +91,7 @@ def sanitize_subject_prompt(prompt: str, transcript: str) -> str:
 
     result = ", ".join(clauses).strip(" ,.")
     if not result:
-        raise ValueError("Prompt enrichment produced no usable subject description.")
+        raise ValueError("Prompt cleanup produced no usable subject description.")
     return result[0].upper() + result[1:]
 
 
@@ -141,7 +132,7 @@ def enhance(model_path: Path, transcript: str) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run the pinned local Qwen3.5 prompt-enrichment stage."
+        description="Run the pinned local Qwen3.5 prompt-cleanup stage."
     )
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--transcript", type=Path, required=True)

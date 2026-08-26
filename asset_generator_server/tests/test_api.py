@@ -102,7 +102,7 @@ def test_audio_generation_returns_intermediate_text_and_artifacts(
     body = response.json()
     assert body["transcript"] == "a small medieval treasure chest"
     assert body["transcript_language"] == "English"
-    assert body["enhanced_prompt"].startswith("A compact medieval treasure chest")
+    assert body["enhanced_prompt"] == "A small medieval treasure chest"
     assert body["cached"] is False
     assert isinstance(body["audio_preprocessing_time_ms"], int)
     assert isinstance(body["transcription_time_ms"], int)

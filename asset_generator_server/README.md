@@ -2,7 +2,7 @@
 
 This FastAPI service converts a text prompt or a spoken description into a
 textured GLB with a fixed local pipeline. Audio requests first run through
-`qwen3-asr-1.7b` and a `qwen3.5-4b` prompt-enrichment stage; text requests keep
+`qwen3-asr-1.7b` and a `qwen3.5-4b` prompt-cleanup stage; text requests keep
 their original behavior and skip both stages.
 
 - `flux2-klein-9b-q4-k-m-fast` generates a 768×768 source image.
@@ -143,22 +143,25 @@ curl --fail \
 The `audio` field accepts WAV, MP3, FLAC, OGG/Vorbis, and M4A/AAC files up to
 10 MiB and 60 seconds. The server validates the actual media with `ffprobe`,
 converts it to mono 16 kHz PCM, detects the spoken language, transcribes it,
-and rewrites the transcript as a concise English asset prompt. A deterministic
-sanitizer removes invented decorative treatments and any camera, composition,
-lighting, or background clauses already supplied by the fixed downstream
-suffix. A successful response includes `transcript`, `transcript_language`,
-`enhanced_prompt`, and timings for all stages in addition to the normal asset
-fields.
+and cleans the transcript into concise English. The cleanup model corrects only
+clear recognition, grammar, punctuation, and wording errors; it is explicitly
+instructed not to add or infer materials, parts, colors, proportions, finishes,
+decorations, or other subject details. A deterministic sanitizer also removes
+invented decorative treatments and any camera, composition, lighting, or
+background clauses already supplied by the fixed downstream suffix. A
+successful response includes `transcript`, `transcript_language`, the cleaned
+text in the backward-compatible `enhanced_prompt` field, and timings for all
+stages in addition to the normal asset fields.
 
-ASR and prompt enrichment run in separate short-lived GPU subprocesses before
+ASR and prompt cleanup run in separate short-lived GPU subprocesses before
 the existing asset pipeline. This keeps the 10 GiB VRAM target but adds model
 loading latency to every audio request. Both text values are returned only in
 the immediate response; the upload, transcript, and enhanced prompt are deleted
 after the request and never stored in generated-asset metadata.
 
 Audio assets use a separate cache identity containing both Qwen revisions and
-the fixed enrichment policy. A cache lookup happens after transcription and
-enrichment. On a cache hit those two stages still run, while image and mesh
+the fixed cleanup policy. A cache lookup happens after transcription and
+cleanup. On a cache hit those two stages still run, while image and mesh
 generation report zero milliseconds.
 
 ## Artifacts and cache
