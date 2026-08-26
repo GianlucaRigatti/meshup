@@ -143,6 +143,20 @@ def test_audio_identity_does_not_change_text_identity(
     )
 
 
+def test_audio_helpers_use_separate_transformers_runtimes(
+    tmp_path: Path,
+    generator: tuple[AssetGenerator, FakeRunner],
+) -> None:
+    service, _ = generator
+    asr = service._asr_command(tmp_path / "audio.wav", tmp_path / "asr.json")
+    enhancer = service._prompt_enhancement_command(
+        tmp_path / "asr.json", tmp_path / "prompt.txt"
+    )
+
+    assert asr[0] == sys.executable
+    assert enhancer[0] == str(service.settings.prompt_enhancer_python_path.resolve())
+
+
 @pytest.mark.parametrize(
     ("codec", "container"),
     [

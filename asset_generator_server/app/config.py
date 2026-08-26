@@ -57,6 +57,7 @@ ASR_MODEL_FILES = (
 )
 PROMPT_ENHANCER_MODEL_ID = "Qwen/Qwen3.5-4B"
 PROMPT_ENHANCER_MODEL_REVISION = "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+PROMPT_ENHANCER_TRANSFORMERS_VERSION = "5.16.0"
 PROMPT_ENHANCER_MODEL_FILES = (
     "chat_template.jinja",
     "config.json",
@@ -148,6 +149,7 @@ _AUDIO_PIPELINE_IDENTITY = {
         "thinking": False,
         "do_sample": False,
         "max_new_tokens": 160,
+        "transformers": PROMPT_ENHANCER_TRANSFORMERS_VERSION,
         "instruction": PROMPT_ENHANCEMENT_INSTRUCTION,
     },
     "audio": {"sample_rate": 16000, "channels": 1, "sample_format": "s16"},
@@ -278,6 +280,14 @@ class Settings:
         return self.model_cache_dir / "models" / PROMPT_ENHANCER_MODEL
 
     @property
+    def prompt_enhancer_runtime_path(self) -> Path:
+        return self.model_cache_dir / "runtimes" / PROMPT_ENHANCER_MODEL
+
+    @property
+    def prompt_enhancer_python_path(self) -> Path:
+        return self.prompt_enhancer_runtime_path / "bin" / "python"
+
+    @property
     def required_files(self) -> tuple[Path, ...]:
         return (
             self.stable_diffusion_executable_path,
@@ -287,6 +297,8 @@ class Settings:
             self.flux_vae_path,
             self.asr_model_path / ".model-revision",
             self.prompt_enhancer_model_path / ".model-revision",
+            self.prompt_enhancer_python_path,
+            self.prompt_enhancer_runtime_path / ".transformers-version",
             *(self.asr_model_path / name for name in ASR_MODEL_FILES),
             *(
                 self.prompt_enhancer_model_path / name

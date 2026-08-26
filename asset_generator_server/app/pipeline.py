@@ -39,6 +39,7 @@ from app.config import (
     PIPELINE_VERSION,
     PROMPT_ENHANCER_MODEL_ID,
     PROMPT_ENHANCER_MODEL_REVISION,
+    PROMPT_ENHANCER_TRANSFORMERS_VERSION,
     PROMPT_SUFFIX,
     QWEN_MODEL_ID,
     QWEN_MODEL_REVISION,
@@ -51,6 +52,7 @@ from app.config import (
 )
 
 LOGGER = logging.getLogger(__name__)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 CommandRunner = Callable[[list[str], dict[str, str], int, str], None]
 CaptureRunner = Callable[[list[str], int, str], str]
@@ -423,6 +425,10 @@ class AssetGenerator:
             self.settings.prompt_enhancer_model_path / ".model-revision",
             PROMPT_ENHANCER_MODEL_REVISION,
         )
+        _require_marker(
+            self.settings.prompt_enhancer_runtime_path / ".transformers-version",
+            PROMPT_ENHANCER_TRANSFORMERS_VERSION,
+        )
         _check_help(
             self.settings.stable_diffusion_executable_path,
             _runtime_environment(self.settings.stable_diffusion_executable_path.parent),
@@ -431,6 +437,7 @@ class AssetGenerator:
             self.settings.trellis_executable_path,
             _runtime_environment(self.settings.trellis_build_path),
         )
+        _check_prompt_runtime(self.settings.prompt_enhancer_python_path)
 
     def _prepare_audio(self, source: Path, output: Path) -> None:
         try:
@@ -509,7 +516,7 @@ class AssetGenerator:
 
     def _prompt_enhancement_command(self, transcript: Path, output: Path) -> list[str]:
         return [
-            sys.executable,
+            str(self.settings.prompt_enhancer_python_path.resolve()),
             "-m",
             "app.run_prompt_enhancer",
             "--model",
@@ -720,15 +727,34 @@ def _runtime_environment(binary_dir: Path) -> dict[str, str]:
 
 
 def _python_environment() -> dict[str, str]:
+    existing_pythonpath = os.environ.get("PYTHONPATH")
+    pythonpath = str(PROJECT_ROOT)
+    if existing_pythonpath:
+        pythonpath += f":{existing_pythonpath}"
     return {
         **os.environ,
         "HF_HUB_OFFLINE": "1",
         "TRANSFORMERS_OFFLINE": "1",
+        "PYTHONPATH": pythonpath,
     }
 
 
 def _check_help(executable: Path, environment: dict[str, str]) -> None:
     _run_native([str(executable.resolve()), "--help"], environment, 60, executable.name)
+
+
+def _check_prompt_runtime(python: Path) -> None:
+    code = (
+        "import torch, transformers; "
+        f"assert transformers.__version__ == '{PROMPT_ENHANCER_TRANSFORMERS_VERSION}'; "
+        "from transformers import AutoModelForMultimodalLM, AutoProcessor"
+    )
+    _run_native(
+        [str(python.resolve()), "-c", code],
+        _python_environment(),
+        60,
+        "Qwen3.5 Python runtime",
+    )
 
 
 def _require_git_revision(source: Path, expected: str) -> None:

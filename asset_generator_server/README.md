@@ -54,8 +54,12 @@ The installer builds only `sd-cli` and `trellis-cli`, downloads the fixed FLUX
 Q4_K_M components, the full Qwen3-ASR-1.7B and Qwen3.5-4B checkpoints, the full
 BiRefNet-General checkpoint, and the TRELLIS Q4 weights needed by the 512 path.
 The two new checkpoints add roughly 13 GB to the installation. Every revision
-is pinned. Use `MAX_JOBS=1` if WSL is under memory pressure. `--force` replaces
-and rebuilds only the two native source trees; downloaded weights are retained.
+is pinned. Because the official ASR package requires Transformers 4.57.6 while
+Qwen3.5 requires Transformers 5, the installer also creates a small isolated
+Qwen3.5 Python runtime under `.model_sources/runtimes/`. It reuses the project's
+CUDA PyTorch installation rather than installing a second copy. Use
+`MAX_JOBS=1` if WSL is under memory pressure. `--force` replaces and rebuilds
+only the two native source trees; downloaded weights are retained.
 
 Weights and source builds are stored under `.model_sources/` by default. No
 Hugging Face token is required for the pinned repositories.
@@ -200,6 +204,9 @@ model selectors or pipeline profiles.
   memory/swap.
 - If an audio upload is rejected, confirm that `ffmpeg` and `ffprobe` are
   installed and that the file contains one of the documented codecs.
+- If readiness reports a missing or mismatched Qwen3.5 Python runtime, rerun
+  `uv run python scripts/install_models.py --accept-licenses`. Do not install
+  Transformers 5 into the main project environment; Qwen3-ASR pins 4.57.6.
 - Native stderr/stdout tails are logged server-side on failure, while API
   errors remain intentionally generic.
 

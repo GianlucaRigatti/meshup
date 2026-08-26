@@ -4,6 +4,7 @@ import argparse
 import os
 import platform
 import shutil
+import site
 import subprocess
 import sys
 from pathlib import Path
@@ -14,7 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.config import (  # noqa: E402
+from app.config import (
     ASR_MODEL_ID,
     ASR_MODEL_REVISION,
     BIREFNET_MODEL_ID,
@@ -27,6 +28,7 @@ from app.config import (  # noqa: E402
     FLUX_VAE_REVISION,
     PROMPT_ENHANCER_MODEL_ID,
     PROMPT_ENHANCER_MODEL_REVISION,
+    PROMPT_ENHANCER_TRANSFORMERS_VERSION,
     QWEN_MODEL_FILENAME,
     QWEN_MODEL_ID,
     QWEN_MODEL_REVISION,
@@ -80,6 +82,7 @@ def validate_host() -> str:
         "nvidia-smi",
         "ffmpeg",
         "ffprobe",
+        "uv",
     )
     missing = [tool for tool in required if shutil.which(tool) is None]
     if missing:
@@ -291,6 +294,58 @@ def download_models(settings: Settings) -> None:
     )
 
 
+def install_prompt_runtime(settings: Settings) -> None:
+    runtime = settings.prompt_enhancer_runtime_path
+    python = settings.prompt_enhancer_python_path
+    if not python.is_file():
+        runtime.parent.mkdir(parents=True, exist_ok=True)
+        run(
+            [
+                "uv",
+                "venv",
+                "--python",
+                sys.executable,
+                str(runtime.resolve()),
+            ]
+        )
+    run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python.resolve()),
+            f"transformers=={PROMPT_ENHANCER_TRANSFORMERS_VERSION}",
+        ]
+    )
+
+    parent_site = next(
+        (
+            Path(path).resolve()
+            for path in site.getsitepackages()
+            if Path(path).joinpath("torch").is_dir()
+        ),
+        None,
+    )
+    if parent_site is None:
+        raise RuntimeError("Could not locate the project CUDA PyTorch installation.")
+    child_site = Path(
+        run(
+            [
+                str(python.resolve()),
+                "-c",
+                "import site; print(site.getsitepackages()[0])",
+            ]
+        )
+    )
+    child_site.joinpath("asset-generator-project-runtime.pth").write_text(
+        str(parent_site) + "\n", encoding="utf-8"
+    )
+    _write_marker(
+        runtime / ".transformers-version", PROMPT_ENHANCER_TRANSFORMERS_VERSION
+    )
+
+
 def verify_installation(settings: Settings) -> None:
     missing = [path.resolve() for path in settings.required_files if not path.is_file()]
     if not settings.background_removal_model_path.is_dir():
@@ -305,6 +360,22 @@ def verify_installation(settings: Settings) -> None:
         settings.stable_diffusion_executable_path.parent,
     )
     _run_help(settings.trellis_executable_path, settings.trellis_build_path)
+    _verify_prompt_runtime(settings.prompt_enhancer_python_path)
+
+
+def _verify_prompt_runtime(python: Path) -> None:
+    run(
+        [
+            str(python.resolve()),
+            "-c",
+            (
+                "import torch, transformers; "
+                f"assert transformers.__version__ == "
+                f"'{PROMPT_ENHANCER_TRANSFORMERS_VERSION}'; "
+                "from transformers import AutoModelForMultimodalLM, AutoProcessor"
+            ),
+        ]
+    )
 
 
 def install(settings: Settings, *, force: bool) -> None:
@@ -344,6 +415,7 @@ def install(settings: Settings, *, force: bool) -> None:
         "trellis-cli",
         force=force,
     )
+    install_prompt_runtime(settings)
     download_models(settings)
     verify_installation(settings)
 

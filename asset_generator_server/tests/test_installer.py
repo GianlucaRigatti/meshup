@@ -12,6 +12,7 @@ from app.config import (
     FLUX_MODEL_ID,
     FLUX_VAE_FILENAME,
     PROMPT_ENHANCER_MODEL_ID,
+    PROMPT_ENHANCER_TRANSFORMERS_VERSION,
     QWEN_MODEL_FILENAME,
     STABLE_DIFFUSION_CPP_REPOSITORY,
     TRELLIS_CPP_REPOSITORY,
@@ -122,6 +123,7 @@ def test_install_dispatches_only_two_pinned_runtimes(
 
     monkeypatch.setattr(install_models, "build_runtime", fake_build)
     monkeypatch.setattr(install_models, "download_models", lambda settings: None)
+    monkeypatch.setattr(install_models, "install_prompt_runtime", lambda settings: None)
     monkeypatch.setattr(install_models, "verify_installation", lambda settings: None)
 
     install_models.install(settings, force=False)
@@ -164,6 +166,48 @@ def test_build_reuses_matching_runtime(tmp_path: Path, monkeypatch) -> None:
     )
 
 
+def test_prompt_runtime_installs_transformers_5_and_reuses_project_torch(
+    tmp_path: Path, monkeypatch
+) -> None:
+    settings = Settings(model_cache_dir=tmp_path / "cache")
+    parent_site = tmp_path / "project-site"
+    parent_site.joinpath("torch").mkdir(parents=True)
+    child_site = tmp_path / "prompt-site"
+    child_site.mkdir()
+    commands: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        if command[:2] == ["uv", "venv"]:
+            settings.prompt_enhancer_python_path.parent.mkdir(parents=True)
+            settings.prompt_enhancer_python_path.write_bytes(b"python")
+        if command[0] == str(settings.prompt_enhancer_python_path.resolve()):
+            return str(child_site)
+        return ""
+
+    monkeypatch.setattr(install_models, "run", fake_run)
+    monkeypatch.setattr(
+        install_models.site, "getsitepackages", lambda: [str(parent_site)]
+    )
+
+    install_models.install_prompt_runtime(settings)
+
+    assert any(
+        command[:3] == ["uv", "pip", "install"]
+        and f"transformers=={PROMPT_ENHANCER_TRANSFORMERS_VERSION}" in command
+        for command in commands
+    )
+    assert child_site.joinpath("asset-generator-project-runtime.pth").read_text(
+        encoding="utf-8"
+    ).strip() == str(parent_site.resolve())
+    assert (
+        settings.prompt_enhancer_runtime_path.joinpath(".transformers-version")
+        .read_text(encoding="utf-8")
+        .strip()
+        == PROMPT_ENHANCER_TRANSFORMERS_VERSION
+    )
+
+
 def test_readiness_detects_revision_marker_mismatch(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -199,6 +243,7 @@ def test_verification_detects_missing_required_weight(
         path.write_bytes(b"file")
     settings.background_removal_model_path.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(install_models, "_run_help", lambda *args: None)
+    monkeypatch.setattr(install_models, "_verify_prompt_runtime", lambda *args: None)
 
     with pytest.raises(RuntimeError, match="required files"):
         install_models.verify_installation(settings)
@@ -214,6 +259,7 @@ def test_verification_detects_missing_asr_shard(tmp_path: Path, monkeypatch) -> 
         path.write_bytes(b"file")
     settings.background_removal_model_path.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(install_models, "_run_help", lambda *args: None)
+    monkeypatch.setattr(install_models, "_verify_prompt_runtime", lambda *args: None)
 
     with pytest.raises(RuntimeError, match=str(missing.resolve())):
         install_models.verify_installation(settings)
