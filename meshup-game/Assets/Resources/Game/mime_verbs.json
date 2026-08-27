@@ -1,0 +1,36 @@
+{
+  "verbs": [
+    "walk", "run", "jog", "jump", "hop", "skip", "climb", "hike", "swim", "dive",
+    "float", "surf", "ski", "skate", "cycle", "ride", "drive", "fly", "sail", "row",
+    "fall", "trip", "crawl", "hide", "escape", "chase", "follow", "carry", "drag", "push",
+    "pull", "lift", "throw", "catch", "kick", "punch", "hit", "shoot", "aim", "fight",
+    "stand", "sit", "bend", "stretch", "turn", "spin", "roll", "shake", "wave", "point",
+    "smile", "laugh", "cry", "shout", "whisper", "sing", "whistle", "clap", "cheer", "dance",
+    "sleep", "wake", "dream", "snore", "yawn", "eat", "drink", "bite", "chew", "swallow",
+    "cook", "bake", "fry", "boil", "grill", "mix", "stir", "pour", "cut", "chop",
+    "peel", "wash", "clean", "brush", "comb", "shave", "shower", "dress", "button", "zip",
+    "fold", "iron", "sew", "paint", "draw", "write", "read", "type", "text", "phone",
+    "photograph", "film", "play", "build", "fix", "repair", "dig", "plant", "water", "grow",
+    "feed", "fish", "hunt", "pick", "collect", "open", "close", "lock", "unlock", "pack",
+    "unpack", "load", "unload", "buy", "sell", "shop", "pay", "steal", "rob", "give",
+    "take", "bring", "borrow", "serve", "teach", "study", "count", "measure", "weigh", "calculate",
+    "work", "help", "rescue", "save", "search", "find", "discover", "look", "listen", "watch",
+    "talk", "ask", "answer", "call", "greet", "hug", "kiss", "tickle", "pray", "celebrate",
+    "marry", "propose", "apologize", "argue", "beg", "complain", "order", "arrest", "act", "high-five",
+    "camp", "exercise", "race", "golf", "bowl", "skateboard", "snowboard", "parachute", "box", "bounce",
+    "cough", "sneeze", "scream", "frown", "nod", "wink", "shrug", "stare", "smell", "taste",
+    "hammer", "drill", "saw", "sweep", "vacuum", "mop", "rake", "shovel", "wrap", "break"
+  ],
+  "adjectives": [
+    "happy", "sad", "angry", "afraid", "surprised", "bored", "excited", "tired", "sleepy", "hungry",
+    "thirsty", "sick", "worried", "nervous", "calm", "proud", "shy", "lonely", "confused", "embarrassed",
+    "big", "small", "tall", "short", "long", "wide", "narrow", "thick", "thin", "huge",
+    "heavy", "light", "strong", "weak", "fast", "slow", "old", "young", "new", "broken",
+    "clean", "dirty", "full", "empty", "open", "closed", "hot", "cold", "warm", "cool",
+    "wet", "dry", "soft", "hard", "smooth", "rough", "sharp", "noisy", "quiet", "bright",
+    "dark", "beautiful", "ugly", "pretty", "handsome", "cute", "scary", "funny", "serious", "strange",
+    "normal", "rich", "poor", "busy", "free", "early", "late", "lost", "safe", "dangerous",
+    "careful", "careless", "kind", "mean", "polite", "rude", "friendly", "honest", "brave", "lazy",
+    "clever", "stupid", "alive", "dead", "awake", "asleep", "round", "square", "flat", "straight"
+  ]
+}
