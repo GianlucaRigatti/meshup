@@ -34,7 +34,7 @@ public class NVBoids : MonoBehaviour
 
     [Header("Bird Settings")]
     public GameObject birdPref;
-    [Range(1, 9999)] public int birdsNum = 10;
+    [Range(1, 9999)] public int birdsNum = 1;
     [Range(0, 150)] public float birdSpeed = 0.5f;
     [Range(0, 100)] public int fragmentedBirds = 10;
     [Range(0, 1)] public float fragmentedBirdsYLimit = 1;
