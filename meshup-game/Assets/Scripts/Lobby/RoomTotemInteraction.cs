@@ -9,6 +9,9 @@ namespace Meshup.Lobby
         [SerializeField] private RoomTotemPanel panel;
 
         private LobbyFirstPersonController playerInRange;
+        private bool interactionAvailable = true;
+
+        public bool InteractionAvailable => interactionAvailable;
 
         private void Awake()
         {
@@ -17,11 +20,20 @@ namespace Meshup.Lobby
 
         private void Update()
         {
-            var canInteract = playerInRange != null && !panel.IsOpen;
+            var canInteract = interactionAvailable && playerInRange != null && !panel.IsOpen;
             interactionPrompt.SetActive(canInteract);
             if (canInteract && Input.GetKeyDown(KeyCode.E))
             {
                 panel.Open(playerInRange);
+                interactionPrompt.SetActive(false);
+            }
+        }
+
+        public void SetInteractionAvailable(bool available)
+        {
+            interactionAvailable = available;
+            if (!available && interactionPrompt != null)
+            {
                 interactionPrompt.SetActive(false);
             }
         }

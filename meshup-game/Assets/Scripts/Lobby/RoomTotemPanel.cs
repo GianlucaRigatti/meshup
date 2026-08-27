@@ -7,8 +7,22 @@ namespace Meshup.Lobby
 {
     public sealed class RoomTotemPanel : MonoBehaviour
     {
+        private static readonly string[] RoomNameAdjectives =
+        {
+            "Amber", "Brave", "Bright", "Calm", "Clever", "Cozy",
+            "Gentle", "Golden", "Happy", "Lucky", "Moonlit", "Quiet",
+            "Silver", "Sunny", "Tiny", "Velvet"
+        };
+
+        private static readonly string[] RoomNameNouns =
+        {
+            "Badger", "Bear", "Comet", "Dragon", "Fox", "Lantern",
+            "Otter", "Owl", "Rabbit", "Rocket", "Sparrow", "Star",
+            "Tiger", "Whale", "Willow", "Wren"
+        };
+
         [SerializeField] private GameObject panelRoot;
-        [SerializeField] private InputField roomNameInput;
+        [SerializeField] private Text roomNameText;
         [SerializeField] private Button createButton;
         [SerializeField] private Button refreshButton;
         [SerializeField] private Button closeButton;
@@ -17,6 +31,8 @@ namespace Meshup.Lobby
         [SerializeField] private Text statusText;
         [SerializeField] private GameObject noRoomsMessage;
         [SerializeField] private float refreshInterval = 2f;
+        [SerializeField] private bool allowClose = true;
+        [SerializeField] private bool lockPlayerInputWhenOpen = true;
 
         private readonly List<RoomListItemView> spawnedItems = new();
         private UbiqRoomSession session;
@@ -24,13 +40,23 @@ namespace Meshup.Lobby
         private float nextRefreshTime;
 
         public bool IsOpen => panelRoot != null && panelRoot.activeSelf;
+        public string GeneratedRoomName => roomNameText != null ? roomNameText.text : string.Empty;
 
         private void Awake()
         {
-            transform.localScale = Vector3.one;
+            var canvas = GetComponent<Canvas>();
+            if (canvas == null || canvas.renderMode != RenderMode.WorldSpace)
+            {
+                transform.localScale = Vector3.one;
+            }
             createButton.onClick.AddListener(CreateRoom);
             refreshButton.onClick.AddListener(RefreshRooms);
-            closeButton.onClick.AddListener(Close);
+            roomNameText.text = GenerateRoomName();
+            closeButton.gameObject.SetActive(allowClose);
+            if (allowClose)
+            {
+                closeButton.onClick.AddListener(Close);
+            }
             panelRoot.SetActive(false);
             roomListItemTemplate.gameObject.SetActive(false);
         }
@@ -42,7 +68,7 @@ namespace Meshup.Lobby
                 return;
             }
 
-            if (Input.GetKeyDown(KeyCode.Escape) && !IsBusy())
+            if (allowClose && Input.GetKeyDown(KeyCode.Escape) && !IsBusy())
             {
                 Close();
                 return;
@@ -65,7 +91,10 @@ namespace Meshup.Lobby
             }
 
             player = lobbyPlayer;
-            player?.SetInputEnabled(false);
+            if (lockPlayerInputWhenOpen)
+            {
+                player?.SetInputEnabled(false);
+            }
             panelRoot.SetActive(true);
             BindSession();
             nextRefreshTime = Time.unscaledTime + refreshInterval;
@@ -82,14 +111,17 @@ namespace Meshup.Lobby
 
         public void Close()
         {
-            if (!IsOpen || IsBusy())
+            if (!allowClose || !IsOpen || IsBusy())
             {
                 return;
             }
 
             UnbindSession();
             panelRoot.SetActive(false);
-            player?.SetInputEnabled(true);
+            if (lockPlayerInputWhenOpen)
+            {
+                player?.SetInputEnabled(true);
+            }
             player = null;
         }
 
@@ -101,7 +133,14 @@ namespace Meshup.Lobby
                 return;
             }
 
-            session.CreateRoom(roomNameInput.text);
+            session.CreateRoom(roomNameText.text);
+        }
+
+        private static string GenerateRoomName()
+        {
+            var adjective = RoomNameAdjectives[Random.Range(0, RoomNameAdjectives.Length)];
+            var noun = RoomNameNouns[Random.Range(0, RoomNameNouns.Length)];
+            return $"{adjective} {noun}";
         }
 
         private void RefreshRooms()
@@ -155,7 +194,6 @@ namespace Meshup.Lobby
             createButton.interactable = browsing;
             refreshButton.interactable = browsing || state == RoomSessionState.Error;
             closeButton.interactable = !IsBusy(state);
-            roomNameInput.interactable = browsing;
             foreach (var item in spawnedItems)
             {
                 item.SetInteractable(browsing);
@@ -165,9 +203,9 @@ namespace Meshup.Lobby
             {
                 RoomSessionState.Connecting => "Connecting to the room service…",
                 RoomSessionState.LobbyReady => string.IsNullOrEmpty(session?.LastError)
-                    ? "Choose a room or create a new one."
+                    ? string.Empty
                     : session.LastError,
-                RoomSessionState.Discovering => "Refreshing rooms…",
+                RoomSessionState.Discovering => string.Empty,
                 RoomSessionState.Joining => "Joining room…",
                 RoomSessionState.Publishing => "Publishing room…",
                 RoomSessionState.LoadingGame => "Loading game…",
@@ -247,7 +285,10 @@ namespace Meshup.Lobby
             UnbindSession();
             createButton?.onClick.RemoveListener(CreateRoom);
             refreshButton?.onClick.RemoveListener(RefreshRooms);
-            closeButton?.onClick.RemoveListener(Close);
+            if (allowClose)
+            {
+                closeButton?.onClick.RemoveListener(Close);
+            }
         }
     }
 }
