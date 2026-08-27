@@ -17,6 +17,10 @@
 
 ## Bedroom Scene
 
+### Kenney
+
+- [Furniture Kit (CC0)](https://kenney.nl/assets/furniture-kit) — selected low-poly models used by the local lobby bedroom.
+
 ### Unity Asset Store
 
 - [Apartment Kit](https://assetstore.unity.com/packages/3d/environments/apartment-kit-124055)
