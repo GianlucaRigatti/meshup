@@ -8,6 +8,7 @@ namespace Meshup.Game
     {
         [SerializeField] private GameObject panelRoot;
         [SerializeField] private Behaviour playerMovement;
+        [SerializeField] private PlayerMovementAuthority movementAuthority;
         [SerializeField] private Button resumeButton;
         [SerializeField] private Button leaveButton;
         [SerializeField] private Text statusText;
@@ -47,6 +48,7 @@ namespace Meshup.Game
         public void Open()
         {
             panelRoot.SetActive(true);
+            movementAuthority?.SetLock(MovementLockReason.PauseMenu, true);
             if (playerMovement != null)
             {
                 playerMovement.enabled = false;
@@ -66,8 +68,14 @@ namespace Meshup.Game
             {
                 playerMovement.enabled = true;
             }
+            movementAuthority?.SetLock(MovementLockReason.PauseMenu, false);
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
+        }
+
+        public void SetMovementAuthority(PlayerMovementAuthority authority)
+        {
+            movementAuthority = authority;
         }
 
         private void LeaveRoom()

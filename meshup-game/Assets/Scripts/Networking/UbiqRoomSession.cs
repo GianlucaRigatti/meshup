@@ -52,6 +52,8 @@ namespace Meshup.Multiplayer
         private const string ApplicationProperty = "meshup.application";
         private const string ProtocolProperty = "meshup.protocol";
         private const string SceneProperty = "meshup.scene";
+        private const string CreatorProperty = "meshup.creator";
+        private const string GameStartedProperty = "meshup.game.started";
 
         private enum PendingOperation
         {
@@ -98,10 +100,19 @@ namespace Meshup.Multiplayer
         public IReadOnlyList<RoomListing> Rooms => readOnlyRooms ??= rooms.AsReadOnly();
         public RoomListing CurrentRoom { get; private set; }
         public string LastError { get; private set; } = string.Empty;
+        public string LocalPeerId => roomClient?.Me?.uuid ?? string.Empty;
+        public string CreatorPeerId => roomClient?.Room?[CreatorProperty] ?? string.Empty;
+        public bool IsRoomCreator => !string.IsNullOrEmpty(LocalPeerId)
+            && string.Equals(LocalPeerId, CreatorPeerId, StringComparison.Ordinal);
+        public bool GameStarted => IsGameStarted(roomClient?.Room);
+        public int ParticipantCount => (string.IsNullOrEmpty(LocalPeerId) ? 0 : 1)
+            + (roomClient?.Peers?.Count(peer =>
+                !string.IsNullOrEmpty(peer.uuid)) ?? 0);
 
         public event Action<RoomSessionState> StateChanged;
         public event Action<IReadOnlyList<RoomListing>> RoomsChanged;
         public event Action<string> ErrorOccurred;
+        public event Action ParticipantsChanged;
 
         private void Reset()
         {
@@ -287,6 +298,8 @@ namespace Meshup.Multiplayer
             roomClient.OnRoomUpdated.AddListener(HandleRoomUpdated);
             roomClient.OnJoinRejected.AddListener(HandleJoinRejected);
             roomClient.OnRooms.AddListener(HandleRoomsDiscovered);
+            roomClient.OnPeerAdded.AddListener(HandlePeerChanged);
+            roomClient.OnPeerRemoved.AddListener(HandlePeerChanged);
             subscribed = true;
         }
 
@@ -313,7 +326,39 @@ namespace Meshup.Multiplayer
             roomClient.OnRoomUpdated.RemoveListener(HandleRoomUpdated);
             roomClient.OnJoinRejected.RemoveListener(HandleJoinRejected);
             roomClient.OnRooms.RemoveListener(HandleRoomsDiscovered);
+            roomClient.OnPeerAdded.RemoveListener(HandlePeerChanged);
+            roomClient.OnPeerRemoved.RemoveListener(HandlePeerChanged);
             subscribed = false;
+        }
+
+        public IReadOnlyList<string> GetParticipantIds()
+        {
+            var result = new List<string>();
+            if (!string.IsNullOrEmpty(LocalPeerId))
+            {
+                result.Add(LocalPeerId);
+            }
+
+            if (roomClient != null)
+            {
+                result.AddRange(roomClient.Peers
+                    .Select(peer => peer.uuid)
+                    .Where(uuid => !string.IsNullOrEmpty(uuid)));
+            }
+
+            result.Sort(StringComparer.Ordinal);
+            return result;
+        }
+
+        public bool TrySetGameStarted(bool started)
+        {
+            if (roomClient?.Room == null || !IsRoomCreator)
+            {
+                return false;
+            }
+
+            roomClient.Room[GameStartedProperty] = started ? "true" : "false";
+            return true;
         }
 
         private void BeginPrivateRoom(PendingOperation operation)
@@ -363,6 +408,8 @@ namespace Meshup.Multiplayer
                         room[ApplicationProperty] = applicationId;
                         room[ProtocolProperty] = protocolVersion.ToString();
                         room[SceneProperty] = gameSceneName;
+                        room[CreatorProperty] = LocalPeerId;
+                        room[GameStartedProperty] = "false";
                         CurrentRoom = RoomListing.FromRoom(room);
                         SetState(RoomSessionState.Publishing);
                         var version = BeginTimeout();
@@ -380,6 +427,12 @@ namespace Meshup.Multiplayer
                             return;
                         }
 
+                        if (IsGameStarted(room))
+                        {
+                            BeginRecovery("That game has already started.");
+                            return;
+                        }
+
                         CurrentRoom = RoomListing.FromRoom(room);
                         StartCoroutine(LoadScene(gameSceneName, true));
                     }
@@ -389,6 +442,13 @@ namespace Meshup.Multiplayer
 
         private void HandleRoomUpdated(IRoom room)
         {
+            if (room != null && CurrentRoom != null
+                && string.Equals(room.UUID, CurrentRoom.Uuid,
+                    StringComparison.Ordinal))
+            {
+                CurrentRoom = RoomListing.FromRoom(room);
+            }
+
             if (pendingOperation != PendingOperation.Create
                 || State != RoomSessionState.Publishing
                 || room == null
@@ -455,7 +515,8 @@ namespace Meshup.Multiplayer
             operationVersion++;
             rooms.Clear();
             rooms.AddRange((discovered ?? new List<IRoom>())
-                .Where(room => room.Publish && IsCompatible(room))
+                .Where(room => room.Publish && IsCompatible(room)
+                    && !IsGameStarted(room))
                 .Select(RoomListing.FromRoom)
                 .OrderBy(room => room.Name, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(room => room.Uuid, StringComparer.Ordinal));
@@ -472,6 +533,22 @@ namespace Meshup.Multiplayer
                     StringComparison.Ordinal)
                 && string.Equals(room[SceneProperty], gameSceneName,
                     StringComparison.Ordinal);
+        }
+
+        private static bool IsGameStarted(IRoom room)
+        {
+            return room != null && IsStartedValue(room[GameStartedProperty]);
+        }
+
+        public static bool IsStartedValue(string value)
+        {
+            return string.Equals(value, "true",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void HandlePeerChanged(IPeer peer)
+        {
+            ParticipantsChanged?.Invoke();
         }
 
         private bool MatchesPendingRoom(IRoom room)
