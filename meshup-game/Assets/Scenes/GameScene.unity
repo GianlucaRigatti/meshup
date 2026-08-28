@@ -48243,7 +48243,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1601976250}
   - component: {fileID: 1601976249}
-  - component: {fileID: 1601976251}
   m_Layer: 0
   m_Name: FishFlockController
   m_TagString: Untagged
@@ -48260,37 +48259,33 @@ MonoBehaviour:
   m_GameObject: {fileID: 1601976248}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6fa35b9623162614881082335023629b, type: 3}
+  m_Script: {fileID: 11500000, guid: c370144a94c34f6a8c7f4c8af87fd950, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::NVBoids
-  behavioralCh: {x: 5, y: 15}
-  debug: 0
-  flockNum: 10
-  fragmentedFlock: 20
-  fragmentedFlockYLimit: 0.5
-  migrationFrequency: 0.1
-  posChangeFrequency: 0.5
-  smoothChFrequency: 0.5
-  birdPref: {fileID: 1580932747654474777, guid: 2388ff57ee0833e4dbe8d625b77125ca, type: 3}
-  birdsNum: 1
-  birdSpeed: 0.5
-  fragmentedBirds: 10
-  fragmentedBirdsYLimit: 1
-  soaring: 0.5
-  verticalWawe: 20
-  rotationClamp: 0
-  rotationClampValue: 50
-  scaleRandom: {x: 1, y: 1.5}
-  danger: 1
-  dangerRadius: 1
-  dangerSpeed: 1.5
-  dangerSoaring: 0.5
-  dangerLayer:
-    serializedVersion: 2
-    m_Bits: 0
-  HelpURL: nvjob.github.io/unity/nvjob-boids
-  ReportAProblem: nvjob.github.io/support
-  Patrons: nvjob.github.io/patrons
+  m_EditorClassIdentifier: Assembly-CSharp::FishSchoolController
+  fishCount: 150
+  fishPrefab: {fileID: 8128668236925612103, guid: e95f488055cc5ce4da4cbafe79d33a33, type: 3}
+  fishScaleRange: {x: 1, y: 1.35}
+  modelRotationOffset: {x: 0, y: 0, z: 0}
+  minimumSpeed: 1.2
+  maximumSpeed: 2.8
+  maximumSteering: 3.5
+  rotationResponsiveness: 4
+  wanderStrength: 0.35
+  wanderFrequency: 0.25
+  neighborDistance: 7
+  separationDistance: 1.5
+  alignmentWeight: 1.15
+  cohesionWeight: 0.8
+  separationWeight: 2.4
+  swimVolumeCenter: {x: 25, y: 0, z: 20}
+  swimVolumeSize: {x: 85, y: 16, z: 80}
+  forbiddenVolumeCenter: {x: 58.1, y: -3.29, z: 34.1}
+  forbiddenVolumeSize: {x: 20, y: 10, z: 20}
+  forbiddenSafetyMargin: 2
+  boundaryLookAhead: 4
+  boundaryWeight: 4.5
+  fishRadius: 0.4
+  drawVolumeGizmos: 0
 --- !u!4 &1601976250
 Transform:
   m_ObjectHideFlags: 0
@@ -48306,27 +48301,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &1601976251
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1601976248}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &1602188425
 GameObject:
   m_ObjectHideFlags: 0
