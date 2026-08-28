@@ -19,6 +19,14 @@ namespace Meshup.EditorTools
         private const string ModelFolder = "Assets/ThirdParty/KenneyFurnitureKit/Models";
 
         private static readonly Dictionary<string, Material> MaterialCache = new();
+        private static readonly (string Collider, string Model)[] FurnitureColliderPairs =
+        {
+            ("Bed Collision", "Kenney Child Bed"),
+            ("Bedside Collision", "Kenney Bedside Table"),
+            ("Desk Collision", "Kenney Drawing Desk"),
+            ("Bookcase Collision", "Kenney Bookcase"),
+            ("Toy Box Collision", "Kenney Toy Box")
+        };
 
         [MenuItem("Meshup/Lobby/Build Cozy Bedroom")]
         public static void BuildLobby()
@@ -151,6 +159,16 @@ namespace Meshup.EditorTools
             if (importedModels < 10)
             {
                 throw new InvalidOperationException("Expected bedroom furniture was not created.");
+            }
+
+            foreach (var pair in FurnitureColliderPairs)
+            {
+                var colliderPosition = FindTransform(environment.transform, pair.Collider).position;
+                var modelCenter = CalculateBounds(FindTransform(environment.transform, pair.Model).gameObject).center;
+                if (Vector3.Distance(colliderPosition, modelCenter) > 0.001f)
+                {
+                    throw new InvalidOperationException($"{pair.Collider} is not aligned with {pair.Model}.");
+                }
             }
 
             Debug.Log($"Lobby validation passed with {importedModels} imported model renderers.");
@@ -433,6 +451,29 @@ namespace Meshup.EditorTools
             CreateCollider("Desk Collision", collisions, new Vector3(2.6f, 0.42f, 1.43f), new Vector3(0.75f, 0.84f, 1.65f));
             CreateCollider("Bookcase Collision", collisions, new Vector3(3.02f, 0.94f, -0.63f), new Vector3(0.5f, 1.88f, 1.05f));
             CreateCollider("Toy Box Collision", collisions, new Vector3(2.72f, 0.25f, -1.75f), new Vector3(0.7f, 0.5f, 0.7f));
+
+            SyncFurnitureColliderPositions(root);
+        }
+
+        [MenuItem("Meshup/Lobby/Sync Furniture Colliders")]
+        public static void SyncFurnitureColliders()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var environment = RequireRoot(scene, EnvironmentName);
+            SyncFurnitureColliderPositions(environment.transform);
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene, ScenePath);
+            Debug.Log("Lobby furniture colliders aligned with their rendered objects.");
+        }
+
+        private static void SyncFurnitureColliderPositions(Transform environment)
+        {
+            foreach (var pair in FurnitureColliderPairs)
+            {
+                var collider = FindTransform(environment, pair.Collider);
+                var model = FindTransform(environment, pair.Model);
+                collider.position = CalculateBounds(model.gameObject).center;
+            }
         }
 
         private static void BuildChildDetails(Transform root)
@@ -910,6 +951,13 @@ namespace Meshup.EditorTools
         private static GameObject FindRoot(Scene scene, string name)
         {
             return scene.GetRootGameObjects().FirstOrDefault(root => root.name == name);
+        }
+
+        private static Transform FindTransform(Transform root, string name)
+        {
+            return root.GetComponentsInChildren<Transform>(true)
+                       .FirstOrDefault(item => item.name == name)
+                   ?? throw new InvalidOperationException($"Required bedroom object was not found: {name}");
         }
 
         private static void DeleteRoot(Scene scene, string name)
