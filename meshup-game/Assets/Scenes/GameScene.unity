@@ -48279,8 +48279,8 @@ MonoBehaviour:
   separationWeight: 2.4
   swimVolumeCenter: {x: 25, y: 0, z: 20}
   swimVolumeSize: {x: 85, y: 16, z: 80}
-  forbiddenVolumeCenter: {x: 23.02, y: -3.29, z: 21.71}
-  forbiddenVolumeSize: {x: 37.02, y: 10, z: 35.74}
+  forbiddenVolumeCenter: {x: 23.02, y: 0, z: 21.71}
+  forbiddenVolumeSize: {x: 37.02, y: 16, z: 35.74}
   forbiddenSafetyMargin: 2
   boundaryLookAhead: 4
   boundaryWeight: 4.5

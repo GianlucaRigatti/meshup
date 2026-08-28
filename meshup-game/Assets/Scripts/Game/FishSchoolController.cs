@@ -27,8 +27,9 @@ public sealed class FishSchoolController : MonoBehaviour
     [Header("Volumes (local space)")]
     [SerializeField] private Vector3 swimVolumeCenter = new Vector3(25f, 0f, 20f);
     [SerializeField] private Vector3 swimVolumeSize = new Vector3(85f, 16f, 80f);
-    [SerializeField] private Vector3 forbiddenVolumeCenter = new Vector3(23.02f, -3.29f, 21.71f);
-    [SerializeField] private Vector3 forbiddenVolumeSize = new Vector3(37.02f, 10f, 35.74f);
+    [Tooltip("The X/Z footprint to keep clear. Its height always spans the complete swim volume.")]
+    [SerializeField] private Vector3 forbiddenVolumeCenter = new Vector3(23.02f, 0f, 21.71f);
+    [SerializeField] private Vector3 forbiddenVolumeSize = new Vector3(37.02f, 16f, 35.74f);
     [SerializeField, Min(0f)] private float forbiddenSafetyMargin = 2f;
     [SerializeField, Min(0.01f)] private float boundaryLookAhead = 4f;
     [SerializeField, Min(0f)] private float boundaryWeight = 4.5f;
@@ -305,7 +306,13 @@ public sealed class FishSchoolController : MonoBehaviour
 
     private Bounds GetForbiddenBounds()
     {
-        Bounds bounds = new Bounds(forbiddenVolumeCenter, PositiveSize(forbiddenVolumeSize));
+        Vector3 center = forbiddenVolumeCenter;
+        center.y = swimVolumeCenter.y;
+
+        Vector3 size = PositiveSize(forbiddenVolumeSize);
+        size.y = PositiveSize(swimVolumeSize).y;
+
+        Bounds bounds = new Bounds(center, size);
         bounds.Expand((forbiddenSafetyMargin + fishRadius) * 2f);
         return bounds;
     }
@@ -359,7 +366,8 @@ public sealed class FishSchoolController : MonoBehaviour
         Gizmos.color = new Color(0f, 0.8f, 1f, 0.8f);
         Gizmos.DrawWireCube(swimVolumeCenter, PositiveSize(swimVolumeSize));
         Gizmos.color = new Color(1f, 0.2f, 0.1f, 0.8f);
-        Gizmos.DrawWireCube(forbiddenVolumeCenter, PositiveSize(forbiddenVolumeSize) + Vector3.one * forbiddenSafetyMargin * 2f);
+        Bounds forbiddenBounds = GetForbiddenBounds();
+        Gizmos.DrawWireCube(forbiddenBounds.center, forbiddenBounds.size);
         Gizmos.matrix = oldMatrix;
     }
 }
