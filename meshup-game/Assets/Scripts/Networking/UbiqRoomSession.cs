@@ -6,6 +6,7 @@ using Ubiq.Avatars;
 using Ubiq.Rooms;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UbiqAvatar = Ubiq.Avatars.Avatar;
 
 namespace Meshup.Multiplayer
 {
@@ -82,7 +83,9 @@ namespace Meshup.Multiplayer
         [SerializeField] private float metadataTimeout = 10f;
 
         private readonly List<RoomListing> rooms = new();
+        private readonly Dictionary<Renderer, bool> hiddenAvatarRenderers = new();
         private IReadOnlyList<RoomListing> readOnlyRooms;
+        private GameObject gameAvatarPrefab;
         private PendingOperation pendingOperation;
         private RoomListing pendingRoom;
         private string pendingRoomName = string.Empty;
@@ -122,7 +125,20 @@ namespace Meshup.Multiplayer
 
             if (avatarManager != null)
             {
-                avatarManager.gameObject.SetActive(false);
+                // NetworkSpawner is created by AvatarManager.Start and must remain
+                // subscribed while a room is joined. Disabling this object until
+                // GameScene can lose PeerAdded/PeerUpdated events for peers that
+                // were already in the room.
+                avatarManager.gameObject.SetActive(true);
+                gameAvatarPrefab = avatarManager.avatarPrefab;
+                avatarManager.OnAvatarCreated.AddListener(HandleAvatarCreated);
+                avatarManager.OnAvatarDestroyed.AddListener(HandleAvatarDestroyed);
+
+                if (SceneManager.GetActiveScene().name != gameSceneName)
+                {
+                    avatarManager.avatarPrefab = null;
+                    SetAvatarPresentationVisible(false);
+                }
             }
         }
 
@@ -155,6 +171,11 @@ namespace Meshup.Multiplayer
 
             Unsubscribe();
             SceneManager.sceneLoaded -= HandleSceneLoaded;
+            if (avatarManager != null)
+            {
+                avatarManager.OnAvatarCreated.RemoveListener(HandleAvatarCreated);
+                avatarManager.OnAvatarDestroyed.RemoveListener(HandleAvatarDestroyed);
+            }
             Instance = null;
         }
 
@@ -643,6 +664,8 @@ namespace Meshup.Multiplayer
             if (avatarManager != null)
             {
                 avatarManager.gameObject.SetActive(true);
+                SetAvatarPresentationVisible(true);
+                avatarManager.avatarPrefab = gameAvatarPrefab;
             }
         }
 
@@ -650,7 +673,62 @@ namespace Meshup.Multiplayer
         {
             if (avatarManager != null)
             {
-                avatarManager.gameObject.SetActive(false);
+                SetAvatarPresentationVisible(false);
+                avatarManager.avatarPrefab = null;
+            }
+        }
+
+        private void HandleAvatarCreated(UbiqAvatar avatar)
+        {
+            if (SceneManager.GetActiveScene().name != gameSceneName)
+            {
+                SetAvatarPresentationVisible(avatar, false);
+            }
+        }
+
+        private void HandleAvatarDestroyed(UbiqAvatar avatar)
+        {
+            if (avatar == null)
+            {
+                return;
+            }
+
+            foreach (var renderer in avatar.GetComponentsInChildren<Renderer>(true))
+            {
+                hiddenAvatarRenderers.Remove(renderer);
+            }
+        }
+
+        private void SetAvatarPresentationVisible(bool visible)
+        {
+            foreach (var avatar in avatarManager.Avatars.ToArray())
+            {
+                SetAvatarPresentationVisible(avatar, visible);
+            }
+        }
+
+        private void SetAvatarPresentationVisible(UbiqAvatar avatar, bool visible)
+        {
+            if (avatar == null)
+            {
+                return;
+            }
+
+            foreach (var renderer in avatar.GetComponentsInChildren<Renderer>(true))
+            {
+                if (visible)
+                {
+                    if (hiddenAvatarRenderers.Remove(renderer,
+                        out var wasEnabled))
+                    {
+                        renderer.enabled = wasEnabled;
+                    }
+                }
+                else if (!hiddenAvatarRenderers.ContainsKey(renderer))
+                {
+                    hiddenAvatarRenderers.Add(renderer, renderer.enabled);
+                    renderer.enabled = false;
+                }
             }
         }
 
