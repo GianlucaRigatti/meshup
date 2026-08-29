@@ -42,20 +42,6 @@ namespace Meshup.Game
             return GetDistanceToExit(distance, Length, direction);
         }
 
-        public float GetQueuedJoinDistance(float closestDistance,
-            int direction, int queueIndex, float spacing)
-        {
-            return GetQueuedJoinDistance(closestDistance, Length, direction,
-                queueIndex, spacing);
-        }
-
-        public float GetTravelDistanceToApproach(float startDistance,
-            int direction, Vector3 destination, float approachRadius)
-        {
-            return GetTravelDistanceToApproach(GetPositions(), startDistance,
-                direction, destination, approachRadius, 0.1f);
-        }
-
         public static float GetClosestDistance(Vector3[] points,
             Vector3 worldPoint, out Vector3 closestPoint)
         {
@@ -170,58 +156,6 @@ namespace Meshup.Game
             }
             var normalized = Mathf.Repeat(distance, length);
             return direction < 0 ? normalized : length - normalized;
-        }
-
-        public static float GetQueuedJoinDistance(float closestDistance,
-            float length, int direction, int queueIndex, float spacing)
-        {
-            if (length <= 0f)
-            {
-                return 0f;
-            }
-
-            var distanceToExit = GetDistanceToExit(closestDistance, length,
-                direction);
-            distanceToExit = Mathf.Min(length - 0.25f, distanceToExit
-                + Mathf.Max(0, queueIndex) * Mathf.Max(0f, spacing));
-            return direction < 0
-                ? distanceToExit
-                : Mathf.Repeat(length - distanceToExit, length);
-        }
-
-        public static float GetTravelDistanceToApproach(Vector3[] points,
-            float startDistance, int direction, Vector3 destination,
-            float approachRadius, float sampleStep)
-        {
-            var length = CalculateLength(points);
-            if (length <= 0f)
-            {
-                return 0f;
-            }
-
-            var maximumTravel = GetDistanceToExit(startDistance, length,
-                direction);
-            var radius = Mathf.Max(0f, approachRadius);
-            var step = Mathf.Max(0.02f, sampleStep);
-            for (var travelled = 0f; travelled < maximumTravel;
-                travelled = Mathf.Min(maximumTravel, travelled + step))
-            {
-                var sample = Sample(points, startDistance
-                    + direction * travelled);
-                sample.y = 0f;
-                var flatDestination = destination;
-                flatDestination.y = 0f;
-                if (Vector3.Distance(sample, flatDestination) <= radius)
-                {
-                    return travelled;
-                }
-
-                if (Mathf.Approximately(travelled, maximumTravel))
-                {
-                    break;
-                }
-            }
-            return maximumTravel;
         }
 
         private Vector3[] GetPositions()

@@ -272,19 +272,12 @@ namespace Meshup.Game
         private IEnumerator Regroup()
         {
             var speed = 0f;
-            var avoidanceSide = 0;
             var formationTarget = route.GetSlotPosition(0f, localSlot,
                 roster.Length);
-            var closestDistance = regroupRing.GetClosestDistance(
-                player.transform.position, out _);
+            var joinDistance = regroupRing.GetClosestDistance(
+                player.transform.position, out var target);
             var ringDirection = regroupRing.GetShortestDirectionToExit(
-                closestDistance);
-            // Each roster slot joins slightly farther back in the same
-            // procession. Players that spawn together therefore never receive
-            // the same ring target or try to occupy the same controller space.
-            var joinDistance = regroupRing.GetQueuedJoinDistance(
-                closestDistance, ringDirection, localSlot, 1.1f);
-            var target = regroupRing.Sample(joinDistance);
+                joinDistance);
             var previous = player.transform.position;
             var blockedFor = 0f;
             StatusMessage = "Moving to the waiting-room ring…";
@@ -293,8 +286,7 @@ namespace Meshup.Game
             {
                 speed = Mathf.MoveTowards(speed, regroupSpeed,
                     regroupAcceleration * Time.deltaTime);
-                player.MoveTowardsAvoidingObstacles(target,
-                    speed * Time.deltaTime, ref avoidanceSide);
+                player.MoveTowards(target, speed * Time.deltaTime);
                 TrackBlocked(previous, target, ref blockedFor);
                 previous = player.transform.position;
                 if (blockedFor >= blockedTimeout)
@@ -306,31 +298,26 @@ namespace Meshup.Game
                 yield return null;
             }
 
-            // The ring is only the obstacle-safe approach. Once it enters the
-            // clear area around this player's own slot, that player branches
-            // directly to the slot instead of converging on a shared exit.
-            var ringDistance = regroupRing.GetTravelDistanceToApproach(
-                joinDistance, ringDirection, formationTarget, 2.25f);
+            var ringDistance = regroupRing.GetDistanceToExit(joinDistance,
+                ringDirection);
             var ringTravelled = 0f;
             speed = 0f;
             blockedFor = 0f;
             previous = player.transform.position;
             StatusMessage = "Following the waiting-room ring…";
-            while (ringTravelled < ringDistance)
+            while (ringTravelled < ringDistance
+                && !IsReadyForFinalApproach(player.transform.position,
+                    formationTarget, 2.25f, 3f, 0.65f))
             {
                 speed = Mathf.MoveTowards(speed, regroupSpeed,
                     regroupAcceleration * Time.deltaTime);
-                var travelStep = Mathf.Min(speed * Time.deltaTime,
-                    ringDistance - ringTravelled);
+                ringTravelled = Mathf.Min(ringDistance,
+                    ringTravelled + speed * Time.deltaTime);
                 target = regroupRing.Sample(joinDistance
-                    + ringDirection * (ringTravelled + travelStep));
+                    + ringDirection * ringTravelled);
                 player.MoveTowards(target, speed * Time.deltaTime * 1.35f);
                 var moved = PlanarDistance(previous,
                     player.transform.position);
-                // Never let the invisible guide advance without the player.
-                // This keeps sharp ring corners from becoming diagonal cuts
-                // through furniture when the CharacterController is delayed.
-                ringTravelled += Mathf.Min(travelStep, moved);
                 blockedFor = ringDistance - ringTravelled > arrivalTolerance
                     && moved < 0.002f
                         ? blockedFor + Time.deltaTime
@@ -374,6 +361,19 @@ namespace Meshup.Game
             BroadcastPeer(MessageKind.Aligned);
             StatusMessage = "Waiting for the group…";
             TryBeginWalk();
+        }
+
+        public static bool IsReadyForFinalApproach(Vector3 position,
+            Vector3 assignedSlot, float closeRadius,
+            float corridorLongitudinalRange, float lateralTolerance)
+        {
+            position.y = 0f;
+            assignedSlot.y = 0f;
+            var offset = position - assignedSlot;
+            return offset.magnitude <= Mathf.Max(0f, closeRadius)
+                || Mathf.Abs(offset.x) <= Mathf.Max(0f,
+                    corridorLongitudinalRange)
+                && Mathf.Abs(offset.z) <= Mathf.Max(0f, lateralTolerance);
         }
 
         private void TryBeginWalk()

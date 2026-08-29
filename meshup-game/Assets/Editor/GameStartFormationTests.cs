@@ -139,34 +139,18 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
-        public void RegroupRingQueuesPlayersAtSeparatedJoinPositions()
+        public void FinalApproachStartsWhenCloseOrCorridorAligned()
         {
-            Assert.That(GameStartRegroupRing.GetQueuedJoinDistance(
-                8f, 40f, -1, 0, 1.1f), Is.EqualTo(8f));
-            Assert.That(GameStartRegroupRing.GetQueuedJoinDistance(
-                8f, 40f, -1, 1, 1.1f), Is.EqualTo(9.1f)
-                .Within(0.001f));
-            Assert.That(GameStartRegroupRing.GetQueuedJoinDistance(
-                32f, 40f, 1, 1, 1.1f), Is.EqualTo(30.9f)
-                .Within(0.001f));
-        }
-
-        [Test]
-        public void RegroupRingLeavesEarlyForStraightAssignedApproach()
-        {
-            var points = new[]
-            {
-                new Vector3(0f, 0f, 0f),
-                new Vector3(10f, 0f, 0f),
-                new Vector3(10f, 0f, 10f),
-                new Vector3(0f, 0f, 10f)
-            };
-
-            var travelled = GameStartRegroupRing
-                .GetTravelDistanceToApproach(points, 15f, -1,
-                    Vector3.zero, 2f, 0.1f);
-
-            Assert.That(travelled, Is.EqualTo(13f).Within(0.11f));
+            var slot = new Vector3(20f, 0f, 1f);
+            Assert.That(GameStartCoordinator.IsReadyForFinalApproach(
+                new Vector3(21.5f, 0f, 2f), slot, 2.25f, 3f, 0.65f),
+                Is.True);
+            Assert.That(GameStartCoordinator.IsReadyForFinalApproach(
+                new Vector3(22.8f, 0f, 1.4f), slot, 2.25f, 3f, 0.65f),
+                Is.True);
+            Assert.That(GameStartCoordinator.IsReadyForFinalApproach(
+                new Vector3(25f, 0f, 3f), slot, 2.25f, 3f, 0.65f),
+                Is.False);
         }
 
         [Test]
