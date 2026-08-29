@@ -10,6 +10,32 @@ using UbiqAvatar = Ubiq.Avatars.Avatar;
 
 namespace Meshup.Multiplayer
 {
+    [Serializable]
+    public sealed class ParticipantInfo
+    {
+        public string PeerId;
+        public string DisplayName;
+        public bool Connected;
+
+        public ParticipantInfo(string peerId, string displayName, bool connected)
+        {
+            PeerId = peerId ?? string.Empty;
+            DisplayName = string.IsNullOrWhiteSpace(displayName)
+                ? ShortPeerId(PeerId)
+                : displayName.Trim();
+            Connected = connected;
+        }
+
+        private static string ShortPeerId(string peerId)
+        {
+            if (string.IsNullOrEmpty(peerId))
+            {
+                return "Player";
+            }
+            return $"Player {peerId[..Math.Min(6, peerId.Length)]}";
+        }
+    }
+
     public enum RoomSessionState
     {
         Connecting,
@@ -356,6 +382,28 @@ namespace Meshup.Multiplayer
             }
 
             result.Sort(StringComparer.Ordinal);
+            return result;
+        }
+
+        public IReadOnlyList<ParticipantInfo> GetParticipants()
+        {
+            var result = new List<ParticipantInfo>();
+            if (roomClient?.Me != null && !string.IsNullOrEmpty(LocalPeerId))
+            {
+                result.Add(new ParticipantInfo(LocalPeerId,
+                    roomClient.Me[Ubiq.DisplayNameManager.KEY], true));
+            }
+
+            if (roomClient != null)
+            {
+                result.AddRange(roomClient.Peers
+                    .Where(peer => !string.IsNullOrEmpty(peer.uuid))
+                    .Select(peer => new ParticipantInfo(peer.uuid,
+                        peer[Ubiq.DisplayNameManager.KEY], true)));
+            }
+
+            result.Sort((first, second) => string.Compare(first.PeerId,
+                second.PeerId, StringComparison.Ordinal));
             return result;
         }
 

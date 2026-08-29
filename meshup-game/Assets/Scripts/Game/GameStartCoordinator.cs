@@ -75,11 +75,14 @@ namespace Meshup.Game
         private bool contextRegistered;
 
         public bool IsIdle => phase == SequencePhase.Idle;
+        public bool IsComplete => phase == SequencePhase.Complete;
         public bool IsRunning => phase is SequencePhase.Preparing
             or SequencePhase.Regrouping or SequencePhase.Walking
             or SequencePhase.WaitingForGroup;
         public string StatusMessage { get; private set; } = string.Empty;
         public float DoorOpeningDelay => Mathf.Max(0f, doorOpeningDelay);
+
+        public event Action Completed;
 
         public void Configure(GameStartRoute formationRoute,
             GameStartRegroupRing waitingRoomRing,
@@ -476,6 +479,7 @@ namespace Meshup.Game
             StatusMessage = string.Empty;
             CloseDoors();
             player.SetLock(MovementLockReason.GameStartSequence, false);
+            Completed?.Invoke();
         }
 
         private IEnumerator PreparationDeadline(string expectedSequence)

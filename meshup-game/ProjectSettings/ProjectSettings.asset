@@ -571,7 +571,7 @@ PlayerSettings:
   enableCrashReportAPI: 0
   cameraUsageDescription: 
   locationUsageDescription: 
-  microphoneUsageDescription: Voice chat is disabled in this build.
+  microphoneUsageDescription: MeshUp records speech while you hold push-to-talk or the object generator button so it can transcribe guesses and create game objects.
   bluetoothUsageDescription: 
   macOSTargetOSVersion: 12.0
   switchNMETAOverride: 

@@ -70,6 +70,36 @@ namespace Meshup.Game
             return adjectives[UnityEngine.Random.Range(0, adjectives.Count)];
         }
 
+        public string[] GetDistinctRandomVerbs(int count, System.Random random)
+        {
+            if (count < 0 || count > verbs.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count));
+            }
+            if (random == null)
+            {
+                throw new ArgumentNullException(nameof(random));
+            }
+
+            var indices = new int[verbs.Count];
+            for (var index = 0; index < indices.Length; index++)
+            {
+                indices[index] = index;
+            }
+            for (var index = 0; index < count; index++)
+            {
+                var other = random.Next(index, indices.Length);
+                (indices[index], indices[other]) = (indices[other], indices[index]);
+            }
+
+            var result = new string[count];
+            for (var index = 0; index < count; index++)
+            {
+                result[index] = verbs[indices[index]];
+            }
+            return result;
+        }
+
         [Serializable]
         private sealed class WordCollection
         {
