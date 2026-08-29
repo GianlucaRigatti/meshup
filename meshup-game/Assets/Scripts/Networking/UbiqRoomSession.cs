@@ -114,6 +114,14 @@ namespace Meshup.Multiplayer
         public event Action<string> ErrorOccurred;
         public event Action ParticipantsChanged;
 
+        /// <summary>
+        /// Raised after room membership has been confirmed and the game scene
+        /// has started preloading. A listener may delay scene activation by
+        /// invoking the supplied callback when its transition has fully covered
+        /// the view. The callback is safe to invoke more than once.
+        /// </summary>
+        public event Action<Action> GameSceneTransitionRequested;
+
         private void Reset()
         {
             roomClient = GetComponent<RoomClient>();
@@ -634,6 +642,41 @@ namespace Meshup.Multiplayer
                     ReportError($"The scene '{sceneName}' could not be loaded.");
                 }
                 yield break;
+            }
+
+            var transitionCompleted = true;
+            if (enteringGame && GameSceneTransitionRequested != null)
+            {
+                transitionCompleted = false;
+                var completionReported = false;
+                void CompleteTransition()
+                {
+                    if (completionReported)
+                    {
+                        return;
+                    }
+
+                    completionReported = true;
+                    transitionCompleted = true;
+                }
+
+                operation.allowSceneActivation = false;
+                try
+                {
+                    GameSceneTransitionRequested.Invoke(CompleteTransition);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception);
+                    CompleteTransition();
+                }
+
+                while (!transitionCompleted || operation.progress < 0.9f)
+                {
+                    yield return null;
+                }
+
+                operation.allowSceneActivation = true;
             }
 
             while (!operation.isDone)

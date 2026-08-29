@@ -84,6 +84,7 @@ namespace Meshup.EditorTools
             EditorSceneManager.SaveScene(lobbyScene, LobbyScenePath);
             AssetDatabase.SaveAssets();
 
+            LobbyPortalTransitionBuilder.Build();
             Validate();
             Debug.Log("Lobby dual-mode controls installed: Ubiq desktop fallback plus XRI VR locomotion and UI rays.");
         }
