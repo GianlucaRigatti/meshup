@@ -42,6 +42,13 @@ namespace Meshup.Game
             return GetDistanceToExit(distance, Length, direction);
         }
 
+        public float GetQueuedJoinDistance(float closestDistance,
+            int direction, int queueIndex, float spacing)
+        {
+            return GetQueuedJoinDistance(closestDistance, Length, direction,
+                queueIndex, spacing);
+        }
+
         public static float GetClosestDistance(Vector3[] points,
             Vector3 worldPoint, out Vector3 closestPoint)
         {
@@ -156,6 +163,23 @@ namespace Meshup.Game
             }
             var normalized = Mathf.Repeat(distance, length);
             return direction < 0 ? normalized : length - normalized;
+        }
+
+        public static float GetQueuedJoinDistance(float closestDistance,
+            float length, int direction, int queueIndex, float spacing)
+        {
+            if (length <= 0f)
+            {
+                return 0f;
+            }
+
+            var distanceToExit = GetDistanceToExit(closestDistance, length,
+                direction);
+            distanceToExit = Mathf.Min(length - 0.25f, distanceToExit
+                + Mathf.Max(0, queueIndex) * Mathf.Max(0f, spacing));
+            return direction < 0
+                ? distanceToExit
+                : Mathf.Repeat(length - distanceToExit, length);
         }
 
         private Vector3[] GetPositions()

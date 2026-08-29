@@ -275,8 +275,16 @@ namespace Meshup.Game
             var avoidanceSide = 0;
             var formationTarget = route.GetSlotPosition(0f, localSlot,
                 roster.Length);
-            var joinDistance = regroupRing.GetClosestDistance(
-                player.transform.position, out var target);
+            var closestDistance = regroupRing.GetClosestDistance(
+                player.transform.position, out _);
+            var ringDirection = regroupRing.GetShortestDirectionToExit(
+                closestDistance);
+            // Each roster slot joins slightly farther back in the same
+            // procession. Players that spawn together therefore never receive
+            // the same ring target or try to occupy the same controller space.
+            var joinDistance = regroupRing.GetQueuedJoinDistance(
+                closestDistance, ringDirection, localSlot, 1.1f);
+            var target = regroupRing.Sample(joinDistance);
             var previous = player.transform.position;
             var blockedFor = 0f;
             StatusMessage = "Moving to the waiting-room ring…";
@@ -298,8 +306,6 @@ namespace Meshup.Game
                 yield return null;
             }
 
-            var ringDirection = regroupRing.GetShortestDirectionToExit(
-                joinDistance);
             var ringDistance = regroupRing.GetDistanceToExit(joinDistance,
                 ringDirection);
             var ringTravelled = 0f;
@@ -322,7 +328,10 @@ namespace Meshup.Game
                 // This keeps sharp ring corners from becoming diagonal cuts
                 // through furniture when the CharacterController is delayed.
                 ringTravelled += Mathf.Min(travelStep, moved);
-                TrackBlocked(previous, target, ref blockedFor);
+                blockedFor = ringDistance - ringTravelled > arrivalTolerance
+                    && moved < 0.002f
+                        ? blockedFor + Time.deltaTime
+                        : 0f;
                 previous = player.transform.position;
                 if (blockedFor >= blockedTimeout)
                 {

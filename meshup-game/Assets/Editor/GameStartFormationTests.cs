@@ -139,6 +139,19 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void RegroupRingQueuesPlayersAtSeparatedJoinPositions()
+        {
+            Assert.That(GameStartRegroupRing.GetQueuedJoinDistance(
+                8f, 40f, -1, 0, 1.1f), Is.EqualTo(8f));
+            Assert.That(GameStartRegroupRing.GetQueuedJoinDistance(
+                8f, 40f, -1, 1, 1.1f), Is.EqualTo(9.1f)
+                .Within(0.001f));
+            Assert.That(GameStartRegroupRing.GetQueuedJoinDistance(
+                32f, 40f, 1, 1, 1.1f), Is.EqualTo(30.9f)
+                .Within(0.001f));
+        }
+
+        [Test]
         public void RegroupRingSamplingWrapsThroughExit()
         {
             var points = new[]
