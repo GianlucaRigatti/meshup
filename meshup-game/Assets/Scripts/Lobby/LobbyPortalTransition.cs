@@ -60,6 +60,10 @@ namespace Meshup.Lobby
         {
             DontDestroyOnLoad(gameObject);
             BuildPortalVisuals();
+            if (overlayCanvas != null)
+            {
+                overlayCanvas.transform.localScale = Vector3.one;
+            }
             SetOverlayAlpha(0f);
             if (visualRoot != null)
             {
@@ -214,40 +218,48 @@ namespace Meshup.Lobby
 
         private IEnumerator Engulf()
         {
-            if (!IsVisible)
+            try
             {
-                SetInputLocked(true);
-                PositionPortal();
-                visualRoot.gameObject.SetActive(true);
-                visualRoot.localScale = Vector3.one * 0.2f;
-                SetParticlesPlaying(true);
-            }
-
-            var initialScale = visualRoot.localScale.x;
-            var initialOverlay = overlayGroup != null ? overlayGroup.alpha : 0f;
-            var elapsed = 0f;
-            while (elapsed < engulfDuration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                var t = Mathf.Clamp01(elapsed / engulfDuration);
-                var eased = t * t * (3f - 2f * t);
-                visualRoot.localScale = Vector3.one
-                    * Mathf.Lerp(initialScale, 8.5f, eased);
-                SetOverlayAlpha(Mathf.Lerp(initialOverlay, 1f,
-                    Mathf.Clamp01((t - 0.34f) / 0.66f)));
-                if (portalLight != null)
+                if (!IsVisible)
                 {
-                    portalLight.intensity = Mathf.Lerp(1.2f, 4.5f, eased);
+                    SetInputLocked(true);
+                    PositionPortal();
+                    visualRoot.gameObject.SetActive(true);
+                    visualRoot.localScale = Vector3.one * 0.2f;
+                    SetParticlesPlaying(true);
                 }
-                yield return null;
-            }
 
-            SetOverlayAlpha(1f);
-            visualRoot.gameObject.SetActive(false);
-            var completion = pendingCompletion;
-            pendingCompletion = null;
-            completion?.Invoke();
-            visualSequence = null;
+                var initialScale = visualRoot.localScale.x;
+                var initialOverlay = overlayGroup != null ? overlayGroup.alpha : 0f;
+                var elapsed = 0f;
+                while (elapsed < engulfDuration)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    var t = Mathf.Clamp01(elapsed / engulfDuration);
+                    var eased = t * t * (3f - 2f * t);
+                    visualRoot.localScale = Vector3.one
+                        * Mathf.Lerp(initialScale, 8.5f, eased);
+                    SetOverlayAlpha(Mathf.Lerp(initialOverlay, 1f,
+                        Mathf.Clamp01((t - 0.34f) / 0.66f)));
+                    if (portalLight != null)
+                    {
+                        portalLight.intensity = Mathf.Lerp(1.2f, 4.5f, eased);
+                    }
+                    yield return null;
+                }
+
+                SetOverlayAlpha(1f);
+                visualRoot.gameObject.SetActive(false);
+            }
+            finally
+            {
+                // Scene activation must never remain gated if a visual effect
+                // fails or this coroutine is stopped unexpectedly.
+                var completion = pendingCompletion;
+                pendingCompletion = null;
+                completion?.Invoke();
+                visualSequence = null;
+            }
         }
 
         private void BeginCancel()
@@ -411,7 +423,13 @@ namespace Meshup.Lobby
 
             var velocity = system.velocityOverLifetime;
             velocity.enabled = true;
-            velocity.orbitalZ = new ParticleSystem.MinMaxCurve(-1.8f, 1.8f);
+            // Unity requires orbital X/Y/Z to all use the same MinMaxCurve
+            // mode. Keep every axis in Constant mode and vary direction by
+            // assigning opposite constants to the two particle systems.
+            velocity.orbitalX = new ParticleSystem.MinMaxCurve(0f);
+            velocity.orbitalY = new ParticleSystem.MinMaxCurve(0f);
+            velocity.orbitalZ = new ParticleSystem.MinMaxCurve(
+                emissionRate >= 50 ? 1.8f : -1.8f);
             velocity.radial = new ParticleSystem.MinMaxCurve(-0.42f, -0.18f);
 
             var colorOverLifetime = system.colorOverLifetime;
@@ -543,6 +561,7 @@ namespace Meshup.Lobby
 
             if (overlayCanvas != null)
             {
+                overlayCanvas.transform.localScale = Vector3.one;
                 overlayCanvas.worldCamera = Camera.main;
             }
             if (visualRoot != null)

@@ -39,7 +39,8 @@ namespace Meshup.EditorTools
             var totem = RequireRoot(scene, "Room Totem");
             RequireRoot(scene, "Lobby UI");
             RequireRoot(scene, "EventSystem");
-            RequireRoot(scene, "Ubiq Network Scene");
+            var networkScene = RequireRoot(scene, "Ubiq Network Scene");
+            ConfigureNetworkSceneForReload(networkScene);
 
             DeleteRoot(scene, EnvironmentName);
             foreach (var oldRoot in new[]
@@ -96,6 +97,20 @@ namespace Meshup.EditorTools
             ValidateLobby();
         }
 
+        [MenuItem("Meshup/Lobby/Configure Reload-Safe Networking")]
+        public static void ConfigureReloadSafeNetworking()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var networkScene = RequireRoot(scene, "Ubiq Network Scene");
+            ConfigureNetworkSceneForReload(networkScene);
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene, ScenePath);
+            AssetDatabase.SaveAssets();
+            ValidateNetworkSceneForReload(networkScene);
+            Debug.Log("Lobby networking configured for safe scene reloads.");
+        }
+
         [MenuItem("Meshup/Lobby/Validate Cozy Bedroom")]
         public static void ValidateLobby()
         {
@@ -105,7 +120,8 @@ namespace Meshup.EditorTools
             var totem = RequireRoot(scene, "Room Totem");
             var environment = RequireRoot(scene, EnvironmentName);
             var lobbyUi = RequireRoot(scene, "Lobby UI");
-            RequireRoot(scene, "Ubiq Network Scene");
+            var networkScene = RequireRoot(scene, "Ubiq Network Scene");
+            ValidateNetworkSceneForReload(networkScene);
 
             if (camera == null || camera.transform.localPosition != new Vector3(0f, 1.6f, 0f))
             {
@@ -172,6 +188,24 @@ namespace Meshup.EditorTools
             }
 
             Debug.Log($"Lobby validation passed with {importedModels} imported model renderers.");
+        }
+
+        private static void ConfigureNetworkSceneForReload(GameObject networkScene)
+        {
+            // Ubiq keeps the first root NetworkScene alive between scene loads. A newly
+            // loaded lobby therefore destroys its duplicate before child Start methods
+            // run. NetworkSpawnManager.OnDestroy assumes Start initialized its spawner,
+            // so keep this unused sample component inactive in every lobby instance.
+            FindTransform(networkScene.transform, "Spawn Manager").gameObject.SetActive(false);
+        }
+
+        private static void ValidateNetworkSceneForReload(GameObject networkScene)
+        {
+            if (FindTransform(networkScene.transform, "Spawn Manager").gameObject.activeSelf)
+            {
+                throw new InvalidOperationException(
+                    "The lobby Spawn Manager must remain inactive for safe scene reloads.");
+            }
         }
 
         public static void CapturePreview()

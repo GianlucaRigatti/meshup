@@ -54,6 +54,7 @@ namespace Meshup.Multiplayer
         private const string SceneProperty = "meshup.scene";
         private const string CreatorProperty = "meshup.creator";
         private const string GameStartedProperty = "meshup.game.started";
+        private const float SceneTransitionTimeout = 5f;
 
         private enum PendingOperation
         {
@@ -671,7 +672,22 @@ namespace Meshup.Multiplayer
                     CompleteTransition();
                 }
 
-                while (!transitionCompleted || operation.progress < 0.9f)
+                var transitionDeadline = Time.realtimeSinceStartup
+                    + SceneTransitionTimeout;
+                while (!transitionCompleted
+                    && Time.realtimeSinceStartup < transitionDeadline)
+                {
+                    yield return null;
+                }
+
+                if (!transitionCompleted)
+                {
+                    Debug.LogError("[UbiqRoomSession] The game-entry transition "
+                        + "did not complete in time. Continuing into the game scene.");
+                    CompleteTransition();
+                }
+
+                while (operation.progress < 0.9f)
                 {
                     yield return null;
                 }

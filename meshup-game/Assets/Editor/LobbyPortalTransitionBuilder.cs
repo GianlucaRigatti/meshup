@@ -59,6 +59,7 @@ namespace Meshup.EditorTools
             overlayCanvas.worldCamera = camera;
             overlayCanvas.planeDistance = 0.08f;
             overlayCanvas.sortingOrder = 32760;
+            overlayObject.GetComponent<RectTransform>().localScale = Vector3.one;
             var overlayGroup = overlayObject.GetComponent<CanvasGroup>();
             overlayGroup.alpha = 0f;
             overlayGroup.interactable = false;

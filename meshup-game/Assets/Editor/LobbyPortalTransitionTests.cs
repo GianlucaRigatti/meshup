@@ -58,5 +58,18 @@ namespace Meshup.EditorTests
             Assert.That(Enum.GetNames(typeof(RoomSessionState)),
                 Does.Not.Contain("EnteringPortal"));
         }
+
+        [Test]
+        public void LobbyKeepsUnusedUbiqSpawnManagerInactiveAcrossReloads()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var networkScene = scene.GetRootGameObjects()
+                .Single(item => item.name == "Ubiq Network Scene");
+            var spawnManager = networkScene.GetComponentsInChildren<Transform>(true)
+                .Single(item => item.name == "Spawn Manager");
+
+            Assert.That(spawnManager.gameObject.activeSelf, Is.False,
+                "An active duplicate is destroyed before Start and throws in Ubiq's OnDestroy.");
+        }
     }
 }
