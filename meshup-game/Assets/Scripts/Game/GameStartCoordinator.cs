@@ -306,8 +306,11 @@ namespace Meshup.Game
                 yield return null;
             }
 
-            var ringDistance = regroupRing.GetDistanceToExit(joinDistance,
-                ringDirection);
+            // The ring is only the obstacle-safe approach. Once it enters the
+            // clear area around this player's own slot, that player branches
+            // directly to the slot instead of converging on a shared exit.
+            var ringDistance = regroupRing.GetTravelDistanceToApproach(
+                joinDistance, ringDirection, formationTarget, 2.25f);
             var ringTravelled = 0f;
             speed = 0f;
             blockedFor = 0f;
@@ -343,10 +346,9 @@ namespace Meshup.Game
 
             target = formationTarget;
             speed = 0f;
-            avoidanceSide = 0;
             blockedFor = 0f;
             previous = player.transform.position;
-            StatusMessage = "Forming pairs…";
+            StatusMessage = "Moving to assigned place…";
             // CharacterController ground contact may keep the rig root a skin
             // width above or below the authored marker. Formation readiness is
             // therefore based on the floor plane; movement itself remains 3D
@@ -356,8 +358,7 @@ namespace Meshup.Game
             {
                 speed = Mathf.MoveTowards(speed, regroupSpeed,
                     regroupAcceleration * Time.deltaTime);
-                player.MoveTowardsAvoidingObstacles(target,
-                    speed * Time.deltaTime, ref avoidanceSide);
+                player.MoveTowards(target, speed * Time.deltaTime);
                 TrackBlocked(previous, target, ref blockedFor);
                 previous = player.transform.position;
                 if (blockedFor >= blockedTimeout)

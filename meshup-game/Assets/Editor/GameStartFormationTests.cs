@@ -152,6 +152,24 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void RegroupRingLeavesEarlyForStraightAssignedApproach()
+        {
+            var points = new[]
+            {
+                new Vector3(0f, 0f, 0f),
+                new Vector3(10f, 0f, 0f),
+                new Vector3(10f, 0f, 10f),
+                new Vector3(0f, 0f, 10f)
+            };
+
+            var travelled = GameStartRegroupRing
+                .GetTravelDistanceToApproach(points, 15f, -1,
+                    Vector3.zero, 2f, 0.1f);
+
+            Assert.That(travelled, Is.EqualTo(13f).Within(0.11f));
+        }
+
+        [Test]
         public void RegroupRingSamplingWrapsThroughExit()
         {
             var points = new[]
