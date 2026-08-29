@@ -8409,6 +8409,7 @@ MonoBehaviour:
   - {fileID: 394233058}
   walkSpeed: 1.5
   walkAcceleration: 2.5
+  doorOpeningDelay: 4
   regroupSpeed: 2.2
   regroupAcceleration: 5
   arrivalTolerance: 0.08
