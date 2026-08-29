@@ -27072,7 +27072,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -6689036041284674117, guid: b982fddc43508d340884a3280281d7de, type: 3}
       propertyPath: m_Name
-      value: scifi_terminal
+      value: mime_terminal
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: b982fddc43508d340884a3280281d7de, type: 3}
       propertyPath: m_LocalScale.x
@@ -49616,6 +49616,59 @@ MonoBehaviour:
   m_UseLocalSpace: 1
   m_AngleStabilization: 20
   m_PositionStabilization: 0.25
+--- !u!1 &1537894674
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1537894676}
+  - component: {fileID: 1537894675}
+  m_Layer: 0
+  m_Name: Invisible_wall_game_area
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!65 &1537894675
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1537894674}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 2, y: 1, z: 0}
+  m_Center: {x: 0, y: 0, z: 0.042057037}
+--- !u!4 &1537894676
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1537894674}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -12.54, y: 5.68, z: -4.57}
+  m_LocalScale: {x: 10, y: 10, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1538675012
 GameObject:
   m_ObjectHideFlags: 0
@@ -53785,7 +53838,7 @@ GameObject:
   - component: {fileID: 1811488898}
   - component: {fileID: 1811488897}
   m_Layer: 6
-  m_Name: Particle System (1)
+  m_Name: generator_particle_system
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -58766,7 +58819,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8128668236925612103, guid: 458f5d4dd1e756544a7c0c3a702321c0, type: 3}
       propertyPath: m_Name
-      value: sci_fi_monitor
+      value: guesser_monitor
       objectReference: {fileID: 0}
     - target: {fileID: 8897093224900880590, guid: 458f5d4dd1e756544a7c0c3a702321c0, type: 3}
       propertyPath: m_LocalScale.x
@@ -64599,6 +64652,7 @@ SceneRoots:
   - {fileID: 1601976250}
   - {fileID: 1182807789}
   - {fileID: 166807489}
+  - {fileID: 1537894676}
   - {fileID: 1732620848}
   - {fileID: 1976206953}
   - {fileID: 2049147495}
