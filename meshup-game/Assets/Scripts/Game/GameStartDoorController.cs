@@ -13,8 +13,7 @@ namespace Meshup.Game
         [SerializeField] private GameStartRoute route;
         [SerializeField] private float routeDistance;
         [SerializeField] private float pathOffset;
-        [SerializeField] private float openLeadDistance = 3f;
-        [SerializeField] private float closeClearance = 1f;
+        [SerializeField] private float openLeadDistance = 4f;
 
         private bool isOpen;
 
@@ -22,10 +21,12 @@ namespace Meshup.Game
         public float PathOffset => pathOffset;
         public bool IsConfigured => doorAnimator != null && route != null;
 
-        public void Configure(Animator animator, GameStartRoute formationRoute)
+        public void Configure(Animator animator, GameStartRoute formationRoute,
+            float leadDistance = 4f)
         {
             doorAnimator = animator;
             route = formationRoute;
+            openLeadDistance = Mathf.Max(0f, leadDistance);
             RecalculateRoutePosition();
         }
 
@@ -36,11 +37,12 @@ namespace Meshup.Game
             SetOpen(false, true);
         }
 
-        public void SetFormationProgress(float leaderDistance, int playerCount)
+        public void SetFormationProgress(float leaderDistance)
         {
-            SetOpen(ShouldBeOpen(leaderDistance, routeDistance, playerCount,
-                route != null ? route.RowSpacing : 1.25f,
-                openLeadDistance, closeClearance));
+            if (ShouldOpen(leaderDistance, routeDistance, openLeadDistance))
+            {
+                SetOpen(true);
+            }
         }
 
         public void Close()
@@ -48,16 +50,11 @@ namespace Meshup.Game
             SetOpen(false);
         }
 
-        public static bool ShouldBeOpen(float leaderDistance,
-            float doorRouteDistance, int playerCount, float rowSpacing,
-            float leadDistance, float clearance)
+        public static bool ShouldOpen(float leaderDistance,
+            float doorRouteDistance, float leadDistance)
         {
-            var finalRow = Mathf.Max(0, (playerCount - 1) / 2);
             var opensAt = doorRouteDistance - Mathf.Max(0f, leadDistance);
-            var closesAt = doorRouteDistance
-                + finalRow * Mathf.Max(0f, rowSpacing)
-                + Mathf.Max(0f, clearance);
-            return leaderDistance >= opensAt && leaderDistance < closesAt;
+            return leaderDistance >= opensAt;
         }
 
         private void RecalculateRoutePosition()

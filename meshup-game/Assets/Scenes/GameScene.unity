@@ -8562,8 +8562,7 @@ MonoBehaviour:
   route: {fileID: 390863634}
   routeDistance: 3.0823784
   pathOffset: 0.44040316
-  openLeadDistance: 3
-  closeClearance: 1
+  openLeadDistance: 4
 --- !u!1 &394701639
 GameObject:
   m_ObjectHideFlags: 0

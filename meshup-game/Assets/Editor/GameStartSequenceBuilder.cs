@@ -407,6 +407,11 @@ namespace Meshup.Editor
             foreach (var animator in scene.GetRootGameObjects()
                 .SelectMany(item => item.GetComponentsInChildren<Animator>(true)))
             {
+                if (animator.runtimeAnimatorController == null)
+                {
+                    continue;
+                }
+
                 var hasDoorParameter = animator.parameters.Any(parameter =>
                     parameter.type == AnimatorControllerParameterType.Bool
                     && parameter.name == "character_nearby");
@@ -426,7 +431,7 @@ namespace Meshup.Editor
 
                 var controller = GetOrAdd<GameStartDoorController>(
                     animator.gameObject);
-                controller.Configure(animator, route);
+                controller.Configure(animator, route, 4f);
                 result.Add(controller);
                 Debug.Log($"Game start door '{animator.name}' at route "
                     + $"distance {routeDistance:0.0} m.");

@@ -268,6 +268,7 @@ namespace Meshup.Game
         private IEnumerator Regroup()
         {
             var speed = 0f;
+            var avoidanceSide = 0;
             var target = route.GetSlotPosition(0f, localSlot, roster.Length);
             var previous = player.transform.position;
             var blockedFor = 0f;
@@ -280,7 +281,8 @@ namespace Meshup.Game
             {
                 speed = Mathf.MoveTowards(speed, regroupSpeed,
                     regroupAcceleration * Time.deltaTime);
-                player.MoveTowards(target, speed * Time.deltaTime);
+                player.MoveTowardsAvoidingObstacles(target,
+                    speed * Time.deltaTime, ref avoidanceSide);
                 TrackBlocked(previous, target, ref blockedFor);
                 previous = player.transform.position;
                 if (blockedFor >= blockedTimeout)
@@ -431,7 +433,7 @@ namespace Meshup.Game
         {
             foreach (var door in doors)
             {
-                door?.SetFormationProgress(leaderDistance, roster.Length);
+                door?.SetFormationProgress(leaderDistance);
             }
         }
 

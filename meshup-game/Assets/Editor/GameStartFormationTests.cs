@@ -96,17 +96,15 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
-        public void DoorWaitsForTrailingFormationRowBeforeClosing()
+        public void DoorOpensAheadAndStaysOpenUntilCoordinatorRelease()
         {
             const float doorDistance = 10f;
-            Assert.That(GameStartDoorController.ShouldBeOpen(6.9f,
-                doorDistance, 5, 1.25f, 3f, 1f), Is.False);
-            Assert.That(GameStartDoorController.ShouldBeOpen(7f,
-                doorDistance, 5, 1.25f, 3f, 1f), Is.True);
-            Assert.That(GameStartDoorController.ShouldBeOpen(13.4f,
-                doorDistance, 5, 1.25f, 3f, 1f), Is.True);
-            Assert.That(GameStartDoorController.ShouldBeOpen(13.5f,
-                doorDistance, 5, 1.25f, 3f, 1f), Is.False);
+            Assert.That(GameStartDoorController.ShouldOpen(5.9f,
+                doorDistance, 4f), Is.False);
+            Assert.That(GameStartDoorController.ShouldOpen(6f,
+                doorDistance, 4f), Is.True);
+            Assert.That(GameStartDoorController.ShouldOpen(30f,
+                doorDistance, 4f), Is.True);
         }
 
         [Test]
