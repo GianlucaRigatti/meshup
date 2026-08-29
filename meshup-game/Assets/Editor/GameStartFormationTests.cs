@@ -154,6 +154,22 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void DoorOpeningDelayDefaultsToFourSeconds()
+        {
+            var gameObject = new GameObject("Game Start Coordinator Test");
+            try
+            {
+                var coordinator = gameObject.AddComponent<
+                    GameStartCoordinator>();
+                Assert.That(coordinator.DoorOpeningDelay, Is.EqualTo(4f));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [Test]
         public void RegroupRingSamplingWrapsThroughExit()
         {
             var points = new[]

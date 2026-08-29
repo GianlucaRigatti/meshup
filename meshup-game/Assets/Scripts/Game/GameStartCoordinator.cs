@@ -51,6 +51,9 @@ namespace Meshup.Game
         [Header("Motion")]
         [SerializeField] private float walkSpeed = 1.5f;
         [SerializeField] private float walkAcceleration = 2.5f;
+        [SerializeField, Min(0f), Tooltip(
+            "Seconds between opening the first door and starting the group walk.")]
+        private float doorOpeningDelay = 4f;
         [SerializeField] private float regroupSpeed = 2.2f;
         [SerializeField] private float regroupAcceleration = 5f;
         [SerializeField] private float arrivalTolerance = 0.08f;
@@ -76,6 +79,7 @@ namespace Meshup.Game
             or SequencePhase.Regrouping or SequencePhase.Walking
             or SequencePhase.WaitingForGroup;
         public string StatusMessage { get; private set; } = string.Empty;
+        public float DoorOpeningDelay => Mathf.Max(0f, doorOpeningDelay);
 
         public void Configure(GameStartRoute formationRoute,
             GameStartRegroupRing waitingRoomRing,
@@ -401,9 +405,20 @@ namespace Meshup.Game
                 StopCoroutine(motion);
             }
             phase = SequencePhase.Walking;
-            StatusMessage = "Walking to the game room…";
+            StatusMessage = "Opening the doors…";
             UpdateDoors(0f);
-            motion = StartCoroutine(WalkRoute());
+            motion = StartCoroutine(OpenDoorsThenWalk());
+        }
+
+        private IEnumerator OpenDoorsThenWalk()
+        {
+            var delay = DoorOpeningDelay;
+            if (delay > 0f)
+            {
+                yield return new WaitForSecondsRealtime(delay);
+            }
+            StatusMessage = "Walking to the game room…";
+            yield return WalkRoute();
         }
 
         private IEnumerator WalkRoute()
