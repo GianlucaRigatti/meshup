@@ -6,3 +6,5 @@
 
 # Unity Burst compiler debug output
 /meshup-game/*_BurstDebugInformation_DoNotShip/
+
+/.workbuddy-ai/

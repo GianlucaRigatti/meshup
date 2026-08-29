@@ -22,17 +22,17 @@ namespace Meshup.Editor
         // can tune them without touching runtime code.
         private static readonly Vector3[] DefaultRoute =
         {
-            new(20.20f, 0.69f, 0.73f),
-            new(16.95f, 0.539f, 0.91f),
-            new(16.45f, 0.877f, 0.91f),
-            new(15.80f, 1.439f, 0.91f),
-            new(14.85f, 2.282f, 0.91f),
-            new(12.70f, 2.412f, 0.91f),
-            new(8.50f, 2.402f, 0.91f),
-            new(4.50f, 2.412f, 0.91f),
-            new(0.00f, 2.412f, 0.91f),
-            new(-5.50f, 2.412f, 0.91f),
-            new(-13.00f, 2.385f, 0.91f)
+            new(20.20f, 0.69f, 1.37f),
+            new(16.95f, 0.539f, 1.37f),
+            new(16.45f, 0.877f, 1.37f),
+            new(15.80f, 1.439f, 1.37f),
+            new(14.85f, 2.282f, 1.37f),
+            new(12.70f, 2.412f, 1.37f),
+            new(8.50f, 2.402f, 1.37f),
+            new(4.50f, 2.412f, 1.37f),
+            new(0.00f, 2.412f, 1.37f),
+            new(-5.50f, 2.412f, 1.37f),
+            new(-13.00f, 2.385f, 1.37f)
         };
 
         // Inset from the stepped waiting-room walls and its fixed props. Point
@@ -40,7 +40,7 @@ namespace Meshup.Editor
         // in clockwise order.
         private static readonly Vector3[] DefaultRegroupRing =
         {
-            new(20.20f, 0.69f, 0.73f),
+            new(20.20f, 0.69f, 1.37f),
             new(20.20f, 0.69f, 1.50f),
             new(35.00f, 0.69f, 1.50f),
             new(35.00f, 0.69f, 10.00f),
