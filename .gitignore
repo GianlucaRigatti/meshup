@@ -6,3 +6,6 @@
 
 # Unity Burst compiler debug output
 /meshup-game/*_BurstDebugInformation_DoNotShip/
+
+# Unity build output
+/builds
