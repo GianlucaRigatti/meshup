@@ -108,6 +108,54 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void RegroupRingProjectsToClosestPerimeterSegment()
+        {
+            var points = new[]
+            {
+                new Vector3(0f, 0f, 0f),
+                new Vector3(10f, 0f, 0f),
+                new Vector3(10f, 0f, 10f),
+                new Vector3(0f, 0f, 10f)
+            };
+
+            var distance = GameStartRegroupRing.GetClosestDistance(points,
+                new Vector3(7f, 0f, 2f), out var closest);
+
+            Assert.That(distance, Is.EqualTo(7f).Within(0.001f));
+            Assert.That(closest, Is.EqualTo(new Vector3(7f, 0f, 0f)));
+        }
+
+        [Test]
+        public void RegroupRingChoosesShortestDirectionToExit()
+        {
+            Assert.That(GameStartRegroupRing.GetShortestDirectionToExit(
+                8f, 40f), Is.EqualTo(-1));
+            Assert.That(GameStartRegroupRing.GetDistanceToExit(
+                8f, 40f, -1), Is.EqualTo(8f));
+            Assert.That(GameStartRegroupRing.GetShortestDirectionToExit(
+                32f, 40f), Is.EqualTo(1));
+            Assert.That(GameStartRegroupRing.GetDistanceToExit(
+                32f, 40f, 1), Is.EqualTo(8f));
+        }
+
+        [Test]
+        public void RegroupRingSamplingWrapsThroughExit()
+        {
+            var points = new[]
+            {
+                new Vector3(0f, 0f, 0f),
+                new Vector3(10f, 0f, 0f),
+                new Vector3(10f, 0f, 10f),
+                new Vector3(0f, 0f, 10f)
+            };
+
+            Assert.That(GameStartRegroupRing.Sample(points, 39f),
+                Is.EqualTo(new Vector3(0f, 0f, 1f)));
+            Assert.That(GameStartRegroupRing.Sample(points, 41f),
+                Is.EqualTo(new Vector3(1f, 0f, 0f)));
+        }
+
+        [Test]
         public void OverlappingLocksRestoreProviderOnlyAfterLastRelease()
         {
             var gameObject = new GameObject("Movement Authority Test");

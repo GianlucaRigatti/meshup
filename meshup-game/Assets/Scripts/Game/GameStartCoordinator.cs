@@ -43,6 +43,7 @@ namespace Meshup.Game
 
         [Header("Scene")]
         [SerializeField] private GameStartRoute route;
+        [SerializeField] private GameStartRegroupRing regroupRing;
         [SerializeField] private PlayerMovementAuthority player;
         [SerializeField] private GameStartDoorController[] doors =
             Array.Empty<GameStartDoorController>();
@@ -77,10 +78,12 @@ namespace Meshup.Game
         public string StatusMessage { get; private set; } = string.Empty;
 
         public void Configure(GameStartRoute formationRoute,
+            GameStartRegroupRing waitingRoomRing,
             PlayerMovementAuthority localPlayer,
             GameStartDoorController[] routeDoors = null)
         {
             route = formationRoute;
+            regroupRing = waitingRoomRing;
             player = localPlayer;
             doors = routeDoors ?? Array.Empty<GameStartDoorController>();
         }
@@ -88,7 +91,8 @@ namespace Meshup.Game
         private void Start()
         {
             session = UbiqRoomSession.Instance;
-            if (session == null || route == null || player == null)
+            if (session == null || route == null || regroupRing == null
+                || player == null)
             {
                 enabled = false;
                 Debug.LogError("[GameStart] Coordinator references are incomplete.");
@@ -269,9 +273,71 @@ namespace Meshup.Game
         {
             var speed = 0f;
             var avoidanceSide = 0;
-            var target = route.GetSlotPosition(0f, localSlot, roster.Length);
+            var formationTarget = route.GetSlotPosition(0f, localSlot,
+                roster.Length);
+            var joinDistance = regroupRing.GetClosestDistance(
+                player.transform.position, out var target);
             var previous = player.transform.position;
             var blockedFor = 0f;
+            StatusMessage = "Moving to the waiting-room ring…";
+            while (PlanarDistance(player.transform.position, target)
+                > arrivalTolerance)
+            {
+                speed = Mathf.MoveTowards(speed, regroupSpeed,
+                    regroupAcceleration * Time.deltaTime);
+                player.MoveTowardsAvoidingObstacles(target,
+                    speed * Time.deltaTime, ref avoidanceSide);
+                TrackBlocked(previous, target, ref blockedFor);
+                previous = player.transform.position;
+                if (blockedFor >= blockedTimeout)
+                {
+                    BroadcastCancel(
+                        "A player could not reach the waiting-room ring.");
+                    yield break;
+                }
+                yield return null;
+            }
+
+            var ringDirection = regroupRing.GetShortestDirectionToExit(
+                joinDistance);
+            var ringDistance = regroupRing.GetDistanceToExit(joinDistance,
+                ringDirection);
+            var ringTravelled = 0f;
+            speed = 0f;
+            blockedFor = 0f;
+            previous = player.transform.position;
+            StatusMessage = "Following the waiting-room ring…";
+            while (ringTravelled < ringDistance)
+            {
+                speed = Mathf.MoveTowards(speed, regroupSpeed,
+                    regroupAcceleration * Time.deltaTime);
+                var travelStep = Mathf.Min(speed * Time.deltaTime,
+                    ringDistance - ringTravelled);
+                target = regroupRing.Sample(joinDistance
+                    + ringDirection * (ringTravelled + travelStep));
+                player.MoveTowards(target, speed * Time.deltaTime * 1.35f);
+                var moved = PlanarDistance(previous,
+                    player.transform.position);
+                // Never let the invisible guide advance without the player.
+                // This keeps sharp ring corners from becoming diagonal cuts
+                // through furniture when the CharacterController is delayed.
+                ringTravelled += Mathf.Min(travelStep, moved);
+                TrackBlocked(previous, target, ref blockedFor);
+                previous = player.transform.position;
+                if (blockedFor >= blockedTimeout)
+                {
+                    BroadcastCancel("The waiting-room ring was blocked.");
+                    yield break;
+                }
+                yield return null;
+            }
+
+            target = formationTarget;
+            speed = 0f;
+            avoidanceSide = 0;
+            blockedFor = 0f;
+            previous = player.transform.position;
+            StatusMessage = "Forming pairs…";
             // CharacterController ground contact may keep the rig root a skin
             // width above or below the authored marker. Formation readiness is
             // therefore based on the floor plane; movement itself remains 3D

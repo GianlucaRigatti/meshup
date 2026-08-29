@@ -35,6 +35,23 @@ namespace Meshup.Editor
             new(-13.00f, 2.385f, 0.91f)
         };
 
+        // Inset from the stepped waiting-room walls and its fixed props. Point
+        // zero is the exit into the lineup; the loop continues around the room
+        // in clockwise order.
+        private static readonly Vector3[] DefaultRegroupRing =
+        {
+            new(20.20f, 0.69f, 0.73f),
+            new(20.20f, 0.69f, 1.50f),
+            new(35.00f, 0.69f, 1.50f),
+            new(35.00f, 0.69f, 10.00f),
+            new(32.00f, 0.69f, 10.00f),
+            new(32.00f, 0.69f, 14.00f),
+            new(22.70f, 0.69f, 14.00f),
+            new(22.70f, 0.69f, 6.00f),
+            new(22.70f, 0.69f, 1.50f),
+            new(18.80f, 0.69f, 1.50f)
+        };
+
         [MenuItem("Meshup/Game/Install Game Start Formation Walk")]
         public static void Install()
         {
@@ -52,13 +69,15 @@ namespace Meshup.Editor
             var route = GetOrAdd<GameStartRoute>(root);
             var waypoints = BuildRoute(root.transform);
             route.Configure(waypoints, 0.9f, 1.25f);
+            var regroupRing = GetOrAdd<GameStartRegroupRing>(root);
+            regroupRing.Configure(BuildRegroupRing(root.transform));
 
             var authority = GetOrAdd<PlayerMovementAuthority>(playerObject);
             authority.Configure(FindTranslationProviders(playerObject));
 
             var doors = BuildDoorControllers(scene, route);
             var coordinator = GetOrAdd<GameStartCoordinator>(root);
-            coordinator.Configure(route, authority, doors);
+            coordinator.Configure(route, regroupRing, authority, doors);
 
             var prompt = BuildPrompt(console.transform);
             var xrInteractable = GetOrAdd<XRSimpleInteractable>(console);
@@ -71,7 +90,7 @@ namespace Meshup.Editor
                     "Game Session UI has no GameSessionMenu.");
             sessionMenu.SetMovementAuthority(authority);
 
-            MarkDirty(route, authority, coordinator, xrInteractable,
+            MarkDirty(route, regroupRing, authority, coordinator, xrInteractable,
                 interaction, sessionMenu, root, console);
             MarkDirty(doors);
             EditorSceneManager.MarkSceneDirty(scene);
@@ -89,6 +108,7 @@ namespace Meshup.Editor
             var root = FindRequired(scene, RootName);
             var player = FindRequired(scene, "Ubiq Demo Player");
             var route = root.GetComponent<GameStartRoute>();
+            var regroupRing = root.GetComponent<GameStartRegroupRing>();
             var coordinator = root.GetComponent<GameStartCoordinator>();
             var authority = player.GetComponent<PlayerMovementAuthority>();
             var interaction = console.GetComponent<GameStartInteractable>();
@@ -99,6 +119,8 @@ namespace Meshup.Editor
                     GameStartDoorController>(true)).ToArray();
 
             if (route == null || route.WaypointCount < 5
+                || regroupRing == null || regroupRing.WaypointCount < 6
+                || regroupRing.Length < 20f
                 || route.Length < 8f || coordinator == null
                 || authority == null || interaction == null
                 || xrInteractable == null || prompt == null
@@ -115,13 +137,28 @@ namespace Meshup.Editor
 
             var first = root.transform.Find("Route/00 Lineup");
             var last = root.transform.Find("Route/10 Glass Room Destination");
-            if (first == null || last == null)
+            var ringContainer = root.transform.Find("Regroup Ring");
+            if (first == null || last == null || ringContainer == null)
             {
                 throw new InvalidOperationException(
                     "The staircase route endpoints are missing.");
             }
 
             Physics.SyncTransforms();
+            foreach (var marker in ringContainer.Cast<Transform>())
+            {
+                var found = Physics.Raycast(marker.position + Vector3.up * 0.5f,
+                    Vector3.down, out var hit, 2f, ~0,
+                    QueryTriggerInteraction.Ignore);
+                if (!found || Mathf.Abs(marker.position.y
+                    - (hit.point.y - 0.08f)) > 0.12f)
+                {
+                    throw new InvalidOperationException(
+                        $"Regroup ring marker is not on the waiting-room floor: "
+                        + marker.name);
+                }
+            }
+
             foreach (var marker in root.transform.Find("Route")
                 .Cast<Transform>())
             {
@@ -316,6 +353,37 @@ namespace Meshup.Editor
                 }
                 marker.name = names[i];
                 marker.position = DefaultRoute[i];
+                result[i] = marker;
+                EditorUtility.SetDirty(marker);
+            }
+            return result;
+        }
+
+        private static Transform[] BuildRegroupRing(Transform root)
+        {
+            var container = root.Find("Regroup Ring");
+            if (container == null)
+            {
+                container = new GameObject("Regroup Ring").transform;
+                container.SetParent(root, false);
+            }
+
+            var result = new Transform[DefaultRegroupRing.Length];
+            for (var i = 0; i < result.Length; i++)
+            {
+                var prefix = $"{i:00} ";
+                var marker = container.Cast<Transform>().FirstOrDefault(
+                    item => item.name.StartsWith(prefix,
+                        StringComparison.Ordinal));
+                if (marker == null)
+                {
+                    marker = new GameObject().transform;
+                    marker.SetParent(container, true);
+                }
+                marker.name = i == 0
+                    ? "00 Lineup Exit"
+                    : $"{i:00} Perimeter";
+                marker.position = DefaultRegroupRing[i];
                 result[i] = marker;
                 EditorUtility.SetDirty(marker);
             }
