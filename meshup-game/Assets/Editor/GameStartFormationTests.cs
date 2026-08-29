@@ -79,6 +79,37 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void ClosestRouteDistanceProjectsOntoCenterline()
+        {
+            var points = new[]
+            {
+                Vector3.zero,
+                Vector3.forward * 5f,
+                new Vector3(5f, 0f, 5f)
+            };
+
+            var distance = GameStartRoute.GetClosestDistance(points,
+                new Vector3(2f, 4f, 6f), out var closest);
+
+            Assert.That(distance, Is.EqualTo(7f).Within(0.001f));
+            Assert.That(closest, Is.EqualTo(new Vector3(2f, 0f, 5f)));
+        }
+
+        [Test]
+        public void DoorWaitsForTrailingFormationRowBeforeClosing()
+        {
+            const float doorDistance = 10f;
+            Assert.That(GameStartDoorController.ShouldBeOpen(6.9f,
+                doorDistance, 5, 1.25f, 3f, 1f), Is.False);
+            Assert.That(GameStartDoorController.ShouldBeOpen(7f,
+                doorDistance, 5, 1.25f, 3f, 1f), Is.True);
+            Assert.That(GameStartDoorController.ShouldBeOpen(13.4f,
+                doorDistance, 5, 1.25f, 3f, 1f), Is.True);
+            Assert.That(GameStartDoorController.ShouldBeOpen(13.5f,
+                doorDistance, 5, 1.25f, 3f, 1f), Is.False);
+        }
+
+        [Test]
         public void OverlappingLocksRestoreProviderOnlyAfterLastRelease()
         {
             var gameObject = new GameObject("Movement Authority Test");

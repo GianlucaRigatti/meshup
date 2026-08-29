@@ -23,16 +23,16 @@ namespace Meshup.Editor
         private static readonly Vector3[] DefaultRoute =
         {
             new(20.20f, 0.69f, 0.73f),
-            new(16.95f, 0.24f, 0.91f),
-            new(16.45f, 0.505f, 0.91f),
-            new(15.80f, 1.426f, 0.91f),
-            new(14.85f, 2.112f, 0.91f),
-            new(12.70f, 2.112f, 0.91f),
-            new(8.50f, 2.102f, 0.91f),
-            new(4.50f, 2.102f, 0.91f),
-            new(0.00f, 2.102f, 0.91f),
-            new(-5.50f, 2.102f, 0.91f),
-            new(-13.00f, 2.102f, 0.91f)
+            new(16.95f, 0.539f, 0.91f),
+            new(16.45f, 0.877f, 0.91f),
+            new(15.80f, 1.439f, 0.91f),
+            new(14.85f, 2.282f, 0.91f),
+            new(12.70f, 2.412f, 0.91f),
+            new(8.50f, 2.402f, 0.91f),
+            new(4.50f, 2.412f, 0.91f),
+            new(0.00f, 2.412f, 0.91f),
+            new(-5.50f, 2.412f, 0.91f),
+            new(-13.00f, 2.385f, 0.91f)
         };
 
         [MenuItem("Meshup/Game/Install Game Start Formation Walk")]
@@ -56,8 +56,9 @@ namespace Meshup.Editor
             var authority = GetOrAdd<PlayerMovementAuthority>(playerObject);
             authority.Configure(FindTranslationProviders(playerObject));
 
+            var doors = BuildDoorControllers(scene, route);
             var coordinator = GetOrAdd<GameStartCoordinator>(root);
-            coordinator.Configure(route, authority);
+            coordinator.Configure(route, authority, doors);
 
             var prompt = BuildPrompt(console.transform);
             var xrInteractable = GetOrAdd<XRSimpleInteractable>(console);
@@ -72,6 +73,7 @@ namespace Meshup.Editor
 
             MarkDirty(route, authority, coordinator, xrInteractable,
                 interaction, sessionMenu, root, console);
+            MarkDirty(doors);
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, ScenePath);
             AssetDatabase.SaveAssets();
@@ -92,6 +94,9 @@ namespace Meshup.Editor
             var interaction = console.GetComponent<GameStartInteractable>();
             var xrInteractable = console.GetComponent<XRSimpleInteractable>();
             var prompt = console.transform.Find("Game Start Prompt");
+            var doors = scene.GetRootGameObjects()
+                .SelectMany(item => item.GetComponentsInChildren<
+                    GameStartDoorController>(true)).ToArray();
 
             if (route == null || route.WaypointCount < 5
                 || route.Length < 8f || coordinator == null
@@ -99,6 +104,9 @@ namespace Meshup.Editor
                 || xrInteractable == null || prompt == null
                 || !console.GetComponentsInChildren<Collider>(true)
                     .Any(item => !item.isTrigger)
+                || doors.Length == 0
+                || doors.Any(item => !item.IsConfigured
+                    || item.PathOffset > 2.5f)
                 || prompt.GetComponentInChildren<Text>(true) == null)
             {
                 throw new InvalidOperationException(
@@ -117,14 +125,25 @@ namespace Meshup.Editor
             foreach (var marker in root.transform.Find("Route")
                 .Cast<Transform>())
             {
-                if (!Physics.Raycast(marker.position + Vector3.up * 0.5f,
-                        Vector3.down, out var hit, 2f, ~0,
-                        QueryTriggerInteraction.Ignore)
+                var hits = Physics.RaycastAll(
+                        marker.position + Vector3.up * 0.5f,
+                        Vector3.down, 2f, ~0,
+                        QueryTriggerInteraction.Ignore);
+                var hit = hits
+                    .Where(item => !doors.Any(door =>
+                        item.collider.transform.IsChildOf(door.transform)))
+                    .OrderBy(item => Mathf.Abs(item.point.y
+                        - (marker.position.y + 0.08f)))
+                    .FirstOrDefault();
+                if (hit.collider == null
                     || Mathf.Abs(marker.position.y - (hit.point.y - 0.08f))
                         > 0.12f)
                 {
+                    var hitDescriptions = string.Join(", ", hits.Select(
+                        item => $"{item.collider.name}@{item.point.y:0.000}"));
                     throw new InvalidOperationException(
-                        $"Route marker is not fitted to the walkable surface: {marker.name}");
+                        $"Route marker is not fitted to the walkable surface: "
+                        + $"{marker.name}. Hits: {hitDescriptions}");
                 }
             }
 
@@ -379,6 +398,41 @@ namespace Meshup.Editor
                     component.GetType().Name))
                 .Distinct()
                 .ToArray();
+        }
+
+        private static GameStartDoorController[] BuildDoorControllers(
+            Scene scene, GameStartRoute route)
+        {
+            var result = new List<GameStartDoorController>();
+            foreach (var animator in scene.GetRootGameObjects()
+                .SelectMany(item => item.GetComponentsInChildren<Animator>(true)))
+            {
+                var hasDoorParameter = animator.parameters.Any(parameter =>
+                    parameter.type == AnimatorControllerParameterType.Bool
+                    && parameter.name == "character_nearby");
+                if (!hasDoorParameter)
+                {
+                    continue;
+                }
+
+                var routeDistance = route.GetClosestDistance(
+                    animator.transform.position, out var closestPoint);
+                var offset = animator.transform.position - closestPoint;
+                offset.y = 0f;
+                if (offset.magnitude > 2.5f)
+                {
+                    continue;
+                }
+
+                var controller = GetOrAdd<GameStartDoorController>(
+                    animator.gameObject);
+                controller.Configure(animator, route);
+                result.Add(controller);
+                Debug.Log($"Game start door '{animator.name}' at route "
+                    + $"distance {routeDistance:0.0} m.");
+            }
+
+            return result.OrderBy(item => item.RouteDistance).ToArray();
         }
 
         private static T GetOrAdd<T>(GameObject gameObject) where T : Component

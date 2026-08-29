@@ -44,6 +44,8 @@ namespace Meshup.Game
         [Header("Scene")]
         [SerializeField] private GameStartRoute route;
         [SerializeField] private PlayerMovementAuthority player;
+        [SerializeField] private GameStartDoorController[] doors =
+            Array.Empty<GameStartDoorController>();
 
         [Header("Motion")]
         [SerializeField] private float walkSpeed = 1.5f;
@@ -75,10 +77,12 @@ namespace Meshup.Game
         public string StatusMessage { get; private set; } = string.Empty;
 
         public void Configure(GameStartRoute formationRoute,
-            PlayerMovementAuthority localPlayer)
+            PlayerMovementAuthority localPlayer,
+            GameStartDoorController[] routeDoors = null)
         {
             route = formationRoute;
             player = localPlayer;
+            doors = routeDoors ?? Array.Empty<GameStartDoorController>();
         }
 
         private void Start()
@@ -251,6 +255,7 @@ namespace Meshup.Game
             readyPeers.Clear();
             alignedPeers.Clear();
             arrivedPeers.Clear();
+            CloseDoors();
             phase = SequencePhase.Preparing;
             StatusMessage = "Preparing players…";
             player.SetLock(MovementLockReason.GameStartSequence, true);
@@ -319,6 +324,7 @@ namespace Meshup.Game
             }
             phase = SequencePhase.Walking;
             StatusMessage = "Walking to the game room…";
+            UpdateDoors(0f);
             motion = StartCoroutine(WalkRoute());
         }
 
@@ -334,6 +340,7 @@ namespace Meshup.Game
                     walkAcceleration * Time.deltaTime);
                 leaderDistance = Mathf.Min(route.Length,
                     leaderDistance + speed * Time.deltaTime);
+                UpdateDoors(leaderDistance);
                 var target = route.GetSlotPosition(leaderDistance,
                     localSlot, roster.Length);
                 player.MoveTowards(target, speed * Time.deltaTime * 1.35f);
@@ -374,6 +381,7 @@ namespace Meshup.Game
 
             phase = SequencePhase.Complete;
             StatusMessage = string.Empty;
+            CloseDoors();
             player.SetLock(MovementLockReason.GameStartSequence, false);
         }
 
@@ -417,6 +425,22 @@ namespace Meshup.Game
             first.y = 0f;
             second.y = 0f;
             return Vector3.Distance(first, second);
+        }
+
+        private void UpdateDoors(float leaderDistance)
+        {
+            foreach (var door in doors)
+            {
+                door?.SetFormationProgress(leaderDistance, roster.Length);
+            }
+        }
+
+        private void CloseDoors()
+        {
+            foreach (var door in doors)
+            {
+                door?.Close();
+            }
         }
 
         private bool AllCurrentPeersAreIn(HashSet<string> set)
@@ -516,6 +540,7 @@ namespace Meshup.Game
                 motion = null;
             }
             player?.SetLock(MovementLockReason.GameStartSequence, false);
+            CloseDoors();
             if (reopenRoom && session != null && session.IsRoomCreator)
             {
                 session.TrySetGameStarted(false);
@@ -534,6 +559,7 @@ namespace Meshup.Game
         private void OnDisable()
         {
             player?.SetLock(MovementLockReason.GameStartSequence, false);
+            CloseDoors();
         }
 
         private void OnDestroy()

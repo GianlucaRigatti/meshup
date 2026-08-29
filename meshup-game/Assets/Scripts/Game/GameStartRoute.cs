@@ -29,6 +29,58 @@ namespace Meshup.Game
                 playerCount, columnSpacing, rowSpacing);
         }
 
+        public float GetClosestDistance(Vector3 worldPoint,
+            out Vector3 closestPoint)
+        {
+            return GetClosestDistance(GetPositions(), worldPoint,
+                out closestPoint);
+        }
+
+        public static float GetClosestDistance(Vector3[] points,
+            Vector3 worldPoint, out Vector3 closestPoint)
+        {
+            closestPoint = points != null && points.Length > 0
+                ? points[0]
+                : Vector3.zero;
+            if (points == null || points.Length < 2)
+            {
+                return 0f;
+            }
+
+            var bestSqrDistance = float.PositiveInfinity;
+            var bestRouteDistance = 0f;
+            var traversed = 0f;
+            for (var i = 0; i < points.Length - 1; i++)
+            {
+                var segment = points[i + 1] - points[i];
+                var segmentLength = segment.magnitude;
+                if (segmentLength < 0.0001f)
+                {
+                    continue;
+                }
+
+                var flatSegment = new Vector2(segment.x, segment.z);
+                var flatLengthSqr = flatSegment.sqrMagnitude;
+                var amount = flatLengthSqr < 0.0001f
+                    ? 0f
+                    : Mathf.Clamp01(Vector2.Dot(
+                        new Vector2(worldPoint.x - points[i].x,
+                            worldPoint.z - points[i].z), flatSegment)
+                        / flatLengthSqr);
+                var candidate = points[i] + segment * amount;
+                var offset = worldPoint - candidate;
+                offset.y = 0f;
+                if (offset.sqrMagnitude < bestSqrDistance)
+                {
+                    bestSqrDistance = offset.sqrMagnitude;
+                    closestPoint = candidate;
+                    bestRouteDistance = traversed + segmentLength * amount;
+                }
+                traversed += segmentLength;
+            }
+            return bestRouteDistance;
+        }
+
         public static Vector3 GetSlotPosition(Vector3[] points,
             float leaderDistance, int slotIndex, int playerCount,
             float columns, float rows)
