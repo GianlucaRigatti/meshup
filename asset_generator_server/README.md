@@ -35,7 +35,23 @@ requires GCC/G++ 14 or older; the installer selects an installed matching pair
 from versions 10 through 14.
 
 Install Node.js 20 or newer and npm for the pinned glTF-Transform
-postprocessor.
+postprocessor. Ubuntu 24.04 may still have Node.js 18 installed, which is too
+old. If you use `nvm`, upgrade and select the default runtime with:
+
+```bash
+nvm install 20
+nvm alias default 20
+nvm use 20
+node --version  # must print v20 or newer
+```
+
+After changing Node.js versions, install the locked JavaScript dependencies
+from the server directory:
+
+```bash
+cd asset_generator_server
+npm ci
+```
 
 Install Python and the server dependencies:
 
@@ -224,6 +240,10 @@ model selectors or pipeline profiles.
 - If readiness reports a missing or mismatched Qwen3.5 Python runtime, rerun
   `uv run python scripts/install_models.py --accept-licenses`. Do not install
   Transformers 5 into the main project environment; Qwen3-ASR pins 4.57.6.
+- If glTF-Transform fails in `sharp` with `Unexpected token 'with'`, check
+  `node --version`. Node.js 18 cannot load the pinned dependencies. Select
+  Node.js 20 or newer, rerun `npm ci` in `asset_generator_server`, and restart
+  the server.
 - Native stderr/stdout tails are logged server-side on failure, while API
   errors remain intentionally generic.
 
