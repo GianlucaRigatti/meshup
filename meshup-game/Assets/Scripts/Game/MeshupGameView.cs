@@ -290,20 +290,48 @@ namespace Meshup.Game
         private static bool TryGetLocalBounds(Renderer renderer,
             out Bounds bounds)
         {
-            if (renderer.TryGetComponent<MeshFilter>(out var filter)
-                && filter.sharedMesh != null)
+            var mesh = GetSharedMesh(renderer);
+            if (mesh != null)
             {
-                bounds = filter.sharedMesh.bounds;
-                return true;
-            }
-            if (renderer is SkinnedMeshRenderer skinned
-                && skinned.sharedMesh != null)
-            {
-                bounds = skinned.sharedMesh.bounds;
+                bounds = mesh.bounds;
                 return true;
             }
             bounds = default;
             return false;
+        }
+
+        private static Mesh GetSharedMesh(Renderer renderer)
+        {
+            if (renderer.TryGetComponent<MeshFilter>(out var filter))
+            {
+                return filter.sharedMesh;
+            }
+            return renderer is SkinnedMeshRenderer skinned
+                ? skinned.sharedMesh
+                : null;
+        }
+
+        private static Vector3 GetAuthoredNormal(Renderer renderer,
+            int normalIndex)
+        {
+            var axis = normalIndex switch
+            {
+                0 => Vector3.right,
+                1 => Vector3.up,
+                _ => Vector3.forward
+            };
+            var normals = GetSharedMesh(renderer)?.normals;
+            if (normals == null || normals.Length == 0)
+            {
+                return axis;
+            }
+
+            var signedTotal = 0f;
+            foreach (var normal in normals)
+            {
+                signedTotal += Vector3.Dot(normal, axis);
+            }
+            return signedTotal < 0f ? -axis : axis;
         }
 
         private static float[] GetWorldDimensions(Transform transform,
@@ -326,10 +354,11 @@ namespace Meshup.Game
             public readonly Vector3 LocalUp;
             public readonly float Offset;
             public readonly float WorldScale;
+            public readonly bool UseViewerSide;
 
             private SurfacePlacement(Transform surface, Transform viewer,
                 Vector3 localCenter, Vector3 localNormal, Vector3 localUp,
-                float offset, float worldScale)
+                float offset, float worldScale, bool useViewerSide)
             {
                 Surface = surface;
                 Viewer = viewer;
@@ -338,6 +367,7 @@ namespace Meshup.Game
                 LocalUp = localUp;
                 Offset = offset;
                 WorldScale = worldScale;
+                UseViewerSide = useViewerSide;
             }
 
             public static SurfacePlacement From(Renderer renderer,
@@ -375,15 +405,15 @@ namespace Meshup.Game
                     Mathf.Min(dimensions[widthIndex], dimensions[upIndex])
                     * 0.0125f);
                 return new SurfacePlacement(renderer.transform, viewer,
-                    bounds.center, Axis(normalIndex), localUp, offset,
-                    Mathf.Max(0.0001f, fittedScale));
+                    bounds.center, GetAuthoredNormal(renderer, normalIndex),
+                    localUp, offset, Mathf.Max(0.0001f, fittedScale), false);
             }
 
             public static SurfacePlacement From(Transform target,
                 Transform viewer, float worldScale)
             {
                 return new SurfacePlacement(target, viewer, Vector3.zero,
-                    Vector3.forward, Vector3.up, 0.01f, worldScale);
+                    Vector3.forward, Vector3.up, 0.01f, worldScale, true);
             }
 
             public void Resolve(out Vector3 position, out Quaternion rotation)
@@ -391,14 +421,13 @@ namespace Meshup.Game
                 var center = Surface.TransformPoint(LocalCenter);
                 var normal = Surface.TransformDirection(LocalNormal).normalized;
                 var up = Surface.TransformDirection(LocalUp).normalized;
-                var viewerDirection = Viewer != null
-                    ? Viewer.position - center
-                    : -normal;
-                var towardViewer = Vector3.Dot(viewerDirection, normal) >= 0f
-                    ? normal
-                    : -normal;
-                position = center + towardViewer * Offset;
-                rotation = Quaternion.LookRotation(-towardViewer, up);
+                if (UseViewerSide && Viewer != null
+                    && Vector3.Dot(Viewer.position - center, normal) < 0f)
+                {
+                    normal = -normal;
+                }
+                position = center + normal * Offset;
+                rotation = Quaternion.LookRotation(-normal, up);
             }
 
             private static int SmallestIndex(float[] values)

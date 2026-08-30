@@ -157,6 +157,15 @@ namespace Meshup.Editor.Tests
                 Assert.That(Vector3.Dot(-canvas.forward,
                     (viewer.transform.position - canvas.position).normalized),
                     Is.GreaterThan(0.99f));
+                var authoredFront = -canvas.forward;
+                viewer.transform.position = new Vector3(2f, 1.5f, 4f);
+                typeof(MeshupGameView).GetMethod("LateUpdate",
+                        System.Reflection.BindingFlags.Instance
+                        | System.Reflection.BindingFlags.NonPublic)
+                    ?.Invoke(view, null);
+                Assert.That(Vector3.Dot(-canvas.forward, authoredFront),
+                    Is.GreaterThan(0.99f),
+                    "The canvas must remain on the authored display face.");
 
                 var buttons = canvas.GetComponentsInChildren<Button>(true);
                 Assert.That(buttons.Single(button => button.name == "First Choice")
@@ -197,6 +206,11 @@ namespace Meshup.Editor.Tests
                 GameStartCoordinator>(), Is.Not.Null);
             Assert.That(UnityEngine.Object.FindAnyObjectByType<
                 PlayerMovementAuthority>(), Is.Not.Null);
+            var guesserMonitor = scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<Transform>(true))
+                .Single(item => item.name == "guesser_monitor");
+            Assert.That(Mathf.Abs(Mathf.DeltaAngle(
+                guesserMonitor.eulerAngles.y, 180f)), Is.LessThan(0.1f));
             var desktopMove = UnityEngine.Object.FindObjectsByType<
                     ContinuousMoveProvider>(FindObjectsSortMode.None)
                 .Single(item => item.name == "Traditional Locomotion Provider");
