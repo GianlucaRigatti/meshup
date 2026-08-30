@@ -18,6 +18,9 @@ namespace Meshup.Game
         private Button startButton;
         private Action<int> chooseWord;
         private Action startRound;
+        private bool cursorReleasedForChoices;
+        private CursorLockMode previousCursorLockMode;
+        private bool previousCursorVisible;
         private readonly System.Collections.Generic.List<ScreenMount>
             screenMounts = new();
 
@@ -76,6 +79,7 @@ namespace Meshup.Game
             }
             firstChoice.interactable = choicesVisible;
             secondChoice.interactable = choicesVisible;
+            SetDesktopChoiceCursor(choicesVisible);
 
             var preparation = isMime && phase == MeshupGamePhase.Preparation;
             startButton.gameObject.SetActive(preparation);
@@ -167,6 +171,7 @@ namespace Meshup.Game
         {
             var gameObject = new GameObject(name, typeof(RectTransform),
                 typeof(Canvas), typeof(CanvasScaler),
+                typeof(GraphicRaycaster),
                 typeof(TrackedDeviceGraphicRaycaster));
             gameObject.transform.SetParent(target, false);
             var surface = FindDisplaySurface(target, preferredSurfaceNames);
@@ -188,10 +193,50 @@ namespace Meshup.Game
             rect.sizeDelta = size;
             var canvas = gameObject.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
+            canvas.worldCamera = localViewer != null
+                ? localViewer.GetComponentInChildren<Camera>(true)
+                : Camera.main;
             canvas.overrideSorting = true;
             canvas.sortingOrder = 100;
             screenMounts.Add(new ScreenMount(gameObject.transform, placement));
             return canvas;
+        }
+
+        private void SetDesktopChoiceCursor(bool choicesVisible)
+        {
+            if (Application.isMobilePlatform)
+            {
+                return;
+            }
+
+            if (choicesVisible && !cursorReleasedForChoices)
+            {
+                previousCursorLockMode = Cursor.lockState;
+                previousCursorVisible = Cursor.visible;
+                cursorReleasedForChoices = true;
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+            else if (!choicesVisible && cursorReleasedForChoices)
+            {
+                RestoreDesktopCursor();
+            }
+        }
+
+        private void RestoreDesktopCursor()
+        {
+            if (!cursorReleasedForChoices)
+            {
+                return;
+            }
+            cursorReleasedForChoices = false;
+            Cursor.lockState = previousCursorLockMode;
+            Cursor.visible = previousCursorVisible;
+        }
+
+        private void OnDestroy()
+        {
+            RestoreDesktopCursor();
         }
 
         private void LateUpdate()

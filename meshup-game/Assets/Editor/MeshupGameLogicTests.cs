@@ -7,6 +7,8 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit.Locomotion.Movement;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Meshup.Editor.Tests
 {
@@ -147,6 +149,9 @@ namespace Meshup.Editor.Tests
 
                 var canvas = terminal.transform.Find("MeshUp Mime Terminal UI");
                 Assert.That(canvas, Is.Not.Null);
+                Assert.That(canvas.GetComponent<GraphicRaycaster>(), Is.Not.Null);
+                Assert.That(canvas.GetComponent<TrackedDeviceGraphicRaycaster>(),
+                    Is.Not.Null);
                 Assert.That(Vector3.Distance(canvas.position,
                     terminal.transform.GetChild(0).position), Is.LessThan(0.1f));
                 Assert.That(Vector3.Dot(-canvas.forward,
@@ -192,6 +197,10 @@ namespace Meshup.Editor.Tests
                 GameStartCoordinator>(), Is.Not.Null);
             Assert.That(UnityEngine.Object.FindAnyObjectByType<
                 PlayerMovementAuthority>(), Is.Not.Null);
+            var desktopMove = UnityEngine.Object.FindObjectsByType<
+                    ContinuousMoveProvider>(FindObjectsSortMode.None)
+                .Single(item => item.name == "Traditional Locomotion Provider");
+            Assert.That(desktopMove.moveSpeed, Is.EqualTo(2.75f));
         }
 
         private static MeshupMatchState CreateState()
