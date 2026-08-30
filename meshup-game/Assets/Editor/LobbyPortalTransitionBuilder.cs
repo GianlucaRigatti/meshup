@@ -74,7 +74,7 @@ namespace Meshup.EditorTools
             imageRect.offsetMin = Vector2.zero;
             imageRect.offsetMax = Vector2.zero;
             var overlayImage = imageObject.GetComponent<Image>();
-            overlayImage.color = new Color(0.53f, 0.97f, 1f, 1f);
+            overlayImage.color = new Color(0.004f, 0.008f, 0.016f, 1f);
             overlayImage.raycastTarget = true;
 
             var locomotion = player.GetComponentsInChildren<Behaviour>(true)
@@ -94,6 +94,8 @@ namespace Meshup.EditorTools
             SetArray(serialized, "locomotionBehaviours",
                 locomotion.Cast<UnityEngine.Object>().ToArray());
             Set(serialized, "roomUiCanvasGroup", roomCanvasGroup);
+            serialized.FindProperty("materializeDuration").floatValue = 0.4f;
+            serialized.FindProperty("engulfDuration").floatValue = 0.45f;
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             visualRoot.gameObject.SetActive(false);

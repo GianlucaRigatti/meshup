@@ -20109,7 +20109,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.53, g: 0.97, b: 1, a: 1}
+  m_Color: {r: 0.004, g: 0.008, b: 0.016, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -48134,8 +48134,8 @@ MonoBehaviour:
   - {fileID: 1858588517}
   - {fileID: 1091370438}
   roomUiCanvasGroup: {fileID: 171140316}
-  materializeDuration: 0.65
-  engulfDuration: 1.1
+  materializeDuration: 0.4
+  engulfDuration: 0.45
   cancelDuration: 0.3
   revealDuration: 0.35
   portalDistance: 1.45

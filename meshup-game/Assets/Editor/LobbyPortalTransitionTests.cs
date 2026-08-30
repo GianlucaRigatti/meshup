@@ -8,6 +8,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 namespace Meshup.EditorTests
 {
@@ -39,11 +40,18 @@ namespace Meshup.EditorTests
             Assert.That(serialized.FindProperty("locomotionBehaviours").arraySize,
                 Is.GreaterThan(0));
             Assert.That(serialized.FindProperty("materializeDuration").floatValue,
-                Is.EqualTo(0.65f).Within(0.001f));
+                Is.EqualTo(0.4f).Within(0.001f));
             Assert.That(serialized.FindProperty("engulfDuration").floatValue,
-                Is.EqualTo(1.1f).Within(0.001f));
+                Is.EqualTo(0.45f).Within(0.001f));
             Assert.That(serialized.FindProperty("revealDuration").floatValue,
                 Is.EqualTo(0.35f).Within(0.001f));
+
+            var overlay = (Image)serialized.FindProperty("overlayImage")
+                .objectReferenceValue;
+            var brightestChannel = Mathf.Max(overlay.color.r,
+                overlay.color.g, overlay.color.b);
+            Assert.That(brightestChannel, Is.LessThan(0.02f),
+                "The VR scene cover must be near-black, not a bright cyan flash.");
         }
 
         [Test]

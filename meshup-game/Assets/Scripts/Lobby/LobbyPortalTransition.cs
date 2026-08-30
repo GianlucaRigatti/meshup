@@ -35,8 +35,8 @@ namespace Meshup.Lobby
         [SerializeField] private CanvasGroup roomUiCanvasGroup;
 
         [Header("Timing")]
-        [SerializeField, Min(0.05f)] private float materializeDuration = 0.65f;
-        [SerializeField, Min(0.05f)] private float engulfDuration = 1.1f;
+        [SerializeField, Min(0.05f)] private float materializeDuration = 0.4f;
+        [SerializeField, Min(0.05f)] private float engulfDuration = 0.45f;
         [SerializeField, Min(0.05f)] private float cancelDuration = 0.3f;
         [SerializeField, Min(0.05f)] private float revealDuration = 0.35f;
         [SerializeField, Min(0.25f)] private float portalDistance = 1.45f;
@@ -53,6 +53,9 @@ namespace Meshup.Lobby
         private float cyanAngle;
         private float goldAngle;
 
+        private static readonly Color ComfortFadeColor =
+            new(0.004f, 0.008f, 0.016f, 1f);
+
         public bool IsVisible => visualRoot != null && visualRoot.gameObject.activeSelf;
         public bool InputLocked => inputLocked;
 
@@ -63,6 +66,12 @@ namespace Meshup.Lobby
             if (overlayCanvas != null)
             {
                 overlayCanvas.transform.localScale = Vector3.one;
+            }
+            if (overlayImage != null)
+            {
+                // A near-black cover is comfortable in a headset and avoids the
+                // several-second cyan flash when scene preloading stalls.
+                overlayImage.color = ComfortFadeColor;
             }
             SetOverlayAlpha(0f);
             if (visualRoot != null)
@@ -100,11 +109,6 @@ namespace Meshup.Lobby
                 goldRing.localRotation = Quaternion.Euler(0f, 0f, goldAngle);
             }
 
-            if (!enteringGame && portalLight != null)
-            {
-                portalLight.intensity = 1.2f
-                    + Mathf.Sin(Time.unscaledTime * 3.4f) * 0.18f;
-            }
         }
 
         private void TryBindSession()
@@ -186,11 +190,6 @@ namespace Meshup.Lobby
             visualRoot.gameObject.SetActive(true);
             visualRoot.localScale = Vector3.one * 0.04f;
             SetOverlayAlpha(0f);
-            if (portalLight != null)
-            {
-                portalLight.enabled = true;
-                portalLight.intensity = 0f;
-            }
             SetParticlesPlaying(true);
             StopVisualSequence();
             visualSequence = StartCoroutine(Materialize());
@@ -205,10 +204,6 @@ namespace Meshup.Lobby
                 var t = Mathf.Clamp01(elapsed / materializeDuration);
                 var eased = 1f - Mathf.Pow(1f - t, 3f);
                 visualRoot.localScale = Vector3.one * Mathf.Lerp(0.04f, 1f, eased);
-                if (portalLight != null)
-                {
-                    portalLight.intensity = Mathf.Lerp(0f, 1.2f, eased);
-                }
                 yield return null;
             }
 
@@ -237,14 +232,13 @@ namespace Meshup.Lobby
                     elapsed += Time.unscaledDeltaTime;
                     var t = Mathf.Clamp01(elapsed / engulfDuration);
                     var eased = t * t * (3f - 2f * t);
+                    // Keep geometry outside the headset instead of expanding it
+                    // through the near plane, which caused severe fill-rate spikes.
                     visualRoot.localScale = Vector3.one
-                        * Mathf.Lerp(initialScale, 8.5f, eased);
+                        * Mathf.Lerp(initialScale, 1.45f, eased);
                     SetOverlayAlpha(Mathf.Lerp(initialOverlay, 1f,
-                        Mathf.Clamp01((t - 0.34f) / 0.66f)));
-                    if (portalLight != null)
-                    {
-                        portalLight.intensity = Mathf.Lerp(1.2f, 4.5f, eased);
-                    }
+                        Mathf.SmoothStep(0f, 1f,
+                            Mathf.Clamp01((t - 0.08f) / 0.82f))));
                     yield return null;
                 }
 
@@ -276,7 +270,6 @@ namespace Meshup.Lobby
         private IEnumerator CancelPortal()
         {
             var startScale = IsVisible ? visualRoot.localScale.x : 0f;
-            var startLight = portalLight != null ? portalLight.intensity : 0f;
             var elapsed = 0f;
             while (elapsed < cancelDuration && IsVisible)
             {
@@ -284,10 +277,6 @@ namespace Meshup.Lobby
                 var t = Mathf.Clamp01(elapsed / cancelDuration);
                 visualRoot.localScale = Vector3.one
                     * Mathf.Lerp(startScale, 0.04f, t);
-                if (portalLight != null)
-                {
-                    portalLight.intensity = Mathf.Lerp(startLight, 0f, t);
-                }
                 yield return null;
             }
 
@@ -296,10 +285,6 @@ namespace Meshup.Lobby
             {
                 visualRoot.gameObject.SetActive(false);
                 visualRoot.localScale = Vector3.one;
-            }
-            if (portalLight != null)
-            {
-                portalLight.enabled = false;
             }
             SetOverlayAlpha(0f);
             SetInputLocked(false);
@@ -335,127 +320,57 @@ namespace Meshup.Lobby
             {
                 visualRoot = NewChild("Portal Visuals", transform);
             }
-            if (cyanRing != null && goldRing != null && particles != null
-                && particles.Length >= 2 && portalLight != null)
+            if (cyanRing != null && goldRing != null)
             {
                 return;
             }
 
-            var veil = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            // One veil and two LineRenderers replace the previous 52 cube renderers,
+            // two particle systems and realtime point light. This is substantially
+            // cheaper for both desktop and stereo rendering.
+            var veil = GameObject.CreatePrimitive(PrimitiveType.Quad);
             veil.name = "Portal Veil";
             veil.transform.SetParent(visualRoot, false);
-            veil.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            veil.transform.localScale = new Vector3(0.62f, 0.008f, 0.62f);
+            veil.transform.localScale = Vector3.one * 1.15f;
             veil.GetComponent<Renderer>().sharedMaterial = veilMaterial;
             Destroy(veil.GetComponent<Collider>());
 
-            cyanRing = CreateSegmentedRing("Cyan Rune Ring", visualRoot,
-                0.72f, 30, cyanMaterial, 0.16f, 0.036f);
-            goldRing = CreateSegmentedRing("Gold Rune Ring", visualRoot,
-                0.52f, 22, goldMaterial, 0.13f, 0.028f);
+            cyanRing = CreateRing("Cyan Rune Ring", visualRoot,
+                0.72f, 36, cyanMaterial, 0.036f);
+            goldRing = CreateRing("Gold Rune Ring", visualRoot,
+                0.52f, 28, goldMaterial, 0.025f);
             goldRing.localRotation = Quaternion.Euler(0f, 0f, 8f);
 
-            particles = new[]
-            {
-                CreateParticles("Cyan Story Sparks", visualRoot, cyanMaterial,
-                    new Color(0.3f, 0.95f, 1f), 54, 0.76f, 0.028f),
-                CreateParticles("Gold Story Sparks", visualRoot, goldMaterial,
-                    new Color(1f, 0.72f, 0.24f), 32, 0.56f, 0.022f)
-            };
-
-            var lightObject = NewChild("Portal Light", visualRoot).gameObject;
-            lightObject.transform.localPosition = new Vector3(0f, 0f, -0.18f);
-            portalLight = lightObject.AddComponent<Light>();
-            portalLight.type = LightType.Point;
-            portalLight.color = new Color(0.24f, 0.9f, 1f);
-            portalLight.range = 4.5f;
-            portalLight.intensity = 0f;
-            portalLight.shadows = LightShadows.None;
+            particles = Array.Empty<ParticleSystem>();
+            portalLight = null;
         }
 
-        private static Transform CreateSegmentedRing(string name, Transform parent,
-            float radius, int segmentCount, Material material, float length,
-            float thickness)
+        private static Transform CreateRing(string name, Transform parent,
+            float radius, int pointCount, Material material, float thickness)
         {
             var ring = NewChild(name, parent);
-            for (var i = 0; i < segmentCount; i++)
+            var line = ring.gameObject.AddComponent<LineRenderer>();
+            line.useWorldSpace = false;
+            line.loop = true;
+            line.positionCount = pointCount;
+            line.startWidth = thickness;
+            line.endWidth = thickness;
+            line.numCornerVertices = 1;
+            line.numCapVertices = 0;
+            line.sharedMaterial = material;
+            line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            line.receiveShadows = false;
+            line.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            line.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            for (var i = 0; i < pointCount; i++)
             {
-                var angle = i * Mathf.PI * 2f / segmentCount;
-                var segment = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                segment.name = $"Rune {i + 1:00}";
-                segment.transform.SetParent(ring, false);
-                segment.transform.localPosition = new Vector3(
-                    Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius, 0f);
-                segment.transform.localRotation = Quaternion.Euler(
-                    0f, 0f, angle * Mathf.Rad2Deg + 90f);
-                var alternatingLength = i % 3 == 0 ? length * 1.35f : length;
-                segment.transform.localScale = new Vector3(
-                    alternatingLength, thickness, thickness * 0.65f);
-                segment.GetComponent<Renderer>().sharedMaterial = material;
-                Destroy(segment.GetComponent<Collider>());
+                var angle = i * Mathf.PI * 2f / pointCount;
+                line.SetPosition(i, new Vector3(
+                    Mathf.Cos(angle) * radius,
+                    Mathf.Sin(angle) * radius,
+                    0f));
             }
             return ring;
-        }
-
-        private static ParticleSystem CreateParticles(string name, Transform parent,
-            Material material, Color color, int emissionRate, float radius,
-            float size)
-        {
-            var particleObject = NewChild(name, parent).gameObject;
-            var system = particleObject.AddComponent<ParticleSystem>();
-            var main = system.main;
-            main.loop = true;
-            main.playOnAwake = false;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(0.7f, 1.25f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(-0.08f, 0.08f);
-            main.startSize = new ParticleSystem.MinMaxCurve(size * 0.5f, size * 1.7f);
-            main.startColor = color;
-            main.simulationSpace = ParticleSystemSimulationSpace.Local;
-            main.maxParticles = 160;
-
-            var emission = system.emission;
-            emission.rateOverTime = emissionRate;
-            var shape = system.shape;
-            shape.shapeType = ParticleSystemShapeType.Circle;
-            shape.radius = radius;
-            shape.radiusThickness = 0.34f;
-            shape.arcMode = ParticleSystemShapeMultiModeValue.Random;
-
-            var velocity = system.velocityOverLifetime;
-            velocity.enabled = true;
-            // Unity requires orbital X/Y/Z to all use the same MinMaxCurve
-            // mode. Keep every axis in Constant mode and vary direction by
-            // assigning opposite constants to the two particle systems.
-            velocity.orbitalX = new ParticleSystem.MinMaxCurve(0f);
-            velocity.orbitalY = new ParticleSystem.MinMaxCurve(0f);
-            velocity.orbitalZ = new ParticleSystem.MinMaxCurve(
-                emissionRate >= 50 ? 1.8f : -1.8f);
-            velocity.radial = new ParticleSystem.MinMaxCurve(-0.42f, -0.18f);
-
-            var colorOverLifetime = system.colorOverLifetime;
-            colorOverLifetime.enabled = true;
-            var gradient = new Gradient();
-            gradient.SetKeys(
-                new[]
-                {
-                    new GradientColorKey(color, 0f),
-                    new GradientColorKey(Color.white, 0.55f),
-                    new GradientColorKey(color, 1f)
-                },
-                new[]
-                {
-                    new GradientAlphaKey(0f, 0f),
-                    new GradientAlphaKey(1f, 0.18f),
-                    new GradientAlphaKey(0f, 1f)
-                });
-            colorOverLifetime.color = gradient;
-
-            var renderer = particleObject.GetComponent<ParticleSystemRenderer>();
-            renderer.renderMode = ParticleSystemRenderMode.Billboard;
-            renderer.sharedMaterial = material;
-            renderer.sortingOrder = 8;
-            system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-            return system;
         }
 
         private static Transform NewChild(string name, Transform parent)
