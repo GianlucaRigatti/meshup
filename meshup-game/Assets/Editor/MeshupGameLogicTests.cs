@@ -117,6 +117,58 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void SnapshotRetainsEveryGeneratedObjectInTheRound()
+        {
+            var state = CreateState();
+            var generated = new[]
+            {
+                new MeshupGeneratedObjectState
+                {
+                    objectId = "first",
+                    url = "http://server/first.glb"
+                },
+                new MeshupGeneratedObjectState
+                {
+                    objectId = "second",
+                    url = "http://server/second.glb"
+                }
+            };
+
+            var snapshot = state.CreateSnapshot(generated);
+
+            Assert.That(snapshot.generatedObjects.Select(item => item.objectId),
+                Is.EqualTo(new[] { "first", "second" }));
+        }
+
+        [Test]
+        public void TransformCommandsAndHostBroadcastsUseDifferentRoutes()
+        {
+            var coordinatorType = typeof(MeshupGameCoordinator);
+            var kindType = coordinatorType.GetNestedType("MessageKind",
+                System.Reflection.BindingFlags.NonPublic);
+            var messageType = coordinatorType.GetNestedType("GameMessage",
+                System.Reflection.BindingFlags.NonPublic);
+            var routeMethod = coordinatorType.GetMethod(
+                "IsAuthoritativeInbound",
+                System.Reflection.BindingFlags.Static
+                | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(kindType, Is.Not.Null);
+            Assert.That(messageType, Is.Not.Null);
+            Assert.That(routeMethod, Is.Not.Null);
+
+            var transformKind = Enum.Parse(kindType, "ObjectTransform");
+            var message = Activator.CreateInstance(messageType);
+            Assert.That(routeMethod.Invoke(null,
+                new[] { transformKind, message }), Is.False,
+                "A mime transform must reach the host command handler.");
+
+            messageType.GetField("creatorPeerId")?.SetValue(message, "host");
+            Assert.That(routeMethod.Invoke(null,
+                new[] { transformKind, message }), Is.True,
+                "A host transform must be applied as authoritative state.");
+        }
+
+        [Test]
         public void MimeTerminalMountsOnItsScreenAndShowsBothChoices()
         {
             var owner = new GameObject("Game View Owner");

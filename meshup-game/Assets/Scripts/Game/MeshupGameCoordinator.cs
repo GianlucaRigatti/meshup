@@ -192,9 +192,7 @@ namespace Meshup.Game
         {
             var message = networkMessage.FromJson<GameMessage>();
             var kind = (MessageKind)message.kind;
-            if (kind is MessageKind.Snapshot or MessageKind.PrivateWords
-                or MessageKind.GenerationAuthorized
-                or MessageKind.ObjectTransform)
+            if (IsAuthoritativeInbound(kind, message))
             {
                 if (!string.Equals(message.creatorPeerId,
                     session?.CreatorPeerId, StringComparison.Ordinal))
@@ -208,6 +206,15 @@ namespace Meshup.Game
             {
                 ProcessHostCommand(kind, message);
             }
+        }
+
+        private static bool IsAuthoritativeInbound(MessageKind kind,
+            GameMessage message)
+        {
+            return kind is MessageKind.Snapshot or MessageKind.PrivateWords
+                    or MessageKind.GenerationAuthorized
+                || (kind == MessageKind.ObjectTransform
+                    && !string.IsNullOrEmpty(message.creatorPeerId));
         }
 
         private void ProcessAuthoritativeMessage(MessageKind kind,
@@ -334,8 +341,8 @@ namespace Meshup.Game
                             {
                                 objectId = Guid.NewGuid().ToString("N"),
                                 url = message.text,
-                                position = generatorAnchor.position
-                                    + generatorAnchor.up * 0.4f,
+                                position = GetGeneratedSpawnPosition(
+                                    generatedStates.Count),
                                 rotation = Quaternion.identity,
                                 scale = Vector3.one
                             });
@@ -541,6 +548,17 @@ namespace Meshup.Game
             };
             ProcessAuthoritativeMessage(MessageKind.ObjectTransform, message);
             Send(message);
+        }
+
+        private Vector3 GetGeneratedSpawnPosition(int slot)
+        {
+            var center = generatorAnchor.position + generatorAnchor.up * 0.4f;
+            return slot switch
+            {
+                1 => center + generatorAnchor.right * 0.8f,
+                2 => center - generatorAnchor.right * 0.8f,
+                _ => center
+            };
         }
 
         private void Send(GameMessage message)
