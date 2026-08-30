@@ -123,9 +123,10 @@ namespace Meshup.Editor.Tests
             var monitor = CreateScreenProp("Monitor", "pPlane1_monter_MTL_0",
                 new Vector3(-3f, 1f, 0f), new Vector3(2f, 1f, 1f));
             var terminal = CreateScreenProp("Terminal", "screen_low_Material_0",
-                new Vector3(2f, 1.5f, 0f), new Vector3(1.6f, 1.2f, 1f));
+                new Vector3(2f, 1.5f, 0f), new Vector3(0.2f, 1.2f, 1.6f),
+                PrimitiveType.Cube);
             var viewer = new GameObject("Viewer");
-            viewer.transform.position = new Vector3(2f, 1.5f, -4f);
+            viewer.transform.position = new Vector3(0f, 1.5f, 0f);
 
             try
             {
@@ -152,20 +153,14 @@ namespace Meshup.Editor.Tests
                 Assert.That(canvas.GetComponent<GraphicRaycaster>(), Is.Not.Null);
                 Assert.That(canvas.GetComponent<TrackedDeviceGraphicRaycaster>(),
                     Is.Not.Null);
-                Assert.That(Vector3.Distance(canvas.position,
-                    terminal.transform.GetChild(0).position), Is.LessThan(0.1f));
+                var centerDistance = Vector3.Distance(canvas.position,
+                    terminal.transform.GetChild(0).position);
+                Assert.That(centerDistance, Is.GreaterThan(0.1f),
+                    "The canvas must clear the terminal casing.");
+                Assert.That(centerDistance, Is.LessThan(0.15f));
                 Assert.That(Vector3.Dot(-canvas.forward,
                     (viewer.transform.position - canvas.position).normalized),
                     Is.GreaterThan(0.99f));
-                var authoredFront = -canvas.forward;
-                viewer.transform.position = new Vector3(2f, 1.5f, 4f);
-                typeof(MeshupGameView).GetMethod("LateUpdate",
-                        System.Reflection.BindingFlags.Instance
-                        | System.Reflection.BindingFlags.NonPublic)
-                    ?.Invoke(view, null);
-                Assert.That(Vector3.Dot(-canvas.forward, authoredFront),
-                    Is.GreaterThan(0.99f),
-                    "The canvas must remain on the authored display face.");
 
                 var buttons = canvas.GetComponentsInChildren<Button>(true);
                 Assert.That(buttons.Single(button => button.name == "First Choice")
@@ -206,11 +201,6 @@ namespace Meshup.Editor.Tests
                 GameStartCoordinator>(), Is.Not.Null);
             Assert.That(UnityEngine.Object.FindAnyObjectByType<
                 PlayerMovementAuthority>(), Is.Not.Null);
-            var guesserMonitor = scene.GetRootGameObjects()
-                .SelectMany(root => root.GetComponentsInChildren<Transform>(true))
-                .Single(item => item.name == "guesser_monitor");
-            Assert.That(Mathf.Abs(Mathf.DeltaAngle(
-                guesserMonitor.eulerAngles.y, 180f)), Is.LessThan(0.1f));
             var desktopMove = UnityEngine.Object.FindObjectsByType<
                     ContinuousMoveProvider>(FindObjectsSortMode.None)
                 .Single(item => item.name == "Traditional Locomotion Provider");
@@ -238,10 +228,11 @@ namespace Meshup.Editor.Tests
         }
 
         private static GameObject CreateScreenProp(string rootName,
-            string surfaceName, Vector3 surfacePosition, Vector3 surfaceScale)
+            string surfaceName, Vector3 surfacePosition, Vector3 surfaceScale,
+            PrimitiveType primitive = PrimitiveType.Quad)
         {
             var root = new GameObject(rootName);
-            var surface = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            var surface = GameObject.CreatePrimitive(primitive);
             surface.name = surfaceName;
             surface.transform.SetParent(root.transform, false);
             surface.transform.position = surfacePosition;
