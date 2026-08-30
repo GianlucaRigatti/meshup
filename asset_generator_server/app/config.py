@@ -85,7 +85,7 @@ TRELLIS_MODEL_FILENAMES = (
 )
 
 PIPELINE_SCHEMA_VERSION = 2
-AUDIO_PIPELINE_SCHEMA_VERSION = 1
+AUDIO_PIPELINE_SCHEMA_VERSION = 2
 PROMPT_SANITIZER_VERSION = 2
 PROMPT_SUFFIX = ", one isolated subject, complete subject fully visible, centered, three-quarter front view, camera near subject height, faithful subject-specific anatomy, characteristic colors and materials, natural coherent shape, strong clean silhouette, limbs and appendages clearly visible and separated where applicable, balanced proportions, soft even diffuse studio lighting, minimal shading gradients, no cast shadows, no reflections, no glare, no specular highlights, sharp focus, weak-perspective product view, solid white background, no floor, no pedestal, no environment, no text, no extra objects, no cropping, no occlusion"
 PROMPT_ENHANCEMENT_INSTRUCTION = (

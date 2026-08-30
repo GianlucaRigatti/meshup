@@ -231,7 +231,9 @@ class AssetGenerator:
                 )
                 metadata_extra = {
                     "input_type": "audio",
+                    "transcript": transcript,
                     "transcript_hash": hashlib.sha256(transcript.encode()).hexdigest(),
+                    "enhanced_prompt": enhanced_prompt,
                     "enhanced_prompt_hash": hashlib.sha256(
                         enhanced_prompt.encode()
                     ).hexdigest(),

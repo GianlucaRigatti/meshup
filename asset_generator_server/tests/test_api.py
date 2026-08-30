@@ -110,7 +110,7 @@ def test_audio_generation_returns_intermediate_text_and_artifacts(
     assert test_client.get(body["url"]).status_code == 200
 
 
-def test_audio_metadata_contains_hashes_but_not_intermediate_text(client) -> None:
+def test_audio_metadata_contains_intermediate_text_and_hashes(client) -> None:
     test_client, _, _ = client
     body = test_client.post(
         "/generate_asset_from_audio",
@@ -121,8 +121,8 @@ def test_audio_metadata_contains_hashes_but_not_intermediate_text(client) -> Non
     parsed = json.loads(metadata)
     assert "transcript_hash" in parsed
     assert "enhanced_prompt_hash" in parsed
-    assert body["transcript"] not in metadata
-    assert body["enhanced_prompt"] not in metadata
+    assert parsed["transcript"] == body["transcript"]
+    assert parsed["enhanced_prompt"] == body["enhanced_prompt"]
 
 
 def test_empty_and_missing_audio_are_rejected(client) -> None:

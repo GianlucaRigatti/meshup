@@ -155,9 +155,10 @@ stages in addition to the normal asset fields.
 
 ASR and prompt cleanup run in separate short-lived GPU subprocesses before
 the existing asset pipeline. This keeps the 10 GiB VRAM target but adds model
-loading latency to every audio request. Both text values are returned only in
-the immediate response; the upload, transcript, and enhanced prompt are deleted
-after the request and never stored in generated-asset metadata.
+loading latency to every audio request. The transcript and cleaned prompt are
+returned in the response and stored in the generated asset's JSON metadata,
+together with their hashes. The uploaded and normalized audio files are deleted
+after every request and are never persisted as asset artifacts.
 
 Audio assets use a separate cache identity containing both Qwen revisions and
 the fixed cleanup policy. A cache lookup happens after transcription and
@@ -173,7 +174,8 @@ Each successful uncached request atomically creates:
   cropped and centered exactly as in the archived preprocessing path. This is
   the image actually conditioned by TRELLIS.
 - `generated_assets/<asset-id>.json`: prompt hash, seed, pinned revisions,
-  fixed settings, timestamp, and stage timings.
+  fixed settings, timestamp, and stage timings. Audio-generated metadata also
+  stores the transcript, cleaned prompt, detected language, and text hashes.
 
 All three files must exist for a cache hit. Cached requests do not run either
 native process and report zero timings. Static artifacts are served from

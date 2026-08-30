@@ -105,11 +105,11 @@ def test_audio_pipeline_is_sequential_and_private(
     metadata_text = (settings.asset_output_dir / f"{result.asset_id}.json").read_text(
         encoding="utf-8"
     )
-    assert runner.transcript not in metadata_text
-    assert runner.enhanced_prompt not in metadata_text
     metadata = json.loads(metadata_text)
     assert metadata["pipeline_version"] == AUDIO_PIPELINE_VERSION
     assert metadata["input_type"] == "audio"
+    assert metadata["transcript"] == runner.transcript
+    assert metadata["enhanced_prompt"] == runner.enhanced_prompt
     assert not list(tmp_path.glob("asset-generator-audio-*"))
 
 
