@@ -80,9 +80,10 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
         service.generation_seed("private test object")
     )
     assert runner.trellis_input_modes == ["RGBA"]
-    assert simplifier[simplifier.index("--max-triangles") + 1] == "10000"
+    assert simplifier[simplifier.index("--max-triangles") + 1] == "30000"
     assert simplifier[simplifier.index("--max-texture-size") + 1] == "512"
-    assert simplifier[simplifier.index("--error") + 1] == "0.01"
+    assert simplifier[simplifier.index("--error") + 1] == "0.0001"
+    assert "--lock-border" in simplifier
     assert "minimal shading gradients" in PROMPT_SUFFIX
     assert "no cast shadows" in PROMPT_SUFFIX
     assert "no reflections" in PROMPT_SUFFIX
@@ -360,15 +361,16 @@ def test_success_creates_original_and_network_artifacts_without_storing_prompt(
     assert metadata["models"]["background_removal"]["id"] == "ZhengPeng7/BiRefNet"
     assert metadata["output_settings"]["background_removal_resolution"] == 1024
     assert metadata["output_settings"]["box_uv"] is False
-    assert metadata["output_settings"]["max_triangles"] == 10_000
+    assert metadata["output_settings"]["max_triangles"] == 30_000
     assert metadata["output_settings"]["texture_resolution"] == 512
     assert metadata["geometry"] == {
         "source_triangles": 120_000,
-        "triangles": 10_000,
+        "triangles": 30_000,
         "simplified": True,
-        "max_triangles": 10_000,
+        "max_triangles": 30_000,
         "simplifier": "glTF-Transform",
         "simplifier_version": "4.4.2",
+        "lock_border": True,
         "source_texture_bytes": 4_672_122,
         "texture_bytes": 437_615,
         "textures_resized": True,

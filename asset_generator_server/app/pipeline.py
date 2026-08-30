@@ -47,6 +47,7 @@ from app.config import (
     QWEN_MODEL_ID,
     QWEN_MODEL_REVISION,
     SIMPLIFICATION_ERROR,
+    SIMPLIFICATION_LOCK_BORDER,
     STABLE_DIFFUSION_CPP_REVISION,
     TRELLIS_CPP_REVISION,
     TRELLIS_MODEL_ID,
@@ -651,6 +652,7 @@ class AssetGenerator:
             str(MAX_ASSET_TEXTURE_SIZE),
             "--error",
             str(SIMPLIFICATION_ERROR),
+            "--lock-border",
         ]
 
     def _cache_exists(self, asset_id: str) -> bool:
@@ -745,6 +747,7 @@ class AssetGenerator:
                 "box_uv": False,
                 "max_triangles": MAX_ASSET_TRIANGLES,
                 "simplification_error": SIMPLIFICATION_ERROR,
+                "simplification_lock_border": SIMPLIFICATION_LOCK_BORDER,
             },
             "geometry": mesh_stats,
             "artifacts": artifact_stats,
@@ -919,6 +922,7 @@ def _read_simplification_stats(path: Path) -> dict:
         "max_triangles": MAX_ASSET_TRIANGLES,
         "simplifier": "glTF-Transform",
         "simplifier_version": GLTF_TRANSFORM_VERSION,
+        "lock_border": SIMPLIFICATION_LOCK_BORDER,
         "source_texture_bytes": source_texture_bytes,
         "texture_bytes": output_texture_bytes,
         "textures_resized": textures_resized,

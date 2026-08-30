@@ -10,9 +10,11 @@ their original behavior and skip both stages.
   then crops and recenters the subject on a transparent 768px canvas.
 - `trellis2-fast` receives that prematted RGBA image and reconstructs a
   512-resolution, 1024px xatlas-UV textured mesh.
-- glTF-Transform welds and simplifies oversized meshes toward a 10,000-triangle
-  network-delivery budget with a 1% geometric-error limit, then resizes embedded
-  textures to at most 512×512 PNG.
+- glTF-Transform welds and simplifies oversized meshes toward a 30,000-triangle
+  network-delivery target with a conservative 0.01% geometric-error limit and
+  locked topology borders, then resizes embedded textures to at most 512×512
+  PNG. The error limit may stop simplification above the target when needed to
+  preserve detailed geometry.
 
 The former cross-platform/model-comparison implementation is preserved in
 [`../model_experiments`](../model_experiments). It is not part of this server.
@@ -194,8 +196,9 @@ generation report zero milliseconds.
 Each successful uncached request atomically creates:
 
 - `generated_assets/<asset-id>.glb`: textured binary glTF, simplified toward a
-  maximum of 10,000 triangles when reconstruction exceeds that budget, with
-  embedded textures resized to at most 512×512 PNG.
+  target of 30,000 triangles when reconstruction exceeds that budget, with
+  conservative error and border-preservation constraints and embedded textures
+  resized to at most 512×512 PNG.
 - `generated_assets/<asset-id>.original.glb`: untouched 1024px TRELLIS output
   before geometry simplification or texture resizing.
 - `generated_assets/<asset-id>.png`: the full-resolution BiRefNet RGBA cutout,

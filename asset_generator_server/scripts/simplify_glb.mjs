@@ -14,6 +14,7 @@ const { values } = parseArgs({
     'max-triangles': { type: 'string' },
     'max-texture-size': { type: 'string' },
     error: { type: 'string' },
+    'lock-border': { type: 'boolean' },
     help: { type: 'boolean', short: 'h' },
   },
 });
@@ -21,7 +22,8 @@ const { values } = parseArgs({
 if (values.help) {
   console.log(
     'Usage: simplify_glb.mjs --input INPUT --output OUTPUT --stats STATS ' +
-      '--max-triangles COUNT --max-texture-size PIXELS --error FRACTION',
+      '--max-triangles COUNT --max-texture-size PIXELS --error FRACTION ' +
+      '[--lock-border]',
   );
   process.exit(0);
 }
@@ -70,6 +72,7 @@ if (sourceTriangles > maxTriangles) {
       simplifier: MeshoptSimplifier,
       ratio: maxTriangles / sourceTriangles,
       error: maxError,
+      lockBorder: values['lock-border'] ?? false,
     }),
   );
   outputTriangles = countTriangles(document);
