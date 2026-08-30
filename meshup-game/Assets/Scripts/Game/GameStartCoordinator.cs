@@ -142,6 +142,29 @@ namespace Meshup.Game
             return true;
         }
 
+        /// <summary>
+        /// Reports that this client's rig crossed the finish trigger at the
+        /// glass-room entrance. The route endpoint is deliberately not used
+        /// as the completion condition: stair collision recovery may leave a
+        /// rig slightly offset from that authored point.
+        /// </summary>
+        public void NotifyLocalPlayerPassedFinish()
+        {
+            if (phase is not (SequencePhase.Walking
+                or SequencePhase.WaitingForGroup)
+                || session == null
+                || string.IsNullOrEmpty(session.LocalPeerId)
+                || arrivedPeers.Contains(session.LocalPeerId))
+            {
+                return;
+            }
+
+            AddPeer(arrivedPeers, session.LocalPeerId);
+            BroadcastPeer(MessageKind.Arrived);
+            StatusMessage = "Waiting for the group…";
+            TryReleaseGroup();
+        }
+
         private IEnumerator BeginAfterRoomLock()
         {
             var elapsed = 0f;
@@ -444,8 +467,18 @@ namespace Meshup.Game
                 previous = player.transform.position;
                 if (blockedFor >= blockedTimeout)
                 {
-                    BroadcastCancel("The corridor route was blocked.");
-                    yield break;
+                    // CharacterController contact on a stair edge can make
+                    // the distance-driven formation temporarily run ahead of
+                    // the actual rig. Project back onto the route and retry
+                    // from the player's real progress instead of cancelling
+                    // the synchronized start for everybody.
+                    var projected = route.GetClosestDistance(
+                        player.transform.position, out _);
+                    leaderDistance = GetResynchronizedLeaderDistance(
+                        projected, localSlot, route.RowSpacing, route.Length);
+                    speed = 0f;
+                    blockedFor = 0f;
+                    previous = player.transform.position;
                 }
                 yield return null;
             }
@@ -462,19 +495,33 @@ namespace Meshup.Game
             motion = null;
             phase = SequencePhase.WaitingForGroup;
             StatusMessage = "Waiting for the group…";
-            AddPeer(arrivedPeers, session.LocalPeerId);
-            BroadcastPeer(MessageKind.Arrived);
             TryReleaseGroup();
+        }
+
+        public static float GetResynchronizedLeaderDistance(
+            float projectedRouteDistance, int slotIndex, float rowSpacing,
+            float routeLength)
+        {
+            var rowOffset = Mathf.Max(0, slotIndex / 2)
+                * Mathf.Max(0f, rowSpacing);
+            return Mathf.Clamp(projectedRouteDistance + rowOffset, 0f,
+                Mathf.Max(0f, routeLength));
         }
 
         private void TryReleaseGroup()
         {
-            if (phase != SequencePhase.WaitingForGroup
+            if (phase is not (SequencePhase.Walking
+                    or SequencePhase.WaitingForGroup)
                 || !AllCurrentPeersAreIn(arrivedPeers))
             {
                 return;
             }
 
+            if (motion != null)
+            {
+                StopCoroutine(motion);
+                motion = null;
+            }
             phase = SequencePhase.Complete;
             StatusMessage = string.Empty;
             CloseDoors();
@@ -583,7 +630,8 @@ namespace Meshup.Game
                     TryBeginWalk();
                 }
             }
-            else if (phase == SequencePhase.WaitingForGroup)
+            else if (phase is SequencePhase.Walking
+                or SequencePhase.WaitingForGroup)
             {
                 TryReleaseGroup();
             }

@@ -169,6 +169,47 @@ namespace Meshup.Editor.Tests
             }
         }
 
+        [TestCase(0f, 0, 1.25f, 40f, 0f)]
+        [TestCase(8f, 1, 1.25f, 40f, 8f)]
+        [TestCase(8f, 2, 1.25f, 40f, 9.25f)]
+        [TestCase(39.5f, 4, 1.25f, 40f, 40f)]
+        public void BlockedWalkResynchronizesToActualRouteProgress(
+            float projectedDistance, int slot, float rowSpacing,
+            float routeLength, float expected)
+        {
+            Assert.That(GameStartCoordinator.GetResynchronizedLeaderDistance(
+                projectedDistance, slot, rowSpacing, routeLength),
+                Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void FinishTriggerMakesItsColliderNonBlocking()
+        {
+            var finish = new GameObject("Finish Trigger Test");
+            var coordinatorObject = new GameObject("Coordinator Test");
+            var playerObject = new GameObject("Player Test");
+            try
+            {
+                var collider = finish.AddComponent<BoxCollider>();
+                var trigger = finish.AddComponent<GameStartFinishTrigger>();
+                var coordinator = coordinatorObject.AddComponent<
+                    GameStartCoordinator>();
+                var authority = playerObject.AddComponent<
+                    PlayerMovementAuthority>();
+
+                trigger.Configure(coordinator, authority);
+
+                Assert.That(collider.isTrigger, Is.True);
+                Assert.That(trigger.IsConfigured, Is.True);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(finish);
+                UnityEngine.Object.DestroyImmediate(coordinatorObject);
+                UnityEngine.Object.DestroyImmediate(playerObject);
+            }
+        }
+
         [Test]
         public void RegroupRingSamplingWrapsThroughExit()
         {

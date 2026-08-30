@@ -16,6 +16,7 @@ namespace Meshup.Editor
         private const string ScenePath = "Assets/Scenes/GameScene.unity";
         private const string RootName = "Game Start Sequence";
         private const string ConsoleName = "Game starter";
+        private const string FinishWallName = "Invisible_wall_game_start";
 
         // These points follow the staircase corridor from the spawn deck into
         // the glass room. They remain ordinary scene Transforms so designers
@@ -60,6 +61,7 @@ namespace Meshup.Editor
             var console = FindRequired(scene, ConsoleName);
             var playerObject = FindRequired(scene, "Ubiq Demo Player");
             var sessionMenuObject = FindRequired(scene, "Game Session UI");
+            var finishWall = FindRequired(scene, FinishWallName);
 
             var root = FindRoot(scene, RootName) ?? new GameObject(RootName);
             SceneManager.MoveGameObjectToScene(root, scene);
@@ -78,6 +80,9 @@ namespace Meshup.Editor
             var doors = BuildDoorControllers(scene, route);
             var coordinator = GetOrAdd<GameStartCoordinator>(root);
             coordinator.Configure(route, regroupRing, authority, doors);
+            var finishTrigger = GetOrAdd<GameStartFinishTrigger>(finishWall);
+            ConfigureFinishTrigger(finishWall, finishTrigger, coordinator,
+                authority);
 
             var prompt = BuildPrompt(console.transform);
             var xrInteractable = GetOrAdd<XRSimpleInteractable>(console);
@@ -90,8 +95,9 @@ namespace Meshup.Editor
                     "Game Session UI has no GameSessionMenu.");
             sessionMenu.SetMovementAuthority(authority);
 
-            MarkDirty(route, regroupRing, authority, coordinator, xrInteractable,
-                interaction, sessionMenu, root, console);
+            MarkDirty(route, regroupRing, authority, coordinator, finishTrigger,
+                xrInteractable, interaction, sessionMenu, root, console,
+                finishWall);
             MarkDirty(doors);
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -114,6 +120,10 @@ namespace Meshup.Editor
             var interaction = console.GetComponent<GameStartInteractable>();
             var xrInteractable = console.GetComponent<XRSimpleInteractable>();
             var prompt = console.transform.Find("Game Start Prompt");
+            var finishWall = FindRequired(scene, FinishWallName);
+            var finishTrigger = finishWall.GetComponent<
+                GameStartFinishTrigger>();
+            var finishColliders = finishWall.GetComponents<Collider>();
             var doors = scene.GetRootGameObjects()
                 .SelectMany(item => item.GetComponentsInChildren<
                     GameStartDoorController>(true)).ToArray();
@@ -124,6 +134,9 @@ namespace Meshup.Editor
                 || route.Length < 8f || coordinator == null
                 || authority == null || interaction == null
                 || xrInteractable == null || prompt == null
+                || finishTrigger == null || !finishTrigger.IsConfigured
+                || finishColliders.Length == 0
+                || finishColliders.Any(item => !item.isTrigger)
                 || !console.GetComponentsInChildren<Collider>(true)
                     .Any(item => !item.isTrigger)
                 || doors.Length == 0
@@ -186,6 +199,27 @@ namespace Meshup.Editor
 
             Debug.Log($"Game start validation passed: {route.WaypointCount} "
                 + $"waypoints over {route.Length:0.0} metres.");
+        }
+
+        private static void ConfigureFinishTrigger(GameObject finishWall,
+            GameStartFinishTrigger trigger, GameStartCoordinator coordinator,
+            PlayerMovementAuthority authority)
+        {
+            foreach (var collider in finishWall.GetComponents<Collider>())
+            {
+                collider.isTrigger = true;
+                if (collider is BoxCollider box)
+                {
+                    var size = box.size;
+                    // A zero-thickness BoxCollider can miss fast
+                    // CharacterController crossings. Keep the authored plane
+                    // but give it a small, invisible trigger depth.
+                    size.z = Mathf.Max(0.25f, size.z);
+                    box.size = size;
+                }
+                MarkDirty(collider);
+            }
+            trigger.Configure(coordinator, authority);
         }
 
         [MenuItem("Meshup/Game/Capture Game Start Route Preview")]
