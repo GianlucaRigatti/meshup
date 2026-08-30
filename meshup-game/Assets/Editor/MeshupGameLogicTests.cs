@@ -267,13 +267,20 @@ namespace Meshup.Editor.Tests
                         }
                     }
                 }, "guesser", Array.Empty<string>(), string.Empty,
-                    string.Empty, "Incorrect guess — try again");
+                    string.Empty,
+                    "thing is an incorrect guess — try again", true);
                 var monitorStatus = monitor.transform
                     .Find("MeshUp Monitor UI")
                     .GetComponentsInChildren<Text>(true)
                     .Single(text => text.name == "Game Status");
                 Assert.That(monitorStatus.text,
-                    Does.Contain("Incorrect guess — try again"));
+                    Does.Contain("thing is an incorrect guess — try again"));
+                var listening = monitor.transform
+                    .Find("MeshUp Monitor UI")
+                    .GetComponentsInChildren<Text>(true)
+                    .Single(text => text.name == "Listening Indicator");
+                Assert.That(listening.gameObject.activeSelf, Is.True);
+                Assert.That(listening.text, Does.Contain("LISTENING"));
             }
             finally
             {

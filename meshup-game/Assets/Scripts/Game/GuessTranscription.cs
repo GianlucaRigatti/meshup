@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
@@ -11,6 +12,7 @@ namespace Meshup.Game
     {
         event Action<string> TranscriptionReceived;
         event Action<string> ErrorOccurred;
+        event Action<bool> ListeningChanged;
         bool IsAvailable { get; }
         void Activate();
         void Deactivate();
@@ -35,11 +37,24 @@ namespace Meshup.Game
         private object transcriptionEvent;
         private MethodInfo removeListenerMethod;
         private UnityAction<string> transcriptionListener;
+        private object startListeningEvent;
+        private object stopListeningEvent;
+        private object errorEvent;
+        private MethodInfo removeStartListenerMethod;
+        private MethodInfo removeStopListenerMethod;
+        private MethodInfo removeErrorListenerMethod;
+        private UnityAction startListeningListener;
+        private UnityAction stopListeningListener;
+        private UnityAction<string, string> errorListener;
         private InputAction pushToTalk;
         private Func<bool> canRecord;
+        private Coroutine activationWatchdog;
+        private bool isListening;
+        private bool activationRequested;
 
         public event Action<string> TranscriptionReceived;
         public event Action<string> ErrorOccurred;
+        public event Action<bool> ListeningChanged;
         public bool IsAvailable => voiceExperience != null
             && activateMethod != null && deactivateMethod != null;
 
@@ -71,10 +86,17 @@ namespace Meshup.Game
             }
             try
             {
+                activationRequested = true;
                 activateMethod.Invoke(voiceExperience, null);
+                if (activationWatchdog != null)
+                {
+                    StopCoroutine(activationWatchdog);
+                }
+                activationWatchdog = StartCoroutine(WatchActivation());
             }
             catch (Exception exception)
             {
+                activationRequested = false;
                 ErrorOccurred?.Invoke(exception.GetBaseException().Message);
             }
         }
@@ -87,7 +109,9 @@ namespace Meshup.Game
             }
             try
             {
+                activationRequested = false;
                 deactivateMethod.Invoke(voiceExperience, null);
+                SetListening(false);
             }
             catch (Exception exception)
             {
@@ -138,6 +162,39 @@ namespace Meshup.Game
                 addListener.Invoke(transcriptionEvent,
                     new object[] { transcriptionListener });
             }
+
+            BindVoiceEvent(voiceEvents, "OnStartListening",
+                HandleStartedListening, out startListeningEvent,
+                out removeStartListenerMethod, out startListeningListener);
+            BindVoiceEvent(voiceEvents, "OnStoppedListening",
+                HandleStoppedListening, out stopListeningEvent,
+                out removeStopListenerMethod, out stopListeningListener);
+
+            errorEvent = voiceEvents?.GetType().GetProperty("OnError",
+                BindingFlags.Instance | BindingFlags.Public)?.GetValue(voiceEvents);
+            var addErrorListener = errorEvent?.GetType().GetMethod(
+                "AddListener", new[] { typeof(UnityAction<string, string>) });
+            removeErrorListenerMethod = errorEvent?.GetType().GetMethod(
+                "RemoveListener", new[] { typeof(UnityAction<string, string>) });
+            if (addErrorListener != null)
+            {
+                errorListener = HandleVoiceError;
+                addErrorListener.Invoke(errorEvent, new object[] { errorListener });
+            }
+        }
+
+        private static void BindVoiceEvent(object voiceEvents,
+            string propertyName, UnityAction listener, out object unityEvent,
+            out MethodInfo removeMethod, out UnityAction storedListener)
+        {
+            unityEvent = voiceEvents?.GetType().GetProperty(propertyName,
+                BindingFlags.Instance | BindingFlags.Public)?.GetValue(voiceEvents);
+            var addMethod = unityEvent?.GetType().GetMethod("AddListener",
+                new[] { typeof(UnityAction) });
+            removeMethod = unityEvent?.GetType().GetMethod("RemoveListener",
+                new[] { typeof(UnityAction) });
+            storedListener = listener;
+            addMethod?.Invoke(unityEvent, new object[] { storedListener });
         }
 
         private static Type[] GetTypesSafely(Assembly assembly)
@@ -162,7 +219,8 @@ namespace Meshup.Game
 
         private void HandleRelease(InputAction.CallbackContext context)
         {
-            if (canRecord?.Invoke() == true)
+            if (isListening || activationRequested
+                || canRecord?.Invoke() == true)
             {
                 Deactivate();
             }
@@ -174,6 +232,80 @@ namespace Meshup.Game
             {
                 TranscriptionReceived?.Invoke(transcription);
             }
+        }
+
+        private void HandleStartedListening()
+        {
+            activationRequested = false;
+            SetListening(true);
+        }
+
+        private void HandleStoppedListening()
+        {
+            activationRequested = false;
+            SetListening(false);
+        }
+
+        private void HandleVoiceError(string error, string message)
+        {
+            activationRequested = false;
+            SetListening(false);
+            var detail = string.Join(": ", new[] { error, message }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+            ErrorOccurred?.Invoke(string.IsNullOrWhiteSpace(detail)
+                ? VoiceUnavailableMessage()
+                : $"Voice input failed: {detail}");
+        }
+
+        private IEnumerator WatchActivation()
+        {
+            yield return new WaitForSecondsRealtime(1f);
+            activationWatchdog = null;
+            if (activationRequested && pushToTalk?.IsPressed() == true
+                && !isListening)
+            {
+                var message = VoiceUnavailableMessage();
+                Deactivate();
+                ErrorOccurred?.Invoke(message);
+            }
+        }
+
+        private string VoiceUnavailableMessage()
+        {
+            var details = new[]
+            {
+                InvokeStatusMethod("GetActivateAudioError"),
+                InvokeStatusMethod("GetSendError")
+            }.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct();
+            var suffix = string.Join(" ", details);
+            return "Voice input could not start. Check Windows microphone "
+                + "privacy access, the selected recording device, and the Wit "
+                + "configuration."
+                + (string.IsNullOrWhiteSpace(suffix) ? string.Empty : $" {suffix}");
+        }
+
+        private string InvokeStatusMethod(string methodName)
+        {
+            try
+            {
+                return voiceExperience?.GetType().GetMethod(methodName,
+                    BindingFlags.Instance | BindingFlags.Public)?.Invoke(
+                        voiceExperience, null) as string;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private void SetListening(bool value)
+        {
+            if (isListening == value)
+            {
+                return;
+            }
+            isListening = value;
+            ListeningChanged?.Invoke(value);
         }
 
         private void OnDestroy()
@@ -188,6 +320,24 @@ namespace Meshup.Game
             {
                 removeListenerMethod.Invoke(transcriptionEvent,
                     new object[] { transcriptionListener });
+            }
+            RemoveVoiceListener(startListeningEvent, removeStartListenerMethod,
+                startListeningListener);
+            RemoveVoiceListener(stopListeningEvent, removeStopListenerMethod,
+                stopListeningListener);
+            if (removeErrorListenerMethod != null && errorListener != null)
+            {
+                removeErrorListenerMethod.Invoke(errorEvent,
+                    new object[] { errorListener });
+            }
+        }
+
+        private static void RemoveVoiceListener(object unityEvent,
+            MethodInfo removeMethod, UnityAction listener)
+        {
+            if (removeMethod != null && listener != null)
+            {
+                removeMethod.Invoke(unityEvent, new object[] { listener });
             }
         }
     }

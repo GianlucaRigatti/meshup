@@ -11,6 +11,7 @@ namespace Meshup.Game
     {
         private Text leaderboard;
         private Text status;
+        private Text listeningIndicator;
         private Text terminalTitle;
         private Text terminalStatus;
         private Button firstChoice;
@@ -36,7 +37,8 @@ namespace Meshup.Game
 
         public void Render(MeshupMatchSnapshot snapshot, string localPeerId,
             string[] privateWordOptions, string privateSelectedWord,
-            string transientMessage = "", string guessFeedback = "")
+            string transientMessage = "", string guessFeedback = "",
+            bool isListening = false)
         {
             if (snapshot == null || leaderboard == null || status == null)
             {
@@ -66,11 +68,18 @@ namespace Meshup.Game
                 MeshupGamePhase.Finished => "FINAL LEADERBOARD",
                 _ => string.Empty
             };
-            if (!isMime && phase == MeshupGamePhase.TimedGuessing
-                && !string.IsNullOrWhiteSpace(guessFeedback))
+            if (!isMime && phase == MeshupGamePhase.TimedGuessing)
             {
-                status.text += $"\n\n{guessFeedback}";
+                var feedback = !string.IsNullOrWhiteSpace(guessFeedback)
+                    ? guessFeedback
+                    : transientMessage;
+                if (!string.IsNullOrWhiteSpace(feedback))
+                {
+                    status.text += $"\n\n{feedback}";
+                }
             }
+            listeningIndicator.gameObject.SetActive(!isMime
+                && phase == MeshupGamePhase.TimedGuessing && isListening);
 
             var choicesVisible = isMime
                 && phase == MeshupGamePhase.ChoosingWord
@@ -139,6 +148,15 @@ namespace Meshup.Game
                 TextAnchor.MiddleCenter, new Color(0.65f, 0.95f, 1f));
             SetRect(status.rectTransform, new Vector2(0.34f, 0f), Vector2.one,
                 new Vector2(30f, 30f), new Vector2(-30f, -30f));
+
+            listeningIndicator = CreateText(background.transform,
+                "Listening Indicator", 30, TextAnchor.UpperRight,
+                new Color(1f, 0.12f, 0.12f));
+            listeningIndicator.text = "●  LISTENING";
+            SetRect(listeningIndicator.rectTransform,
+                new Vector2(0.72f, 0.86f), new Vector2(0.98f, 0.98f),
+                Vector2.zero, Vector2.zero);
+            listeningIndicator.gameObject.SetActive(false);
         }
 
         private void BuildTerminal(Transform target, Transform localViewer)

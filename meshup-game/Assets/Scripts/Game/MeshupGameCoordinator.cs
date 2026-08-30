@@ -82,6 +82,7 @@ namespace Meshup.Game
         private string transientMessage = string.Empty;
         private string guessFeedback = string.Empty;
         private float guessFeedbackUntil;
+        private bool guessListening;
         private float previousWallSide;
         private int crossingSentVersion = -1;
         private bool originalWallEnabled;
@@ -145,6 +146,7 @@ namespace Meshup.Game
             transcriber.Configure(() => CanGuessLocally);
             transcriber.TranscriptionReceived += SubmitGuess;
             transcriber.ErrorOccurred += ReportLocalMessage;
+            transcriber.ListeningChanged += HandleListeningChanged;
             generatorClient = generatorButton.GetComponent<
                 MeshupAssetGeneratorClient>()
                 ?? generatorButton.AddComponent<MeshupAssetGeneratorClient>();
@@ -328,7 +330,7 @@ namespace Meshup.Game
                         && hostState.Players.Any(item => item.connected
                             && item.peerId == message.senderPeerId))
                     {
-                        SendGuessFeedback(message.senderPeerId);
+                        SendGuessFeedback(message.senderPeerId, message.text);
                     }
                     break;
                 case MessageKind.GenerationRequest:
@@ -487,6 +489,16 @@ namespace Meshup.Game
             Render();
         }
 
+        private void HandleListeningChanged(bool listening)
+        {
+            guessListening = listening;
+            if (listening)
+            {
+                transientMessage = string.Empty;
+            }
+            Render();
+        }
+
         private void UpdateWallAndCrossing()
         {
             var allowMime = IsLocalMime && CurrentPhase is
@@ -568,14 +580,17 @@ namespace Meshup.Game
             Send(message);
         }
 
-        private void SendGuessFeedback(string target)
+        private void SendGuessFeedback(string target, string transcription)
         {
+            var heard = MeshupMatchState.NormalizeGuess(transcription);
             var message = new GameMessage
             {
                 kind = (int)MessageKind.GuessFeedback,
                 creatorPeerId = session.LocalPeerId,
                 targetPeerId = target,
-                text = "Incorrect guess — try again"
+                text = string.IsNullOrWhiteSpace(heard)
+                    ? "Incorrect guess — try again"
+                    : $"{heard} is an incorrect guess — try again"
             };
             if (target == session.LocalPeerId)
             {
@@ -714,7 +729,7 @@ namespace Meshup.Game
         {
             view?.Render(snapshot, session?.LocalPeerId ?? string.Empty,
                 privateWordOptions, privateSelectedWord, transientMessage,
-                guessFeedback);
+                guessFeedback, guessListening);
         }
 
         private void LoadRuntimeConfiguration()
@@ -755,6 +770,7 @@ namespace Meshup.Game
             {
                 transcriber.TranscriptionReceived -= SubmitGuess;
                 transcriber.ErrorOccurred -= ReportLocalMessage;
+                transcriber.ListeningChanged -= HandleListeningChanged;
             }
             if (invisibleWall != null)
             {
