@@ -250,6 +250,30 @@ namespace Meshup.Editor.Tests
                     "Desktop interaction must remain active for Start.");
                 start.onClick.Invoke();
                 Assert.That(startInvoked, Is.True);
+
+                view.Render(new MeshupMatchSnapshot
+                {
+                    phase = (int)MeshupGamePhase.TimedGuessing,
+                    mimePeerId = "mime",
+                    maskedWord = "____",
+                    remainingSeconds = 100,
+                    scores = new[]
+                    {
+                        new MeshupPlayerScore
+                        {
+                            peerId = "guesser",
+                            displayName = "Guesser",
+                            connected = true
+                        }
+                    }
+                }, "guesser", Array.Empty<string>(), string.Empty,
+                    string.Empty, "Incorrect guess — try again");
+                var monitorStatus = monitor.transform
+                    .Find("MeshUp Monitor UI")
+                    .GetComponentsInChildren<Text>(true)
+                    .Single(text => text.name == "Game Status");
+                Assert.That(monitorStatus.text,
+                    Does.Contain("Incorrect guess — try again"));
             }
             finally
             {

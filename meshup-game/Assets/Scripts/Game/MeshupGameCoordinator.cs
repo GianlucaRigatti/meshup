@@ -18,6 +18,7 @@ namespace Meshup.Game
             SelectWord,
             StartTimer,
             Guess,
+            GuessFeedback,
             GenerationRequest,
             GenerationAuthorized,
             GenerationComplete,
@@ -79,6 +80,8 @@ namespace Meshup.Game
         private string privateSelectedWord = string.Empty;
         private string activeGenerationRequest = string.Empty;
         private string transientMessage = string.Empty;
+        private string guessFeedback = string.Empty;
+        private float guessFeedbackUntil;
         private float previousWallSide;
         private int crossingSentVersion = -1;
         private bool originalWallEnabled;
@@ -170,6 +173,13 @@ namespace Meshup.Game
                 return;
             }
             UpdateWallAndCrossing();
+            if (guessFeedbackUntil > 0f
+                && Time.unscaledTime >= guessFeedbackUntil)
+            {
+                guessFeedback = string.Empty;
+                guessFeedbackUntil = 0f;
+                Render();
+            }
             if (session.IsRoomCreator && hostState != null
                 && hostState.Tick(Time.unscaledDeltaTime))
             {
@@ -213,6 +223,7 @@ namespace Meshup.Game
         {
             return kind is MessageKind.Snapshot or MessageKind.PrivateWords
                     or MessageKind.GenerationAuthorized
+                    or MessageKind.GuessFeedback
                 || (kind == MessageKind.ObjectTransform
                     && !string.IsNullOrEmpty(message.creatorPeerId));
         }
@@ -237,6 +248,14 @@ namespace Meshup.Game
                     {
                         privateWordOptions = message.words ?? Array.Empty<string>();
                         privateSelectedWord = message.text ?? string.Empty;
+                        Render();
+                    }
+                    break;
+                case MessageKind.GuessFeedback:
+                    if (message.targetPeerId == session.LocalPeerId)
+                    {
+                        guessFeedback = message.text ?? string.Empty;
+                        guessFeedbackUntil = Time.unscaledTime + 2.5f;
                         Render();
                     }
                     break;
@@ -303,6 +322,13 @@ namespace Meshup.Game
                     if (hostState.SubmitGuess(message.senderPeerId, message.text))
                     {
                         BroadcastSnapshot();
+                    }
+                    else if (hostState.Phase == MeshupGamePhase.TimedGuessing
+                        && message.senderPeerId != hostState.MimePeerId
+                        && hostState.Players.Any(item => item.connected
+                            && item.peerId == message.senderPeerId))
+                    {
+                        SendGuessFeedback(message.senderPeerId);
                     }
                     break;
                 case MessageKind.GenerationRequest:
@@ -542,6 +568,22 @@ namespace Meshup.Game
             Send(message);
         }
 
+        private void SendGuessFeedback(string target)
+        {
+            var message = new GameMessage
+            {
+                kind = (int)MessageKind.GuessFeedback,
+                creatorPeerId = session.LocalPeerId,
+                targetPeerId = target,
+                text = "Incorrect guess — try again"
+            };
+            if (target == session.LocalPeerId)
+            {
+                ProcessAuthoritativeMessage(MessageKind.GuessFeedback, message);
+            }
+            Send(message);
+        }
+
         private void BroadcastObjectTransform(MeshupGeneratedObjectState state)
         {
             var message = new GameMessage
@@ -671,7 +713,8 @@ namespace Meshup.Game
         private void Render()
         {
             view?.Render(snapshot, session?.LocalPeerId ?? string.Empty,
-                privateWordOptions, privateSelectedWord, transientMessage);
+                privateWordOptions, privateSelectedWord, transientMessage,
+                guessFeedback);
         }
 
         private void LoadRuntimeConfiguration()

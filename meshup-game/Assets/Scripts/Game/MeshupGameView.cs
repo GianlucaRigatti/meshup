@@ -36,7 +36,7 @@ namespace Meshup.Game
 
         public void Render(MeshupMatchSnapshot snapshot, string localPeerId,
             string[] privateWordOptions, string privateSelectedWord,
-            string transientMessage = "")
+            string transientMessage = "", string guessFeedback = "")
         {
             if (snapshot == null || leaderboard == null || status == null)
             {
@@ -49,6 +49,7 @@ namespace Meshup.Game
                     + (score.connected ? "" : "  (left)")));
 
             var phase = (MeshupGamePhase)snapshot.phase;
+            var isMime = localPeerId == snapshot.mimePeerId;
             var mimeName = snapshot.scores.FirstOrDefault(item =>
                 item.peerId == snapshot.mimePeerId)?.displayName ?? "Mime";
             status.text = phase switch
@@ -65,8 +66,12 @@ namespace Meshup.Game
                 MeshupGamePhase.Finished => "FINAL LEADERBOARD",
                 _ => string.Empty
             };
+            if (!isMime && phase == MeshupGamePhase.TimedGuessing
+                && !string.IsNullOrWhiteSpace(guessFeedback))
+            {
+                status.text += $"\n\n{guessFeedback}";
+            }
 
-            var isMime = localPeerId == snapshot.mimePeerId;
             var choicesVisible = isMime
                 && phase == MeshupGamePhase.ChoosingWord
                 && privateWordOptions?.Length == 2;

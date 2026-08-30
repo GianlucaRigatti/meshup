@@ -55,7 +55,7 @@ namespace Meshup.Game
                 InputActionType.Button);
             pushToTalk.AddBinding("<XRController>{LeftHand}/primaryButton");
             pushToTalk.AddBinding("<XRController>{RightHand}/primaryButton");
-            pushToTalk.AddBinding("<Keyboard>/space");
+            pushToTalk.AddBinding("<Keyboard>/g");
             pushToTalk.started += HandlePress;
             pushToTalk.canceled += HandleRelease;
             pushToTalk.Enable();
