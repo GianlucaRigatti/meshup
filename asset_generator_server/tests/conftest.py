@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 from pathlib import Path
 
@@ -59,6 +60,22 @@ class FakeRunner:
         if label == "Qwen3.5-4B":
             output = Path(command[command.index("--output") + 1])
             output.write_text(self.enhanced_prompt, encoding="utf-8")
+            return
+        if label == "glTF-Transform simplification":
+            source = Path(command[command.index("--input") + 1])
+            output = Path(command[command.index("--output") + 1])
+            stats = Path(command[command.index("--stats") + 1])
+            shutil.copyfile(source, output)
+            stats.write_text(
+                json.dumps(
+                    {
+                        "source_triangles": 120_000,
+                        "output_triangles": 10_000,
+                        "simplified": True,
+                    }
+                ),
+                encoding="utf-8",
+            )
             return
         output = Path(command[2])
         with Image.open(command[1]) as image:

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
@@ -22,6 +23,8 @@ namespace Meshup.Game
         private bool cursorReleasedForTerminal;
         private CursorLockMode previousCursorLockMode;
         private bool previousCursorVisible;
+        private readonly Dictionary<GraphicRaycaster, bool>
+            desktopOverlayRaycasterStates = new();
         private readonly System.Collections.Generic.List<ScreenMount>
             screenMounts = new();
 
@@ -98,6 +101,8 @@ namespace Meshup.Game
             SetDesktopTerminalCursor(choicesVisible || preparation);
             startButton.gameObject.SetActive(preparation);
             startButton.interactable = preparation && !snapshot.generationPending;
+            startButton.GetComponentInChildren<Text>().text =
+                snapshot.generationPending ? "GENERATING…" : "START";
             terminalTitle.text = isMime
                 ? phase switch
                 {
@@ -240,6 +245,10 @@ namespace Meshup.Game
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
             }
+            if (terminalInteractionActive)
+            {
+                SuppressDesktopOverlayRaycasters();
+            }
             else if (!terminalInteractionActive && cursorReleasedForTerminal)
             {
                 RestoreDesktopCursor();
@@ -255,6 +264,39 @@ namespace Meshup.Game
             cursorReleasedForTerminal = false;
             Cursor.lockState = previousCursorLockMode;
             Cursor.visible = previousCursorVisible;
+            RestoreDesktopOverlayRaycasters();
+        }
+
+        private void SuppressDesktopOverlayRaycasters()
+        {
+            foreach (var raycaster in FindObjectsByType<GraphicRaycaster>(
+                FindObjectsInactive.Include))
+            {
+                var canvas = raycaster.GetComponent<Canvas>();
+                if (canvas == null || canvas.renderMode != RenderMode.ScreenSpaceOverlay
+                    || raycaster.GetComponent<GameSessionMenu>() != null)
+                {
+                    continue;
+                }
+                if (!desktopOverlayRaycasterStates.ContainsKey(raycaster))
+                {
+                    desktopOverlayRaycasterStates.Add(raycaster,
+                        raycaster.enabled);
+                }
+                raycaster.enabled = false;
+            }
+        }
+
+        private void RestoreDesktopOverlayRaycasters()
+        {
+            foreach (var item in desktopOverlayRaycasterStates)
+            {
+                if (item.Key != null)
+                {
+                    item.Key.enabled = item.Value;
+                }
+            }
+            desktopOverlayRaycasterStates.Clear();
         }
 
         private void OnDestroy()

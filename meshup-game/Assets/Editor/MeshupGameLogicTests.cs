@@ -172,6 +172,11 @@ namespace Meshup.Editor.Tests
         public void MimeTerminalMountsOnItsScreenAndShowsBothChoices()
         {
             var owner = new GameObject("Game View Owner");
+            var desktopOverlay = new GameObject("Desktop Hints",
+                typeof(RectTransform), typeof(Canvas),
+                typeof(GraphicRaycaster));
+            desktopOverlay.GetComponent<Canvas>().renderMode =
+                RenderMode.ScreenSpaceOverlay;
             var monitor = CreateScreenProp("Monitor", "pPlane1_monter_MTL_0",
                 new Vector3(-3f, 1f, 0f), new Vector3(2f, 1f, 1f));
             var terminal = CreateScreenProp("Terminal", "screen_low_Material_0",
@@ -248,6 +253,8 @@ namespace Meshup.Editor.Tests
                     | System.Reflection.BindingFlags.NonPublic);
                 Assert.That(cursorField?.GetValue(view), Is.True,
                     "Desktop interaction must remain active for Start.");
+                Assert.That(desktopOverlay.GetComponent<GraphicRaycaster>().enabled,
+                    Is.False, "Decorative desktop hints must not consume clicks.");
                 start.onClick.Invoke();
                 Assert.That(startInvoked, Is.True);
 
@@ -281,9 +288,12 @@ namespace Meshup.Editor.Tests
                     .Single(text => text.name == "Listening Indicator");
                 Assert.That(listening.gameObject.activeSelf, Is.True);
                 Assert.That(listening.text, Does.Contain("LISTENING"));
+                Assert.That(desktopOverlay.GetComponent<GraphicRaycaster>().enabled,
+                    Is.True, "The desktop overlay raycaster must be restored.");
             }
             finally
             {
+                UnityEngine.Object.DestroyImmediate(desktopOverlay);
                 UnityEngine.Object.DestroyImmediate(owner);
                 UnityEngine.Object.DestroyImmediate(monitor);
                 UnityEngine.Object.DestroyImmediate(terminal);

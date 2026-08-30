@@ -1,0 +1,9 @@
+{
+  "name": "meshup-asset-postprocessor",
+  "private": true,
+  "dependencies": {
+    "@gltf-transform/core": "4.4.2",
+    "@gltf-transform/functions": "4.4.2",
+    "meshoptimizer": "1.0.1"
+  }
+}

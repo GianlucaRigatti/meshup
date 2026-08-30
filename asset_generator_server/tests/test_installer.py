@@ -41,6 +41,8 @@ def test_validate_host_uses_nvidia_tools_without_torch(monkeypatch) -> None:
     monkeypatch.setattr(install_models.shutil, "which", lambda tool: f"/usr/bin/{tool}")
 
     def fake_run(command, **kwargs):
+        if command[0] == "node":
+            return "v20.19.0"
         if command[0] == "nvcc":
             return "Cuda compilation tools, release 12.8"
         if command[0] == "nvidia-smi":
@@ -124,6 +126,7 @@ def test_install_dispatches_only_two_pinned_runtimes(
     monkeypatch.setattr(install_models, "build_runtime", fake_build)
     monkeypatch.setattr(install_models, "download_models", lambda settings: None)
     monkeypatch.setattr(install_models, "install_prompt_runtime", lambda settings: None)
+    monkeypatch.setattr(install_models, "install_gltf_transform", lambda: None)
     monkeypatch.setattr(install_models, "verify_installation", lambda settings: None)
 
     install_models.install(settings, force=False)

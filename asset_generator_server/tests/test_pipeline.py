@@ -50,9 +50,15 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
     _asset_id, cached, _ = service.generate("private test object")
 
     assert cached is False
-    assert [call[3] for call in runner.calls] == ["FLUX.2 Klein", "TRELLIS.2"]
+    assert [call[3] for call in runner.calls] == [
+        "FLUX.2 Klein",
+        "TRELLIS.2",
+        "glTF-Transform simplification",
+    ]
     flux = runner.calls[0][0]
     trellis = runner.calls[1][0]
+    simplifier = runner.calls[2][0]
+    assert runner.calls[2][2] == service.settings.gltf_transform_timeout_seconds
     assert "private test object" not in flux
     assert runner.prompts == ["private test object" + PROMPT_SUFFIX]
     assert flux[flux.index("--steps") + 1] == "4"
@@ -74,6 +80,8 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
         service.generation_seed("private test object")
     )
     assert runner.trellis_input_modes == ["RGBA"]
+    assert simplifier[simplifier.index("--max-triangles") + 1] == "10000"
+    assert simplifier[simplifier.index("--error") + 1] == "0.01"
     assert "minimal shading gradients" in PROMPT_SUFFIX
     assert "no cast shadows" in PROMPT_SUFFIX
     assert "no reflections" in PROMPT_SUFFIX
@@ -97,6 +105,7 @@ def test_audio_pipeline_is_sequential_and_private(
         "Qwen3.5-4B",
         "FLUX.2 Klein",
         "TRELLIS.2",
+        "glTF-Transform simplification",
     ]
     assert runner.prompts == [runner.enhanced_prompt + PROMPT_SUFFIX]
     commands = " ".join(part for call in runner.calls for part in call[0])
@@ -155,6 +164,7 @@ def test_audio_cache_reruns_text_stages_but_skips_asset_stages(
     ]
     assert second.timings["text_to_image_ms"] == 0
     assert second.timings["reconstruction_ms"] == 0
+    assert second.timings["simplification_ms"] == 0
     assert second.transcript == runner.transcript
     assert second.enhanced_prompt == runner.enhanced_prompt
 
@@ -347,6 +357,15 @@ def test_success_creates_three_artifacts_without_storing_prompt(
     assert metadata["models"]["background_removal"]["id"] == "ZhengPeng7/BiRefNet"
     assert metadata["output_settings"]["background_removal_resolution"] == 1024
     assert metadata["output_settings"]["box_uv"] is False
+    assert metadata["output_settings"]["max_triangles"] == 10_000
+    assert metadata["geometry"] == {
+        "source_triangles": 120_000,
+        "triangles": 10_000,
+        "simplified": True,
+        "max_triangles": 10_000,
+        "simplifier": "glTF-Transform",
+        "simplifier_version": "4.4.2",
+    }
     assert "memory" not in metadata
 
 
@@ -363,6 +382,7 @@ def test_complete_cache_skips_native_processes(
     assert second[2] == {
         "text_to_image_ms": 0,
         "reconstruction_ms": 0,
+        "simplification_ms": 0,
         "total_ms": 0,
     }
     assert runner.calls == []
@@ -380,7 +400,11 @@ def test_partial_cache_is_removed_and_regenerated(
     regenerated = service.generate("partial object")
 
     assert regenerated[1] is False
-    assert [call[3] for call in runner.calls] == ["FLUX.2 Klein", "TRELLIS.2"]
+    assert [call[3] for call in runner.calls] == [
+        "FLUX.2 Klein",
+        "TRELLIS.2",
+        "glTF-Transform simplification",
+    ]
     assert (settings.asset_output_dir / f"{asset_id}.png").is_file()
 
 

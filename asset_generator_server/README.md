@@ -10,6 +10,8 @@ their original behavior and skip both stages.
   then crops and recenters the subject on a transparent 768px canvas.
 - `trellis2-fast` receives that prematted RGBA image and reconstructs a
   512-resolution, 1024px xatlas-UV textured mesh.
+- glTF-Transform welds and simplifies oversized meshes toward a 10,000-triangle
+  network-delivery budget with a 1% geometric-error limit.
 
 The former cross-platform/model-comparison implementation is preserved in
 [`../model_experiments`](../model_experiments). It is not part of this server.
@@ -31,6 +33,9 @@ sudo apt-get install -y build-essential cmake ffmpeg git ninja-build
 Install CUDA Toolkit 12.8 so `nvcc --version` reports release 12.8. CUDA 12.8
 requires GCC/G++ 14 or older; the installer selects an installed matching pair
 from versions 10 through 14.
+
+Install Node.js 20 or newer and npm for the pinned glTF-Transform
+postprocessor.
 
 Install Python and the server dependencies:
 
@@ -57,7 +62,8 @@ The two new checkpoints add roughly 13 GB to the installation. Every revision
 is pinned. Because the official ASR package requires Transformers 4.57.6 while
 Qwen3.5 requires Transformers 5, the installer also creates a small isolated
 Qwen3.5 Python runtime under `.model_sources/runtimes/`. It reuses the project's
-CUDA PyTorch installation rather than installing a second copy. Use
+CUDA PyTorch installation rather than installing a second copy. It also runs
+`npm ci` to install the locked glTF-Transform runtime. Use
 `MAX_JOBS=1` if WSL is under memory pressure. `--force` replaces and rebuilds
 only the two native source trees; downloaded weights are retained.
 
@@ -169,12 +175,14 @@ generation report zero milliseconds.
 
 Each successful uncached request atomically creates:
 
-- `generated_assets/<asset-id>.glb`: textured binary glTF.
+- `generated_assets/<asset-id>.glb`: textured binary glTF, simplified toward a
+  maximum of 10,000 triangles when reconstruction exceeds that budget.
 - `generated_assets/<asset-id>.png`: the full-resolution BiRefNet RGBA cutout,
   cropped and centered exactly as in the archived preprocessing path. This is
   the image actually conditioned by TRELLIS.
 - `generated_assets/<asset-id>.json`: prompt hash, seed, pinned revisions,
-  fixed settings, timestamp, and stage timings. Audio-generated metadata also
+  fixed settings, source/output triangle counts, timestamp, and stage timings.
+  Audio-generated metadata also
   stores the transcript, cleaned prompt, detected language, and text hashes.
 
 All three files must exist for a cache hit. Cached requests do not run either
@@ -191,6 +199,7 @@ Only operational settings remain:
   `.model_sources`.
 - `IMAGE_TIMEOUT_SECONDS`: FLUX subprocess timeout; default 600.
 - `TRELLIS_TIMEOUT_SECONDS`: TRELLIS subprocess timeout; default 1800.
+- `GLTF_TRANSFORM_TIMEOUT_SECONDS`: mesh simplification timeout; default 300.
 - `AUDIO_MAX_BYTES`: maximum audio upload size; default 10485760.
 - `AUDIO_MAX_DURATION_SECONDS`: maximum decoded duration; default 60.
 - `AUDIO_DECODE_TIMEOUT_SECONDS`: `ffprobe`/`ffmpeg` timeout; default 30.
