@@ -78,6 +78,7 @@ namespace Meshup.Game
             var wav = EncodeWav(recording, samplePosition);
             Destroy(recording);
             recording = null;
+            coordinator.ReportLocalMessage("Sending description…");
             coordinator.RequestGeneration(wav);
         }
 

@@ -18,7 +18,7 @@ namespace Meshup.Game
         private Button startButton;
         private Action<int> chooseWord;
         private Action startRound;
-        private bool cursorReleasedForChoices;
+        private bool cursorReleasedForTerminal;
         private CursorLockMode previousCursorLockMode;
         private bool previousCursorVisible;
         private readonly System.Collections.Generic.List<ScreenMount>
@@ -79,9 +79,9 @@ namespace Meshup.Game
             }
             firstChoice.interactable = choicesVisible;
             secondChoice.interactable = choicesVisible;
-            SetDesktopChoiceCursor(choicesVisible);
 
             var preparation = isMime && phase == MeshupGamePhase.Preparation;
+            SetDesktopTerminalCursor(choicesVisible || preparation);
             startButton.gameObject.SetActive(preparation);
             startButton.interactable = preparation && !snapshot.generationPending;
             terminalTitle.text = isMime
@@ -202,22 +202,22 @@ namespace Meshup.Game
             return canvas;
         }
 
-        private void SetDesktopChoiceCursor(bool choicesVisible)
+        private void SetDesktopTerminalCursor(bool terminalInteractionActive)
         {
             if (Application.isMobilePlatform)
             {
                 return;
             }
 
-            if (choicesVisible && !cursorReleasedForChoices)
+            if (terminalInteractionActive && !cursorReleasedForTerminal)
             {
                 previousCursorLockMode = Cursor.lockState;
                 previousCursorVisible = Cursor.visible;
-                cursorReleasedForChoices = true;
+                cursorReleasedForTerminal = true;
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
             }
-            else if (!choicesVisible && cursorReleasedForChoices)
+            else if (!terminalInteractionActive && cursorReleasedForTerminal)
             {
                 RestoreDesktopCursor();
             }
@@ -225,11 +225,11 @@ namespace Meshup.Game
 
         private void RestoreDesktopCursor()
         {
-            if (!cursorReleasedForChoices)
+            if (!cursorReleasedForTerminal)
             {
                 return;
             }
-            cursorReleasedForChoices = false;
+            cursorReleasedForTerminal = false;
             Cursor.lockState = previousCursorLockMode;
             Cursor.visible = previousCursorVisible;
         }

@@ -179,12 +179,13 @@ namespace Meshup.Editor.Tests
                 PrimitiveType.Cube);
             var viewer = new GameObject("Viewer");
             viewer.transform.position = new Vector3(0f, 1.5f, 0f);
+            var startInvoked = false;
 
             try
             {
                 var view = owner.AddComponent<MeshupGameView>();
                 view.Build(monitor.transform, terminal.transform,
-                    viewer.transform, _ => { }, () => { });
+                    viewer.transform, _ => { }, () => startInvoked = true);
                 view.Render(new MeshupMatchSnapshot
                 {
                     phase = (int)MeshupGamePhase.ChoosingWord,
@@ -222,6 +223,33 @@ namespace Meshup.Editor.Tests
                 Assert.That(buttons.Where(button => button.name.Contains("Choice"))
                     .All(button => button.gameObject.activeSelf && button.interactable),
                     Is.True);
+
+                view.Render(new MeshupMatchSnapshot
+                {
+                    phase = (int)MeshupGamePhase.Preparation,
+                    mimePeerId = "mime",
+                    generationTokens = 2,
+                    scores = new[]
+                    {
+                        new MeshupPlayerScore
+                        {
+                            peerId = "mime",
+                            displayName = "Mime",
+                            connected = true
+                        }
+                    }
+                }, "mime", Array.Empty<string>(), "jump");
+                var start = buttons.Single(button => button.name == "Start");
+                Assert.That(start.gameObject.activeSelf, Is.True);
+                Assert.That(start.interactable, Is.True);
+                var cursorField = typeof(MeshupGameView).GetField(
+                    "cursorReleasedForTerminal",
+                    System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.NonPublic);
+                Assert.That(cursorField?.GetValue(view), Is.True,
+                    "Desktop interaction must remain active for Start.");
+                start.onClick.Invoke();
+                Assert.That(startInvoked, Is.True);
             }
             finally
             {

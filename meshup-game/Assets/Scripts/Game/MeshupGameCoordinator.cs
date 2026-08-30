@@ -424,6 +424,10 @@ namespace Meshup.Game
             {
                 ReportLocalMessage(error);
             }
+            else
+            {
+                ReportLocalMessage(string.Empty);
+            }
             SendCommand(new GameMessage
             {
                 kind = (int)MessageKind.GenerationComplete,
