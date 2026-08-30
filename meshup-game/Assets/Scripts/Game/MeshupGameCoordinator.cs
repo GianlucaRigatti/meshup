@@ -613,7 +613,7 @@ namespace Meshup.Game
 
         private Vector3 GetGeneratedSpawnPosition(int slot)
         {
-            var center = generatorAnchor.position + generatorAnchor.up * 0.4f;
+            var center = generatorAnchor.position + generatorAnchor.up * 0.9f;
             return slot switch
             {
                 1 => center + generatorAnchor.right * 0.8f,
