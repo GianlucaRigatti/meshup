@@ -49,6 +49,7 @@ namespace Meshup.Game
         private InputAction pushToTalk;
         private Func<bool> canRecord;
         private Coroutine activationWatchdog;
+        private Coroutine permissionRequest;
         private bool isListening;
         private bool activationRequested;
 
@@ -84,6 +85,22 @@ namespace Meshup.Game
                     "Meta Voice SDK or its configured AppVoiceExperience is unavailable.");
                 return;
             }
+            if (IsAppleDesktop
+                && !Application.HasUserAuthorization(UserAuthorization.Microphone))
+            {
+                activationRequested = true;
+                if (permissionRequest == null)
+                {
+                    permissionRequest = StartCoroutine(
+                        RequestMicrophonePermission());
+                }
+                return;
+            }
+            BeginSdkActivation();
+        }
+
+        private void BeginSdkActivation()
+        {
             try
             {
                 activationRequested = true;
@@ -98,6 +115,29 @@ namespace Meshup.Game
             {
                 activationRequested = false;
                 ErrorOccurred?.Invoke(exception.GetBaseException().Message);
+            }
+        }
+
+        private IEnumerator RequestMicrophonePermission()
+        {
+            yield return Application.RequestUserAuthorization(
+                UserAuthorization.Microphone);
+            permissionRequest = null;
+            if (!Application.HasUserAuthorization(UserAuthorization.Microphone))
+            {
+                activationRequested = false;
+                ErrorOccurred?.Invoke("Microphone permission was denied. Enable "
+                    + "it in System Settings > Privacy & Security > Microphone, "
+                    + "then restart MeshUp.");
+                yield break;
+            }
+            if (activationRequested && pushToTalk?.IsPressed() == true)
+            {
+                BeginSdkActivation();
+            }
+            else
+            {
+                activationRequested = false;
             }
         }
 
@@ -278,11 +318,17 @@ namespace Meshup.Game
                 InvokeStatusMethod("GetSendError")
             }.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct();
             var suffix = string.Join(" ", details);
-            return "Voice input could not start. Check Windows microphone "
-                + "privacy access, the selected recording device, and the Wit "
-                + "configuration."
+            var guidance = IsAppleDesktop
+                ? "Check System Settings > Privacy & Security > Microphone, "
+                    + "the selected input device, and the Wit configuration."
+                : "Check microphone privacy access, the selected recording "
+                    + "device, and the Wit configuration.";
+            return "Voice input could not start. " + guidance
                 + (string.IsNullOrWhiteSpace(suffix) ? string.Empty : $" {suffix}");
         }
+
+        private static bool IsAppleDesktop => Application.platform is
+            RuntimePlatform.OSXEditor or RuntimePlatform.OSXPlayer;
 
         private string InvokeStatusMethod(string methodName)
         {
