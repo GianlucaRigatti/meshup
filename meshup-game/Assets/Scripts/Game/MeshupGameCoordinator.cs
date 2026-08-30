@@ -136,7 +136,8 @@ namespace Meshup.Game
             gameStart.Completed += HandleWalkCompleted;
 
             view = gameObject.AddComponent<MeshupGameView>();
-            view.Build(guesserMonitor, mimeTerminal, ChooseWord, StartRound);
+            view.Build(guesserMonitor, mimeTerminal, localPlayer.transform,
+                ChooseWord, StartRound);
             transcriber = gameObject.AddComponent<MetaGuessTranscriber>();
             transcriber.Configure(() => CanGuessLocally);
             transcriber.TranscriptionReceived += SubmitGuess;

@@ -6,6 +6,7 @@ using NUnit.Framework;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 namespace Meshup.Editor.Tests
 {
@@ -114,6 +115,63 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void MimeTerminalMountsOnItsScreenAndShowsBothChoices()
+        {
+            var owner = new GameObject("Game View Owner");
+            var monitor = CreateScreenProp("Monitor", "pPlane1_monter_MTL_0",
+                new Vector3(-3f, 1f, 0f), new Vector3(2f, 1f, 1f));
+            var terminal = CreateScreenProp("Terminal", "screen_low_Material_0",
+                new Vector3(2f, 1.5f, 0f), new Vector3(1.6f, 1.2f, 1f));
+            var viewer = new GameObject("Viewer");
+            viewer.transform.position = new Vector3(2f, 1.5f, -4f);
+
+            try
+            {
+                var view = owner.AddComponent<MeshupGameView>();
+                view.Build(monitor.transform, terminal.transform,
+                    viewer.transform, _ => { }, () => { });
+                view.Render(new MeshupMatchSnapshot
+                {
+                    phase = (int)MeshupGamePhase.ChoosingWord,
+                    mimePeerId = "mime",
+                    scores = new[]
+                    {
+                        new MeshupPlayerScore
+                        {
+                            peerId = "mime",
+                            displayName = "Mime",
+                            connected = true
+                        }
+                    }
+                }, "mime", new[] { "jump", "swim" }, string.Empty);
+
+                var canvas = terminal.transform.Find("MeshUp Mime Terminal UI");
+                Assert.That(canvas, Is.Not.Null);
+                Assert.That(Vector3.Distance(canvas.position,
+                    terminal.transform.GetChild(0).position), Is.LessThan(0.1f));
+                Assert.That(Vector3.Dot(-canvas.forward,
+                    (viewer.transform.position - canvas.position).normalized),
+                    Is.GreaterThan(0.99f));
+
+                var buttons = canvas.GetComponentsInChildren<Button>(true);
+                Assert.That(buttons.Single(button => button.name == "First Choice")
+                    .GetComponentInChildren<Text>().text, Is.EqualTo("jump"));
+                Assert.That(buttons.Single(button => button.name == "Second Choice")
+                    .GetComponentInChildren<Text>().text, Is.EqualTo("swim"));
+                Assert.That(buttons.Where(button => button.name.Contains("Choice"))
+                    .All(button => button.gameObject.activeSelf && button.interactable),
+                    Is.True);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(owner);
+                UnityEngine.Object.DestroyImmediate(monitor);
+                UnityEngine.Object.DestroyImmediate(terminal);
+                UnityEngine.Object.DestroyImmediate(viewer);
+            }
+        }
+
+        [Test]
         public void AuthoredGameSceneContainsRuntimeAttachmentPoints()
         {
             var scene = EditorSceneManager.OpenScene(
@@ -154,6 +212,18 @@ namespace Meshup.Editor.Tests
             Assert.That(state.MimeEntered(mime, new[] { word, "swim" }), Is.True);
             Assert.That(state.SelectWord(mime, 0), Is.True);
             Assert.That(state.StartTimer(mime), Is.True);
+        }
+
+        private static GameObject CreateScreenProp(string rootName,
+            string surfaceName, Vector3 surfacePosition, Vector3 surfaceScale)
+        {
+            var root = new GameObject(rootName);
+            var surface = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            surface.name = surfaceName;
+            surface.transform.SetParent(root.transform, false);
+            surface.transform.position = surfacePosition;
+            surface.transform.localScale = surfaceScale;
+            return root;
         }
     }
 }

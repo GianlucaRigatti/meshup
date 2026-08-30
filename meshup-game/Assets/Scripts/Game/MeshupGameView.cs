@@ -18,14 +18,17 @@ namespace Meshup.Game
         private Button startButton;
         private Action<int> chooseWord;
         private Action startRound;
+        private readonly System.Collections.Generic.List<ScreenMount>
+            screenMounts = new();
 
         public void Build(Transform monitor, Transform terminal,
-            Action<int> onChooseWord, Action onStartRound)
+            Transform localViewer, Action<int> onChooseWord,
+            Action onStartRound)
         {
             chooseWord = onChooseWord;
             startRound = onStartRound;
-            BuildMonitor(monitor);
-            BuildTerminal(terminal);
+            BuildMonitor(monitor, localViewer);
+            BuildTerminal(terminal, localViewer);
         }
 
         public void Render(MeshupMatchSnapshot snapshot, string localPeerId,
@@ -71,6 +74,8 @@ namespace Meshup.Game
                 firstChoice.GetComponentInChildren<Text>().text = privateWordOptions[0];
                 secondChoice.GetComponentInChildren<Text>().text = privateWordOptions[1];
             }
+            firstChoice.interactable = choicesVisible;
+            secondChoice.interactable = choicesVisible;
 
             var preparation = isMime && phase == MeshupGamePhase.Preparation;
             startButton.gameObject.SetActive(preparation);
@@ -85,11 +90,16 @@ namespace Meshup.Game
                     _ => "WAIT FOR YOUR TURN"
                 }
                 : "MIME ONLY";
-            terminalStatus.text = preparation
-                ? $"{new string('●', snapshot.generationTokens)}"
-                    + $"{new string('○', 3 - snapshot.generationTokens)}\n"
-                    + (snapshot.generationPending ? "Generating…" : transientMessage)
-                : transientMessage;
+            terminalStatus.text = isMime
+                && phase == MeshupGamePhase.ChoosingWord && !choicesVisible
+                    ? "Receiving word choices…"
+                    : preparation
+                        ? $"{new string('●', snapshot.generationTokens)}"
+                            + $"{new string('○', 3 - snapshot.generationTokens)}\n"
+                            + (snapshot.generationPending
+                                ? "Generating…"
+                                : transientMessage)
+                        : transientMessage;
         }
 
         private static string FormatPuzzle(MeshupMatchSnapshot snapshot,
@@ -100,10 +110,11 @@ namespace Meshup.Game
             return $"{spaced}\n\n{footer}";
         }
 
-        private void BuildMonitor(Transform target)
+        private void BuildMonitor(Transform target, Transform localViewer)
         {
             var canvas = CreateCanvas("MeshUp Monitor UI", target,
-                new Vector2(1200f, 600f), 0.003f);
+                new Vector2(1200f, 600f), 0.003f, localViewer,
+                "pPlane1_monter_MTL_0", "pPlane1");
             var background = CreatePanel(canvas.transform, "Background",
                 new Color(0.015f, 0.04f, 0.07f, 0.94f));
             var leaderboardPanel = CreatePanel(background.transform,
@@ -121,10 +132,11 @@ namespace Meshup.Game
                 new Vector2(30f, 30f), new Vector2(-30f, -30f));
         }
 
-        private void BuildTerminal(Transform target)
+        private void BuildTerminal(Transform target, Transform localViewer)
         {
             var canvas = CreateCanvas("MeshUp Mime Terminal UI", target,
-                new Vector2(800f, 600f), 0.002f);
+                new Vector2(800f, 600f), 0.002f, localViewer,
+                "screen_low_Material_0", "screen_low");
             var background = CreatePanel(canvas.transform, "Background",
                 new Color(0.02f, 0.04f, 0.08f, 0.96f));
             terminalTitle = CreateText(background.transform, "Title", 52,
@@ -149,26 +161,241 @@ namespace Meshup.Game
             startButton.onClick.AddListener(() => startRound?.Invoke());
         }
 
-        private static Canvas CreateCanvas(string name, Transform target,
-            Vector2 size, float worldScale)
+        private Canvas CreateCanvas(string name, Transform target,
+            Vector2 size, float fallbackWorldScale, Transform localViewer,
+            params string[] preferredSurfaceNames)
         {
             var gameObject = new GameObject(name, typeof(RectTransform),
                 typeof(Canvas), typeof(CanvasScaler),
                 typeof(TrackedDeviceGraphicRaycaster));
             gameObject.transform.SetParent(target, false);
-            gameObject.transform.localPosition = Vector3.zero;
-            gameObject.transform.localRotation = Quaternion.identity;
+            var surface = FindDisplaySurface(target, preferredSurfaceNames);
+            var placement = surface != null
+                ? SurfacePlacement.From(surface, localViewer, size)
+                : SurfacePlacement.From(target, localViewer,
+                    fallbackWorldScale);
+            placement.Resolve(out var position, out var rotation);
+            gameObject.transform.SetPositionAndRotation(position, rotation);
             var parentScale = target.lossyScale;
             gameObject.transform.localScale = new Vector3(
-                worldScale / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
-                worldScale / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
-                worldScale / Mathf.Max(0.0001f, Mathf.Abs(parentScale.z)));
+                placement.WorldScale
+                    / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
+                placement.WorldScale
+                    / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
+                placement.WorldScale
+                    / Mathf.Max(0.0001f, Mathf.Abs(parentScale.z)));
             var rect = gameObject.GetComponent<RectTransform>();
             rect.sizeDelta = size;
             var canvas = gameObject.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
+            canvas.overrideSorting = true;
             canvas.sortingOrder = 100;
+            screenMounts.Add(new ScreenMount(gameObject.transform, placement));
             return canvas;
+        }
+
+        private void LateUpdate()
+        {
+            foreach (var mount in screenMounts)
+            {
+                mount.Apply();
+            }
+        }
+
+        private static Renderer FindDisplaySurface(Transform target,
+            string[] preferredNames)
+        {
+            var renderers = target.GetComponentsInChildren<Renderer>(true);
+            foreach (var preferredName in preferredNames ?? Array.Empty<string>())
+            {
+                var preferred = renderers.FirstOrDefault(renderer =>
+                    string.Equals(renderer.name, preferredName,
+                        StringComparison.OrdinalIgnoreCase));
+                if (preferred != null)
+                {
+                    return preferred;
+                }
+            }
+
+            Renderer best = null;
+            var bestScore = 0f;
+            foreach (var renderer in renderers)
+            {
+                if (!TryGetLocalBounds(renderer, out var bounds))
+                {
+                    continue;
+                }
+                var dimensions = GetWorldDimensions(renderer.transform,
+                    bounds.size);
+                Array.Sort(dimensions);
+                if (dimensions[0] > dimensions[1] * 0.35f)
+                {
+                    continue;
+                }
+                var score = dimensions[1] * dimensions[2];
+                if (score > bestScore)
+                {
+                    best = renderer;
+                    bestScore = score;
+                }
+            }
+            return best;
+        }
+
+        private static bool TryGetLocalBounds(Renderer renderer,
+            out Bounds bounds)
+        {
+            if (renderer.TryGetComponent<MeshFilter>(out var filter)
+                && filter.sharedMesh != null)
+            {
+                bounds = filter.sharedMesh.bounds;
+                return true;
+            }
+            if (renderer is SkinnedMeshRenderer skinned
+                && skinned.sharedMesh != null)
+            {
+                bounds = skinned.sharedMesh.bounds;
+                return true;
+            }
+            bounds = default;
+            return false;
+        }
+
+        private static float[] GetWorldDimensions(Transform transform,
+            Vector3 localSize)
+        {
+            return new[]
+            {
+                transform.TransformVector(Vector3.right * localSize.x).magnitude,
+                transform.TransformVector(Vector3.up * localSize.y).magnitude,
+                transform.TransformVector(Vector3.forward * localSize.z).magnitude
+            };
+        }
+
+        private readonly struct SurfacePlacement
+        {
+            public readonly Transform Surface;
+            public readonly Transform Viewer;
+            public readonly Vector3 LocalCenter;
+            public readonly Vector3 LocalNormal;
+            public readonly Vector3 LocalUp;
+            public readonly float Offset;
+            public readonly float WorldScale;
+
+            private SurfacePlacement(Transform surface, Transform viewer,
+                Vector3 localCenter, Vector3 localNormal, Vector3 localUp,
+                float offset, float worldScale)
+            {
+                Surface = surface;
+                Viewer = viewer;
+                LocalCenter = localCenter;
+                LocalNormal = localNormal;
+                LocalUp = localUp;
+                Offset = offset;
+                WorldScale = worldScale;
+            }
+
+            public static SurfacePlacement From(Renderer renderer,
+                Transform viewer, Vector2 canvasSize)
+            {
+                TryGetLocalBounds(renderer, out var bounds);
+                var localSize = bounds.size;
+                var dimensions = GetWorldDimensions(renderer.transform,
+                    localSize);
+                var normalIndex = SmallestIndex(dimensions);
+                var remaining = Enumerable.Range(0, 3)
+                    .Where(index => index != normalIndex).ToArray();
+                var firstAxis = Axis(remaining[0]);
+                var secondAxis = Axis(remaining[1]);
+                var firstUp = Mathf.Abs(Vector3.Dot(
+                    renderer.transform.TransformDirection(firstAxis).normalized,
+                    Vector3.up));
+                var secondUp = Mathf.Abs(Vector3.Dot(
+                    renderer.transform.TransformDirection(secondAxis).normalized,
+                    Vector3.up));
+                var upIndex = firstUp >= secondUp ? remaining[0] : remaining[1];
+                var widthIndex = upIndex == remaining[0]
+                    ? remaining[1]
+                    : remaining[0];
+                var localUp = Axis(upIndex);
+                if (Vector3.Dot(renderer.transform.TransformDirection(localUp),
+                    Vector3.up) < 0f)
+                {
+                    localUp = -localUp;
+                }
+                var fittedScale = Mathf.Min(
+                    dimensions[widthIndex] * 0.9f / canvasSize.x,
+                    dimensions[upIndex] * 0.9f / canvasSize.y);
+                var offset = Mathf.Max(0.003f,
+                    Mathf.Min(dimensions[widthIndex], dimensions[upIndex])
+                    * 0.0125f);
+                return new SurfacePlacement(renderer.transform, viewer,
+                    bounds.center, Axis(normalIndex), localUp, offset,
+                    Mathf.Max(0.0001f, fittedScale));
+            }
+
+            public static SurfacePlacement From(Transform target,
+                Transform viewer, float worldScale)
+            {
+                return new SurfacePlacement(target, viewer, Vector3.zero,
+                    Vector3.forward, Vector3.up, 0.01f, worldScale);
+            }
+
+            public void Resolve(out Vector3 position, out Quaternion rotation)
+            {
+                var center = Surface.TransformPoint(LocalCenter);
+                var normal = Surface.TransformDirection(LocalNormal).normalized;
+                var up = Surface.TransformDirection(LocalUp).normalized;
+                var viewerDirection = Viewer != null
+                    ? Viewer.position - center
+                    : -normal;
+                var towardViewer = Vector3.Dot(viewerDirection, normal) >= 0f
+                    ? normal
+                    : -normal;
+                position = center + towardViewer * Offset;
+                rotation = Quaternion.LookRotation(-towardViewer, up);
+            }
+
+            private static int SmallestIndex(float[] values)
+            {
+                return values[0] <= values[1] && values[0] <= values[2]
+                    ? 0
+                    : values[1] <= values[2] ? 1 : 2;
+            }
+
+            private static Vector3 Axis(int index)
+            {
+                return index switch
+                {
+                    0 => Vector3.right,
+                    1 => Vector3.up,
+                    _ => Vector3.forward
+                };
+            }
+        }
+
+        private sealed class ScreenMount
+        {
+            private readonly Transform canvas;
+            private readonly SurfacePlacement placement;
+
+            public ScreenMount(Transform canvasTransform,
+                SurfacePlacement value)
+            {
+                canvas = canvasTransform;
+                placement = value;
+                Apply();
+            }
+
+            public void Apply()
+            {
+                if (canvas == null || placement.Surface == null)
+                {
+                    return;
+                }
+                placement.Resolve(out var position, out var rotation);
+                canvas.SetPositionAndRotation(position, rotation);
+            }
         }
 
         private static Image CreatePanel(Transform parent, string name,
