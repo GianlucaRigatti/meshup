@@ -183,6 +183,8 @@ namespace Meshup.Editor.Tests
         [Test]
         public void AuthoredGameSceneContainsRuntimeAttachmentPoints()
         {
+            Assert.That(UnityEditor.PlayerSettings.insecureHttpOption.ToString(),
+                Is.EqualTo("AlwaysAllowed"));
             var scene = EditorSceneManager.OpenScene(
                 "Assets/Scenes/GameScene.unity", OpenSceneMode.Single);
             var names = scene.GetRootGameObjects()

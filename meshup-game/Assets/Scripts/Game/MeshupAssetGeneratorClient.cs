@@ -84,8 +84,22 @@ namespace Meshup.Game
         private IEnumerator Upload(string requestId, byte[] wav,
             string serverBaseUrl)
         {
+            if (string.IsNullOrWhiteSpace(serverBaseUrl))
+            {
+                coordinator.CompleteGeneration(requestId, string.Empty,
+                    "The asset server base URL is not configured.");
+                yield break;
+            }
             var endpoint = serverBaseUrl.TrimEnd('/')
                 + "/generate_asset_from_audio";
+            if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var endpointUri)
+                || (endpointUri.Scheme != Uri.UriSchemeHttp
+                    && endpointUri.Scheme != Uri.UriSchemeHttps))
+            {
+                coordinator.CompleteGeneration(requestId, string.Empty,
+                    $"Invalid asset server URL: {endpoint}");
+                yield break;
+            }
             var form = new List<IMultipartFormSection>
             {
                 new MultipartFormFileSection("audio", wav,
@@ -93,7 +107,18 @@ namespace Meshup.Game
             };
             using var request = UnityWebRequest.Post(endpoint, form);
             request.timeout = 2100;
-            yield return request.SendWebRequest();
+            UnityWebRequestAsyncOperation operation;
+            try
+            {
+                operation = request.SendWebRequest();
+            }
+            catch (InvalidOperationException exception)
+            {
+                coordinator.CompleteGeneration(requestId, string.Empty,
+                    exception.Message);
+                yield break;
+            }
+            yield return operation;
             if (request.result != UnityWebRequest.Result.Success)
             {
                 coordinator.CompleteGeneration(requestId, string.Empty,
