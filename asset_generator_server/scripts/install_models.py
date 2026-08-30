@@ -90,11 +90,12 @@ def validate_host() -> str:
     if missing:
         raise RuntimeError("Missing required tools: " + ", ".join(missing))
     try:
-        node_major = int(run(["node", "--version"]).lstrip("v").split(".", 1)[0])
-    except ValueError as exc:
+        node_version = run(["node", "--version"]).lstrip("v").split(".")
+        node_major, node_minor = int(node_version[0]), int(node_version[1])
+    except (IndexError, ValueError) as exc:
         raise RuntimeError("Could not determine the Node.js version.") from exc
-    if node_major < 20:
-        raise RuntimeError("Node.js 20 or newer is required for glTF-Transform.")
+    if (node_major, node_minor) < (20, 9):
+        raise RuntimeError("Node.js 20.9 or newer is required for glTF-Transform.")
     if "release 12.8" not in run(["nvcc", "--version"]):
         raise RuntimeError("CUDA Toolkit 12.8 is required.")
 

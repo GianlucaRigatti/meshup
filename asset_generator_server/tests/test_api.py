@@ -68,6 +68,10 @@ def test_generate_serves_all_artifacts_and_cache(client) -> None:
     assert isinstance(body["model_generation_time_ms"], int)
     assert isinstance(body["generation_time_ms"], int)
     assert test_client.get(body["url"]).headers["content-type"] == "model/gltf-binary"
+    assert body["original_url"] == body["url"].replace(".glb", ".original.glb")
+    original_response = test_client.get(body["original_url"])
+    assert original_response.status_code == 200
+    assert original_response.headers["content-type"] == "model/gltf-binary"
     assert test_client.get(body["url"].replace(".glb", ".png")).status_code == 200
     metadata_response = test_client.get(body["url"].replace(".glb", ".json"))
     assert metadata_response.status_code == 200
@@ -104,6 +108,7 @@ def test_audio_generation_returns_intermediate_text_and_artifacts(
     assert body["transcript_language"] == "English"
     assert body["enhanced_prompt"] == "A small medieval treasure chest"
     assert body["cached"] is False
+    assert test_client.get(body["original_url"]).status_code == 200
     assert isinstance(body["audio_preprocessing_time_ms"], int)
     assert isinstance(body["transcription_time_ms"], int)
     assert isinstance(body["prompt_enhancement_time_ms"], int)

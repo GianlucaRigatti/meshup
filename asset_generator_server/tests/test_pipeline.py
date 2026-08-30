@@ -81,6 +81,7 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
     )
     assert runner.trellis_input_modes == ["RGBA"]
     assert simplifier[simplifier.index("--max-triangles") + 1] == "10000"
+    assert simplifier[simplifier.index("--max-texture-size") + 1] == "512"
     assert simplifier[simplifier.index("--error") + 1] == "0.01"
     assert "minimal shading gradients" in PROMPT_SUFFIX
     assert "no cast shadows" in PROMPT_SUFFIX
@@ -332,7 +333,7 @@ def test_birefnet_load_suppresses_only_pinned_timm_deprecations(
     assert [str(item.message) for item in caught] == ["unrelated future warning"]
 
 
-def test_success_creates_three_artifacts_without_storing_prompt(
+def test_success_creates_original_and_network_artifacts_without_storing_prompt(
     settings: Settings,
     generator: tuple[AssetGenerator, FakeRunner],
 ) -> None:
@@ -340,9 +341,11 @@ def test_success_creates_three_artifacts_without_storing_prompt(
     asset_id, _, timings = service.generate("a confidential object")
 
     glb = settings.asset_output_dir / f"{asset_id}.glb"
+    original_glb = settings.asset_output_dir / f"{asset_id}.original.glb"
     image = settings.asset_output_dir / f"{asset_id}.png"
     metadata_path = settings.asset_output_dir / f"{asset_id}.json"
     assert glb.read_bytes().startswith(b"glTF")
+    assert original_glb.read_bytes().startswith(b"glTF")
     assert image.read_bytes().startswith(PNG_SIGNATURE)
     with Image.open(image) as cutout:
         assert cutout.mode == "RGBA"
@@ -358,6 +361,7 @@ def test_success_creates_three_artifacts_without_storing_prompt(
     assert metadata["output_settings"]["background_removal_resolution"] == 1024
     assert metadata["output_settings"]["box_uv"] is False
     assert metadata["output_settings"]["max_triangles"] == 10_000
+    assert metadata["output_settings"]["texture_resolution"] == 512
     assert metadata["geometry"] == {
         "source_triangles": 120_000,
         "triangles": 10_000,
@@ -365,6 +369,21 @@ def test_success_creates_three_artifacts_without_storing_prompt(
         "max_triangles": 10_000,
         "simplifier": "glTF-Transform",
         "simplifier_version": "4.4.2",
+        "source_texture_bytes": 4_672_122,
+        "texture_bytes": 437_615,
+        "textures_resized": True,
+        "max_texture_size": 512,
+        "texture_format": "png",
+    }
+    assert metadata["artifacts"] == {
+        "original_glb": {
+            "filename": f"{asset_id}.original.glb",
+            "bytes": original_glb.stat().st_size,
+        },
+        "network_glb": {
+            "filename": f"{asset_id}.glb",
+            "bytes": glb.stat().st_size,
+        },
     }
     assert "memory" not in metadata
 
@@ -394,7 +413,7 @@ def test_partial_cache_is_removed_and_regenerated(
 ) -> None:
     service, runner = generator
     asset_id, _, _ = service.generate("partial object")
-    (settings.asset_output_dir / f"{asset_id}.png").unlink()
+    (settings.asset_output_dir / f"{asset_id}.original.glb").unlink()
     runner.calls.clear()
 
     regenerated = service.generate("partial object")
@@ -405,7 +424,7 @@ def test_partial_cache_is_removed_and_regenerated(
         "TRELLIS.2",
         "glTF-Transform simplification",
     ]
-    assert (settings.asset_output_dir / f"{asset_id}.png").is_file()
+    assert (settings.asset_output_dir / f"{asset_id}.original.glb").is_file()
 
 
 def test_failure_is_wrapped_and_cleans_artifacts(

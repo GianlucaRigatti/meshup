@@ -72,6 +72,9 @@ class FakeRunner:
                         "source_triangles": 120_000,
                         "output_triangles": 10_000,
                         "simplified": True,
+                        "source_texture_bytes": 4_672_122,
+                        "output_texture_bytes": 437_615,
+                        "textures_resized": True,
                     }
                 ),
                 encoding="utf-8",

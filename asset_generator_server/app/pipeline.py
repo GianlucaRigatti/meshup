@@ -36,6 +36,7 @@ from app.config import (
     IMAGE_GENERATOR,
     MODEL_3D,
     MAX_ASSET_TRIANGLES,
+    MAX_ASSET_TEXTURE_SIZE,
     OUTPUT_MODE,
     PIPELINE_SCHEMA_VERSION,
     PIPELINE_VERSION,
@@ -365,6 +366,18 @@ class AssetGenerator:
             timings["simplification_ms"] = _elapsed_ms(stage)
             timings["total_ms"] = _elapsed_ms(started)
 
+            artifact_stats = {
+                "original_glb": {
+                    "filename": f"{asset_id}.original.glb",
+                    "bytes": temporary_glb.stat().st_size,
+                },
+                "network_glb": {
+                    "filename": f"{asset_id}.glb",
+                    "bytes": simplified_glb.stat().st_size,
+                },
+            }
+
+            os.replace(temporary_glb, self._original_asset_path(asset_id))
             os.replace(simplified_glb, self._asset_path(asset_id))
             os.replace(cutout_image, self._image_path(asset_id))
             self._write_metadata(
@@ -378,6 +391,7 @@ class AssetGenerator:
                     schema_version=schema_version,
                     extra=metadata_extra,
                     mesh_stats=mesh_stats,
+                    artifact_stats=artifact_stats,
                 ),
             )
         return GenerationResult(asset_id, False, timings)
@@ -633,6 +647,8 @@ class AssetGenerator:
             str(stats.resolve()),
             "--max-triangles",
             str(MAX_ASSET_TRIANGLES),
+            "--max-texture-size",
+            str(MAX_ASSET_TEXTURE_SIZE),
             "--error",
             str(SIMPLIFICATION_ERROR),
         ]
@@ -642,6 +658,7 @@ class AssetGenerator:
             path.is_file()
             for path in (
                 self._asset_path(asset_id),
+                self._original_asset_path(asset_id),
                 self._image_path(asset_id),
                 self._metadata_path(asset_id),
             )
@@ -650,6 +667,7 @@ class AssetGenerator:
     def _remove_artifacts(self, asset_id: str) -> None:
         for path in (
             self._asset_path(asset_id),
+            self._original_asset_path(asset_id),
             self._image_path(asset_id),
             self._metadata_path(asset_id),
             self._metadata_path(asset_id).with_suffix(".json.tmp"),
@@ -658,6 +676,9 @@ class AssetGenerator:
 
     def _asset_path(self, asset_id: str) -> Path:
         return self.output_dir / f"{asset_id}.glb"
+
+    def _original_asset_path(self, asset_id: str) -> Path:
+        return self.output_dir / f"{asset_id}.original.glb"
 
     def _image_path(self, asset_id: str) -> Path:
         return self.output_dir / f"{asset_id}.png"
@@ -676,6 +697,7 @@ class AssetGenerator:
         schema_version: int,
         extra: dict | None = None,
         mesh_stats: dict | None = None,
+        artifact_stats: dict | None = None,
     ) -> dict:
         metadata = {
             "schema_version": schema_version,
@@ -717,12 +739,15 @@ class AssetGenerator:
                 "background_removal_resolution": 1024,
                 "foreground_ratio": 435 / 512,
                 "geometry_resolution": 512,
-                "texture_resolution": 1024,
+                "reconstruction_texture_resolution": 1024,
+                "texture_resolution": MAX_ASSET_TEXTURE_SIZE,
+                "texture_format": "png",
                 "box_uv": False,
                 "max_triangles": MAX_ASSET_TRIANGLES,
                 "simplification_error": SIMPLIFICATION_ERROR,
             },
             "geometry": mesh_stats,
+            "artifacts": artifact_stats,
             "created_at": datetime.now(UTC).isoformat(),
             "timings": timings,
         }
@@ -871,6 +896,9 @@ def _read_simplification_stats(path: Path) -> dict:
         source = int(stats["source_triangles"])
         output = int(stats["output_triangles"])
         simplified = stats["simplified"]
+        source_texture_bytes = int(stats["source_texture_bytes"])
+        output_texture_bytes = int(stats["output_texture_bytes"])
+        textures_resized = stats["textures_resized"]
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise RuntimeError("glTF-Transform produced invalid statistics.") from exc
     if (
@@ -879,6 +907,9 @@ def _read_simplification_stats(path: Path) -> dict:
         or output > source
         or not isinstance(simplified, bool)
         or simplified != (output < source)
+        or source_texture_bytes < 0
+        or output_texture_bytes < 0
+        or not isinstance(textures_resized, bool)
     ):
         raise RuntimeError("glTF-Transform produced invalid statistics.")
     return {
@@ -888,6 +919,11 @@ def _read_simplification_stats(path: Path) -> dict:
         "max_triangles": MAX_ASSET_TRIANGLES,
         "simplifier": "glTF-Transform",
         "simplifier_version": GLTF_TRANSFORM_VERSION,
+        "source_texture_bytes": source_texture_bytes,
+        "texture_bytes": output_texture_bytes,
+        "textures_resized": textures_resized,
+        "max_texture_size": MAX_ASSET_TEXTURE_SIZE,
+        "texture_format": "png",
     }
 
 

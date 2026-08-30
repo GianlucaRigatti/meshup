@@ -11,7 +11,8 @@ their original behavior and skip both stages.
 - `trellis2-fast` receives that prematted RGBA image and reconstructs a
   512-resolution, 1024px xatlas-UV textured mesh.
 - glTF-Transform welds and simplifies oversized meshes toward a 10,000-triangle
-  network-delivery budget with a 1% geometric-error limit.
+  network-delivery budget with a 1% geometric-error limit, then resizes embedded
+  textures to at most 512×512 PNG.
 
 The former cross-platform/model-comparison implementation is preserved in
 [`../model_experiments`](../model_experiments). It is not part of this server.
@@ -34,7 +35,7 @@ Install CUDA Toolkit 12.8 so `nvcc --version` reports release 12.8. CUDA 12.8
 requires GCC/G++ 14 or older; the installer selects an installed matching pair
 from versions 10 through 14.
 
-Install Node.js 20 or newer and npm for the pinned glTF-Transform
+Install Node.js 20.9 or newer and npm for the pinned glTF-Transform
 postprocessor. Ubuntu 24.04 may still have Node.js 18 installed, which is too
 old. If you use `nvm`, upgrade and select the default runtime with:
 
@@ -42,7 +43,7 @@ old. If you use `nvm`, upgrade and select the default runtime with:
 nvm install 20
 nvm alias default 20
 nvm use 20
-node --version  # must print v20 or newer
+node --version  # must print v20.9 or newer
 ```
 
 After changing Node.js versions, install the locked JavaScript dependencies
@@ -134,6 +135,7 @@ Response:
 ```json
 {
   "url": "http://127.0.0.1:8000/assets/<asset-id>.glb",
+  "original_url": "http://127.0.0.1:8000/assets/<asset-id>.original.glb",
   "asset_id": "<asset-id>",
   "cached": false,
   "image_generation_time_ms": 1200,
@@ -192,18 +194,22 @@ generation report zero milliseconds.
 Each successful uncached request atomically creates:
 
 - `generated_assets/<asset-id>.glb`: textured binary glTF, simplified toward a
-  maximum of 10,000 triangles when reconstruction exceeds that budget.
+  maximum of 10,000 triangles when reconstruction exceeds that budget, with
+  embedded textures resized to at most 512×512 PNG.
+- `generated_assets/<asset-id>.original.glb`: untouched 1024px TRELLIS output
+  before geometry simplification or texture resizing.
 - `generated_assets/<asset-id>.png`: the full-resolution BiRefNet RGBA cutout,
   cropped and centered exactly as in the archived preprocessing path. This is
   the image actually conditioned by TRELLIS.
 - `generated_assets/<asset-id>.json`: prompt hash, seed, pinned revisions,
-  fixed settings, source/output triangle counts, timestamp, and stage timings.
-  Audio-generated metadata also
+  fixed settings, source/output triangle and texture byte counts, timestamp,
+  and stage timings. Audio-generated metadata also
   stores the transcript, cleaned prompt, detected language, and text hashes.
 
-All three files must exist for a cache hit. Cached requests do not run either
-native process and report zero timings. Static artifacts are served from
-`/assets/`.
+All four files must exist for a cache hit. Cached requests do not run generation
+or postprocessing subprocesses and report zero timings. Static artifacts are
+served from `/assets/`; API responses continue to point to the smaller
+`<asset-id>.glb` asset.
 
 ## Configuration
 
@@ -242,8 +248,8 @@ model selectors or pipeline profiles.
   Transformers 5 into the main project environment; Qwen3-ASR pins 4.57.6.
 - If glTF-Transform fails in `sharp` with `Unexpected token 'with'`, check
   `node --version`. Node.js 18 cannot load the pinned dependencies. Select
-  Node.js 20 or newer, rerun `npm ci` in `asset_generator_server`, and restart
-  the server.
+  Node.js 20.9 or newer, rerun `npm ci` in `asset_generator_server`, and
+  restart the server.
 - Native stderr/stdout tails are logged server-side on failure, while API
   errors remain intentionally generic.
 

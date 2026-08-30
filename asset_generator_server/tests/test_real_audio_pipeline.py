@@ -28,3 +28,6 @@ def test_real_audio_pipeline() -> None:
     assert result.transcript
     assert result.enhanced_prompt
     assert (generator.output_dir / f"{result.asset_id}.glb").read_bytes()[:4] == b"glTF"
+    assert (
+        generator.output_dir / f"{result.asset_id}.original.glb"
+    ).read_bytes()[:4] == b"glTF"
