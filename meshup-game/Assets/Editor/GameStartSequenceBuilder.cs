@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Meshup.Editor
@@ -94,7 +95,7 @@ namespace Meshup.Editor
             }
             var interaction = GetOrAdd<GameStartInteractable>(console);
             interaction.Configure(coordinator, authority, screen.Root,
-                screen.Button, screen.Label);
+                screen.Button, screen.Label, screen.Interactable);
             var eventSystem = EnsureEventSystem(scene);
 
             var sessionMenu = sessionMenuObject.GetComponent<GameSessionMenu>()
@@ -152,6 +153,9 @@ namespace Meshup.Editor
                     || item.PathOffset > 2.5f)
                 || screen.GetComponentInChildren<Button>(true) == null
                 || screen.GetComponentInChildren<Text>(true) == null
+                || screen.GetComponentInChildren<BoxCollider>(true) == null
+                || screen.GetComponentInChildren<XRSimpleInteractable>(true)
+                    == null
                 || screen.GetComponent<TrackedDeviceGraphicRaycaster>() == null)
             {
                 throw new InvalidOperationException(
@@ -469,7 +473,8 @@ namespace Meshup.Editor
             return result;
         }
 
-        private static (GameObject Root, Button Button, Text Label)
+        private static (GameObject Root, Button Button, Text Label,
+            XRSimpleInteractable Interactable)
             BuildTokenScreen(Transform console)
         {
             var screen = console.Find("Game Start Screen")?.gameObject
@@ -506,7 +511,8 @@ namespace Meshup.Editor
             }
 
             var buttonObject = new GameObject("Start Button", typeof(RectTransform),
-                typeof(CanvasRenderer), typeof(Image), typeof(Button));
+                typeof(CanvasRenderer), typeof(Image), typeof(Button),
+                typeof(BoxCollider), typeof(XRSimpleInteractable));
             buttonObject.transform.SetParent(screen.transform, false);
             var buttonRect = buttonObject.GetComponent<RectTransform>();
             buttonRect.anchorMin = Vector2.zero;
@@ -523,6 +529,12 @@ namespace Meshup.Editor
             colors.pressedColor = new Color(0.3f, 0.8f, 0.9f, 1f);
             colors.disabledColor = new Color(0.24f, 0.34f, 0.38f, 0.9f);
             button.colors = colors;
+            var buttonCollider = buttonObject.GetComponent<BoxCollider>();
+            buttonCollider.center = Vector3.zero;
+            buttonCollider.size = new Vector3(336f, 116f, 8f);
+            buttonCollider.isTrigger = false;
+            var xrInteractable = buttonObject.GetComponent<
+                XRSimpleInteractable>();
 
             var labelObject = new GameObject("Label", typeof(RectTransform),
                 typeof(CanvasRenderer), typeof(Text));
@@ -542,7 +554,7 @@ namespace Meshup.Editor
 
             screen.SetActive(true);
             EditorUtility.SetDirty(screen);
-            return (screen, button, label);
+            return (screen, button, label, xrInteractable);
         }
 
         private static GameObject EnsureEventSystem(Scene scene)

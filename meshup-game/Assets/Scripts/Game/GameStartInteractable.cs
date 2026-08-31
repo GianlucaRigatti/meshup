@@ -1,6 +1,8 @@
 using Meshup.Multiplayer;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace Meshup.Game
 {
@@ -12,29 +14,38 @@ namespace Meshup.Game
         [SerializeField] private GameObject screenRoot;
         [SerializeField] private Button startButton;
         [SerializeField] private Text screenText;
+        [SerializeField] private XRSimpleInteractable screenInteractor;
         [SerializeField] private float keyboardInteractionDistance = 2.5f;
 
         private UbiqRoomSession session;
 
         public void Configure(GameStartCoordinator startCoordinator,
             PlayerMovementAuthority localPlayer, GameObject tokenScreen,
-            Button tokenButton, Text tokenScreenText)
+            Button tokenButton, Text tokenScreenText,
+            XRSimpleInteractable tokenScreenInteractor)
         {
             coordinator = startCoordinator;
             player = localPlayer;
             screenRoot = tokenScreen;
             startButton = tokenButton;
             screenText = tokenScreenText;
+            screenInteractor = tokenScreenInteractor;
         }
 
         private void Start()
         {
             session = UbiqRoomSession.Instance;
             startButton?.onClick.AddListener(TryActivate);
+            screenInteractor?.selectEntered.AddListener(OnScreenSelected);
         }
 
         private void Update()
         {
+            if (session == null)
+            {
+                session = UbiqRoomSession.Instance;
+            }
+
             if (session == null || coordinator == null || player == null)
             {
                 SetScreen("CONNECTING…", false);
@@ -76,10 +87,16 @@ namespace Meshup.Game
 
         public void TryActivate()
         {
-            if (session != null && session.IsRoomCreator)
+            if (startButton != null && startButton.interactable
+                && session != null && session.IsRoomCreator)
             {
                 coordinator?.TryStartSequence();
             }
+        }
+
+        private void OnScreenSelected(SelectEnterEventArgs _)
+        {
+            TryActivate();
         }
 
         private void SetScreen(string message, bool interactable)
@@ -92,6 +109,11 @@ namespace Meshup.Game
             {
                 startButton.interactable = interactable;
             }
+            if (screenInteractor != null
+                && screenInteractor.enabled != interactable)
+            {
+                screenInteractor.enabled = interactable;
+            }
             if (screenText != null)
             {
                 screenText.text = message ?? string.Empty;
@@ -103,6 +125,10 @@ namespace Meshup.Game
             if (startButton != null)
             {
                 startButton.onClick.RemoveListener(TryActivate);
+            }
+            if (screenInteractor != null)
+            {
+                screenInteractor.selectEntered.RemoveListener(OnScreenSelected);
             }
         }
     }
