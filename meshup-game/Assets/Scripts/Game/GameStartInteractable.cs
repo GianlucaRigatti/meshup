@@ -1,82 +1,71 @@
 using Meshup.Multiplayer;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.XR.Interaction.Toolkit;
-using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace Meshup.Game
 {
     [DisallowMultipleComponent]
-    [RequireComponent(typeof(XRSimpleInteractable))]
     public sealed class GameStartInteractable : MonoBehaviour
     {
         [SerializeField] private GameStartCoordinator coordinator;
         [SerializeField] private PlayerMovementAuthority player;
-        [SerializeField] private GameObject promptRoot;
-        [SerializeField] private Text promptText;
+        [SerializeField] private GameObject screenRoot;
+        [SerializeField] private Button startButton;
+        [SerializeField] private Text screenText;
         [SerializeField] private float keyboardInteractionDistance = 2.5f;
-        [SerializeField] private float promptDistance = 5f;
 
         private UbiqRoomSession session;
-        private XRSimpleInteractable xrInteractable;
 
         public void Configure(GameStartCoordinator startCoordinator,
-            PlayerMovementAuthority localPlayer, GameObject worldPrompt,
-            Text worldPromptText)
+            PlayerMovementAuthority localPlayer, GameObject tokenScreen,
+            Button tokenButton, Text tokenScreenText)
         {
             coordinator = startCoordinator;
             player = localPlayer;
-            promptRoot = worldPrompt;
-            promptText = worldPromptText;
-        }
-
-        private void Awake()
-        {
-            xrInteractable = GetComponent<XRSimpleInteractable>();
+            screenRoot = tokenScreen;
+            startButton = tokenButton;
+            screenText = tokenScreenText;
         }
 
         private void Start()
         {
             session = UbiqRoomSession.Instance;
-            xrInteractable.selectEntered.AddListener(HandleSelectEntered);
+            startButton?.onClick.AddListener(TryActivate);
         }
 
         private void Update()
         {
             if (session == null || coordinator == null || player == null)
             {
-                SetPrompt(false, string.Empty);
+                SetScreen("CONNECTING…", false);
                 return;
             }
 
             var distance = Vector3.Distance(player.transform.position,
                 transform.position);
-            var closeEnoughForPrompt = distance <= promptDistance;
             if (coordinator.IsRunning)
             {
-                SetPrompt(closeEnoughForPrompt, coordinator.StatusMessage);
+                SetScreen(coordinator.StatusMessage, false);
                 return;
             }
             if (!coordinator.IsIdle)
             {
-                SetPrompt(false, string.Empty);
+                SetScreen("STARTING…", false);
                 return;
             }
 
-            string message;
             if (!session.IsRoomCreator)
             {
-                message = "Waiting for room creator.";
+                SetScreen("WAITING FOR HOST", false);
             }
             else if (session.ParticipantCount < 2)
             {
-                message = "Waiting for another player.";
+                SetScreen("WAITING FOR PLAYER", false);
             }
             else
             {
-                message = "Press E / Select to start.";
+                SetScreen("START GAME", true);
             }
-            SetPrompt(closeEnoughForPrompt, message);
 
             if (distance <= keyboardInteractionDistance
                 && Input.GetKeyDown(KeyCode.E))
@@ -93,38 +82,27 @@ namespace Meshup.Game
             }
         }
 
-        private void HandleSelectEntered(SelectEnterEventArgs args)
+        private void SetScreen(string message, bool interactable)
         {
-            TryActivate();
-        }
-
-        private void SetPrompt(bool visible, string message)
-        {
-            if (promptRoot != null)
+            if (screenRoot != null && !screenRoot.activeSelf)
             {
-                promptRoot.SetActive(visible);
-                if (visible && Camera.main != null)
-                {
-                    var direction = promptRoot.transform.position
-                        - Camera.main.transform.position;
-                    if (direction.sqrMagnitude > 0.001f)
-                    {
-                        promptRoot.transform.rotation = Quaternion.LookRotation(
-                            direction, Vector3.up);
-                    }
-                }
+                screenRoot.SetActive(true);
             }
-            if (promptText != null)
+            if (startButton != null)
             {
-                promptText.text = message ?? string.Empty;
+                startButton.interactable = interactable;
+            }
+            if (screenText != null)
+            {
+                screenText.text = message ?? string.Empty;
             }
         }
 
         private void OnDestroy()
         {
-            if (xrInteractable != null)
+            if (startButton != null)
             {
-                xrInteractable.selectEntered.RemoveListener(HandleSelectEntered);
+                startButton.onClick.RemoveListener(TryActivate);
             }
         }
     }

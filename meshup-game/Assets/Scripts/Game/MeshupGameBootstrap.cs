@@ -61,6 +61,7 @@ namespace Meshup.Game
 
             var root = new GameObject("MeshUp Game Runtime");
             SceneManager.MoveGameObjectToScene(root, scene);
+            root.AddComponent<FpsCounter>();
             var coordinator = root.AddComponent<MeshupGameCoordinator>();
             coordinator.Configure(gameStart, player, wall, monitor.transform,
                 terminal.transform, anchor, button, particles);

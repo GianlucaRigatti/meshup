@@ -5,9 +5,10 @@ using Meshup.Game;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Meshup.Editor
 {
@@ -84,11 +85,17 @@ namespace Meshup.Editor
             ConfigureFinishTrigger(finishWall, finishTrigger, coordinator,
                 authority);
 
-            var prompt = BuildPrompt(console.transform);
-            var xrInteractable = GetOrAdd<XRSimpleInteractable>(console);
+            var screen = BuildTokenScreen(console.transform);
+            var oldInteractable = console.GetComponent<
+                UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+            if (oldInteractable != null)
+            {
+                UnityEngine.Object.DestroyImmediate(oldInteractable);
+            }
             var interaction = GetOrAdd<GameStartInteractable>(console);
-            interaction.Configure(coordinator, authority, prompt.Root,
-                prompt.Label);
+            interaction.Configure(coordinator, authority, screen.Root,
+                screen.Button, screen.Label);
+            var eventSystem = EnsureEventSystem(scene);
 
             var sessionMenu = sessionMenuObject.GetComponent<GameSessionMenu>()
                 ?? throw new InvalidOperationException(
@@ -96,7 +103,7 @@ namespace Meshup.Editor
             sessionMenu.SetMovementAuthority(authority);
 
             MarkDirty(route, regroupRing, authority, coordinator, finishTrigger,
-                xrInteractable, interaction, sessionMenu, root, console,
+                interaction, sessionMenu, eventSystem, root, console,
                 finishWall);
             MarkDirty(doors);
             EditorSceneManager.MarkSceneDirty(scene);
@@ -118,8 +125,8 @@ namespace Meshup.Editor
             var coordinator = root.GetComponent<GameStartCoordinator>();
             var authority = player.GetComponent<PlayerMovementAuthority>();
             var interaction = console.GetComponent<GameStartInteractable>();
-            var xrInteractable = console.GetComponent<XRSimpleInteractable>();
-            var prompt = console.transform.Find("Game Start Prompt");
+            var screen = console.transform.Find("Game Start Screen");
+            var eventSystem = FindRoot(scene, "EventSystem");
             var finishWall = FindRequired(scene, FinishWallName);
             var finishTrigger = finishWall.GetComponent<
                 GameStartFinishTrigger>();
@@ -132,8 +139,9 @@ namespace Meshup.Editor
                 || regroupRing == null || regroupRing.WaypointCount < 6
                 || regroupRing.Length < 20f
                 || route.Length < 8f || coordinator == null
-                || authority == null || interaction == null
-                || xrInteractable == null || prompt == null
+                || authority == null || interaction == null || screen == null
+                || eventSystem == null
+                || eventSystem.GetComponent<XRUIInputModule>() == null
                 || finishTrigger == null || !finishTrigger.IsConfigured
                 || finishColliders.Length == 0
                 || finishColliders.Any(item => !item.isTrigger)
@@ -142,7 +150,9 @@ namespace Meshup.Editor
                 || doors.Length == 0
                 || doors.Any(item => !item.IsConfigured
                     || item.PathOffset > 2.5f)
-                || prompt.GetComponentInChildren<Text>(true) == null)
+                || screen.GetComponentInChildren<Button>(true) == null
+                || screen.GetComponentInChildren<Text>(true) == null
+                || screen.GetComponent<TrackedDeviceGraphicRaycaster>() == null)
             {
                 throw new InvalidOperationException(
                     "The game start formation walk is incomplete.");
@@ -285,6 +295,41 @@ namespace Meshup.Editor
             Debug.Log($"Game start route preview saved to {path}");
         }
 
+        [MenuItem("Meshup/Game/Capture Starter Token Preview")]
+        public static void CaptureStarterTokenPreview()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath,
+                OpenSceneMode.Single);
+            var console = FindRequired(scene, ConsoleName).transform;
+            var cameraObject = new GameObject("__Starter Token Preview Camera");
+            var camera = cameraObject.AddComponent<Camera>();
+            camera.transform.position = console.TransformPoint(
+                new Vector3(0f, 1.55f, 3f));
+            camera.transform.LookAt(console.TransformPoint(
+                new Vector3(0f, 1.45f, 0f)), console.up);
+            camera.fieldOfView = 32f;
+            camera.nearClipPlane = 0.05f;
+            camera.farClipPlane = 30f;
+
+            var texture = new RenderTexture(900, 900, 24);
+            camera.targetTexture = texture;
+            camera.Render();
+            RenderTexture.active = texture;
+            var image = new Texture2D(texture.width, texture.height,
+                TextureFormat.RGB24, false);
+            image.ReadPixels(new Rect(0, 0, texture.width, texture.height),
+                0, 0);
+            image.Apply();
+            var path = "/tmp/meshup-starter-token.png";
+            System.IO.File.WriteAllBytes(path, image.EncodeToPNG());
+
+            RenderTexture.active = null;
+            UnityEngine.Object.DestroyImmediate(image);
+            UnityEngine.Object.DestroyImmediate(texture);
+            UnityEngine.Object.DestroyImmediate(cameraObject);
+            Debug.Log($"Starter token preview saved to {path}");
+        }
+
         public static void DumpRouteGeometry()
         {
             var scene = EditorSceneManager.OpenScene(ScenePath,
@@ -424,48 +469,64 @@ namespace Meshup.Editor
             return result;
         }
 
-        private static (GameObject Root, Text Label) BuildPrompt(Transform console)
+        private static (GameObject Root, Button Button, Text Label)
+            BuildTokenScreen(Transform console)
         {
-            var prompt = console.Find("Game Start Prompt")?.gameObject;
-            if (prompt == null)
+            var screen = console.Find("Game Start Screen")?.gameObject
+                ?? console.Find("Game Start Prompt")?.gameObject;
+            if (screen == null)
             {
-                prompt = new GameObject("Game Start Prompt",
+                screen = new GameObject("Game Start Screen",
                     typeof(RectTransform), typeof(Canvas),
-                    typeof(CanvasScaler), typeof(GraphicRaycaster));
-                prompt.transform.SetParent(console, false);
-                prompt.transform.localPosition = new Vector3(0f, 2.55f, 0f);
-                prompt.transform.localRotation = Quaternion.identity;
-                prompt.transform.localScale = Vector3.one * 0.006f;
+                    typeof(CanvasScaler), typeof(GraphicRaycaster),
+                    typeof(TrackedDeviceGraphicRaycaster));
+                screen.transform.SetParent(console, false);
+            }
+            screen.name = "Game Start Screen";
+
+            if (screen.GetComponent<TrackedDeviceGraphicRaycaster>() == null)
+            {
+                screen.AddComponent<TrackedDeviceGraphicRaycaster>();
             }
 
-            var canvas = prompt.GetComponent<Canvas>();
+            var canvas = screen.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
             canvas.sortingOrder = 20;
-            var rect = prompt.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(560f, 110f);
+            var rect = screen.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition3D = new Vector3(0f, 1.96f, 0.08f);
+            rect.localRotation = Quaternion.Euler(66f, 180f, 0f);
+            rect.localScale = Vector3.one * 0.003f;
+            rect.sizeDelta = new Vector2(360f, 140f);
 
-            var background = prompt.transform.Find("Background")?.gameObject;
-            if (background == null)
+            while (screen.transform.childCount > 0)
             {
-                background = new GameObject("Background",
-                    typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-                background.transform.SetParent(prompt.transform, false);
+                UnityEngine.Object.DestroyImmediate(
+                    screen.transform.GetChild(0).gameObject);
             }
-            var backgroundRect = background.GetComponent<RectTransform>();
-            backgroundRect.anchorMin = Vector2.zero;
-            backgroundRect.anchorMax = Vector2.one;
-            backgroundRect.offsetMin = Vector2.zero;
-            backgroundRect.offsetMax = Vector2.zero;
-            background.GetComponent<Image>().color =
-                new Color(0.015f, 0.08f, 0.12f, 0.86f);
 
-            var labelObject = prompt.transform.Find("Label")?.gameObject;
-            if (labelObject == null)
-            {
-                labelObject = new GameObject("Label",
-                    typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-                labelObject.transform.SetParent(prompt.transform, false);
-            }
+            var buttonObject = new GameObject("Start Button", typeof(RectTransform),
+                typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            buttonObject.transform.SetParent(screen.transform, false);
+            var buttonRect = buttonObject.GetComponent<RectTransform>();
+            buttonRect.anchorMin = Vector2.zero;
+            buttonRect.anchorMax = Vector2.one;
+            buttonRect.offsetMin = new Vector2(12f, 12f);
+            buttonRect.offsetMax = new Vector2(-12f, -12f);
+            var image = buttonObject.GetComponent<Image>();
+            image.color = new Color(0.02f, 0.42f, 0.52f, 0.98f);
+            var button = buttonObject.GetComponent<Button>();
+            button.interactable = false;
+            var colors = button.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(0.65f, 1f, 1f, 1f);
+            colors.pressedColor = new Color(0.3f, 0.8f, 0.9f, 1f);
+            colors.disabledColor = new Color(0.24f, 0.34f, 0.38f, 0.9f);
+            button.colors = colors;
+
+            var labelObject = new GameObject("Label", typeof(RectTransform),
+                typeof(CanvasRenderer), typeof(Text));
+            labelObject.transform.SetParent(buttonObject.transform, false);
             var labelRect = labelObject.GetComponent<RectTransform>();
             labelRect.anchorMin = Vector2.zero;
             labelRect.anchorMax = Vector2.one;
@@ -473,14 +534,35 @@ namespace Meshup.Editor
             labelRect.offsetMax = new Vector2(-20f, -10f);
             var label = labelObject.GetComponent<Text>();
             label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            label.fontSize = 34;
+            label.fontSize = 38;
+            label.fontStyle = FontStyle.Bold;
             label.alignment = TextAnchor.MiddleCenter;
-            label.color = new Color(0.55f, 0.95f, 1f, 1f);
-            label.text = "Waiting for room creator.";
+            label.color = Color.white;
+            label.text = "WAITING FOR HOST";
 
-            prompt.SetActive(false);
-            EditorUtility.SetDirty(prompt);
-            return (prompt, label);
+            screen.SetActive(true);
+            EditorUtility.SetDirty(screen);
+            return (screen, button, label);
+        }
+
+        private static GameObject EnsureEventSystem(Scene scene)
+        {
+            var eventSystem = FindRoot(scene, "EventSystem");
+            if (eventSystem == null)
+            {
+                eventSystem = new GameObject("EventSystem",
+                    typeof(EventSystem), typeof(XRUIInputModule));
+                SceneManager.MoveGameObjectToScene(eventSystem, scene);
+            }
+            else if (eventSystem.GetComponent<XRUIInputModule>() == null)
+            {
+                foreach (var module in eventSystem.GetComponents<BaseInputModule>())
+                {
+                    UnityEngine.Object.DestroyImmediate(module);
+                }
+                eventSystem.AddComponent<XRUIInputModule>();
+            }
+            return eventSystem;
         }
 
         private static Behaviour[] FindTranslationProviders(GameObject player)
