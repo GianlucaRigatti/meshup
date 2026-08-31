@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Meshup.Game
@@ -20,6 +21,8 @@ namespace Meshup.Game
         private Button startButton;
         private Action<int> chooseWord;
         private Action startRound;
+        private int lastChoiceInteractionFrame = -1;
+        private int lastStartInteractionFrame = -1;
         private bool cursorReleasedForTerminal;
         private CursorLockMode previousCursorLockMode;
         private bool previousCursorVisible;
@@ -94,13 +97,14 @@ namespace Meshup.Game
                 firstChoice.GetComponentInChildren<Text>().text = privateWordOptions[0];
                 secondChoice.GetComponentInChildren<Text>().text = privateWordOptions[1];
             }
-            firstChoice.interactable = choicesVisible;
-            secondChoice.interactable = choicesVisible;
+            SetInteractable(firstChoice, choicesVisible);
+            SetInteractable(secondChoice, choicesVisible);
 
             var preparation = isMime && phase == MeshupGamePhase.Preparation;
             SetDesktopTerminalCursor(choicesVisible || preparation);
             startButton.gameObject.SetActive(preparation);
-            startButton.interactable = preparation && !snapshot.generationPending;
+            SetInteractable(startButton,
+                preparation && !snapshot.generationPending);
             startButton.GetComponentInChildren<Text>().text =
                 snapshot.generationPending ? "GENERATING…" : "START";
             terminalTitle.text = isMime
@@ -180,8 +184,8 @@ namespace Meshup.Game
                 new Vector2(0.08f, 0.38f), new Vector2(0.47f, 0.65f));
             secondChoice = CreateButton(background.transform, "Second Choice",
                 new Vector2(0.53f, 0.38f), new Vector2(0.92f, 0.65f));
-            firstChoice.onClick.AddListener(() => chooseWord?.Invoke(0));
-            secondChoice.onClick.AddListener(() => chooseWord?.Invoke(1));
+            firstChoice.onClick.AddListener(() => SelectWord(0));
+            secondChoice.onClick.AddListener(() => SelectWord(1));
 
             terminalStatus = CreateText(background.transform, "Status", 38,
                 TextAnchor.MiddleCenter, Color.white);
@@ -190,7 +194,27 @@ namespace Meshup.Game
             startButton = CreateButton(background.transform, "Start",
                 new Vector2(0.28f, 0.03f), new Vector2(0.72f, 0.18f));
             startButton.GetComponentInChildren<Text>().text = "START";
-            startButton.onClick.AddListener(() => startRound?.Invoke());
+            startButton.onClick.AddListener(StartRound);
+        }
+
+        private void SelectWord(int index)
+        {
+            if (lastChoiceInteractionFrame == Time.frameCount)
+            {
+                return;
+            }
+            lastChoiceInteractionFrame = Time.frameCount;
+            chooseWord?.Invoke(index);
+        }
+
+        private void StartRound()
+        {
+            if (lastStartInteractionFrame == Time.frameCount)
+            {
+                return;
+            }
+            lastStartInteractionFrame = Time.frameCount;
+            startRound?.Invoke();
         }
 
         private Canvas CreateCanvas(string name, Transform target,
@@ -549,11 +573,33 @@ namespace Meshup.Game
                 Vector2.zero, Vector2.zero);
             var button = panel.gameObject.AddComponent<Button>();
             button.targetGraphic = panel;
+            var collider = panel.gameObject.AddComponent<BoxCollider>();
+            collider.size = new Vector3(panel.rectTransform.rect.width,
+                panel.rectTransform.rect.height, 8f);
+            var xrInteractable = panel.gameObject.AddComponent<
+                XRSimpleInteractable>();
+            xrInteractable.selectEntered.AddListener(_ =>
+            {
+                if (button.isActiveAndEnabled && button.interactable)
+                {
+                    button.onClick.Invoke();
+                }
+            });
             var label = CreateText(panel.transform, "Label", 38,
                 TextAnchor.MiddleCenter, Color.white);
             SetRect(label.rectTransform, Vector2.zero, Vector2.one,
                 new Vector2(8f, 8f), new Vector2(-8f, -8f));
             return button;
+        }
+
+        private static void SetInteractable(Button button, bool interactable)
+        {
+            button.interactable = interactable;
+            var xrInteractable = button.GetComponent<XRSimpleInteractable>();
+            if (xrInteractable != null)
+            {
+                xrInteractable.enabled = interactable;
+            }
         }
 
         private static void SetRect(RectTransform rect, Vector2 anchorMin,
