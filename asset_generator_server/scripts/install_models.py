@@ -82,11 +82,20 @@ def validate_host() -> str:
         "nvidia-smi",
         "ffmpeg",
         "ffprobe",
+        "node",
+        "npm",
         "uv",
     )
     missing = [tool for tool in required if shutil.which(tool) is None]
     if missing:
         raise RuntimeError("Missing required tools: " + ", ".join(missing))
+    try:
+        node_version = run(["node", "--version"]).lstrip("v").split(".")
+        node_major, node_minor = int(node_version[0]), int(node_version[1])
+    except (IndexError, ValueError) as exc:
+        raise RuntimeError("Could not determine the Node.js version.") from exc
+    if (node_major, node_minor) < (20, 9):
+        raise RuntimeError("Node.js 20.9 or newer is required for glTF-Transform.")
     if "release 12.8" not in run(["nvcc", "--version"]):
         raise RuntimeError("CUDA Toolkit 12.8 is required.")
 
@@ -346,6 +355,10 @@ def install_prompt_runtime(settings: Settings) -> None:
     )
 
 
+def install_gltf_transform() -> None:
+    run(["npm", "ci", "--omit=dev"], cwd=PROJECT_ROOT)
+
+
 def verify_installation(settings: Settings) -> None:
     missing = [path.resolve() for path in settings.required_files if not path.is_file()]
     if not settings.background_removal_model_path.is_dir():
@@ -361,6 +374,7 @@ def verify_installation(settings: Settings) -> None:
     )
     _run_help(settings.trellis_executable_path, settings.trellis_build_path)
     _verify_prompt_runtime(settings.prompt_enhancer_python_path)
+    run(["node", str(PROJECT_ROOT / "scripts" / "simplify_glb.mjs"), "--help"])
 
 
 def _verify_prompt_runtime(python: Path) -> None:
@@ -416,6 +430,7 @@ def install(settings: Settings, *, force: bool) -> None:
         force=force,
     )
     install_prompt_runtime(settings)
+    install_gltf_transform()
     download_models(settings)
     verify_installation(settings)
 

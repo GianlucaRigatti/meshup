@@ -113,6 +113,9 @@ def create_app(
         base_url = settings.public_base_url or str(request.base_url)
         return {
             "url": f"{base_url.rstrip('/')}/assets/{result.asset_id}.glb",
+            "original_url": (
+                f"{base_url.rstrip('/')}/assets/{result.asset_id}.original.glb"
+            ),
             "asset_id": result.asset_id,
             "cached": result.cached,
             "image_generation_time_ms": result.timings["text_to_image_ms"],
@@ -180,6 +183,9 @@ def create_app(
         timings = result.timings
         return {
             "url": f"{base_url.rstrip('/')}/assets/{result.asset_id}.glb",
+            "original_url": (
+                f"{base_url.rstrip('/')}/assets/{result.asset_id}.original.glb"
+            ),
             "asset_id": result.asset_id,
             "cached": result.cached,
             "transcript": result.transcript,

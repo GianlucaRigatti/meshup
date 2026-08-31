@@ -88,3 +88,12 @@ decoder weights. Its bundled quantized BiRefNet file is not downloaded because
 the server supplies a prematted RGBA image. Review the quantized-weight
 repository, the original Microsoft model terms, and the upstream DINOv3
 license before redistribution.
+
+## glTF-Transform and meshoptimizer
+
+- glTF-Transform: <https://github.com/donmccurdy/glTF-Transform>, version `4.4.2`
+- meshoptimizer: <https://github.com/zeux/meshoptimizer>, version `1.0.1`
+
+The postprocessing stage uses these MIT-licensed packages to weld and simplify
+generated mesh geometry. Review their repositories and bundled dependency
+notices before redistribution.

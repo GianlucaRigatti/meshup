@@ -10,14 +10,19 @@ Before testing on headsets, edit
 `PUBLIC_BASE_URL`; URLs containing `127.0.0.1` are only suitable for a local
 Editor client.
 
-Guess transcription uses Meta XR Voice SDK's `AppVoiceExperience` when it is
-available. Meta distributes `com.meta.xr.sdk.voice` as a restricted Unity Asset
-Store UPM package, so it cannot be resolved by adding an unauthenticated
-registry dependency. Acquire Meta XR Voice SDK 205 for the Unity account, add
-it through Package Manager, create a project-specific Wit configuration, and
-place one configured `AppVoiceExperience` in `GameScene`. The runtime adapter
-will discover it automatically. Do not commit private Wit tokens.
+Guess transcription uses the bundled Vosk US-English model with a grammar
+restricted to the game's verb list. Recognition runs entirely on the local
+Quest or desktop computer: hold either controller's primary button, or `G` on
+desktop, say one guess, and release. The model is extracted to the application's
+persistent data directory on first use; no network connection or voice-service
+credential is required.
 
-Quest microphone access is requested for push-to-talk guesses and held-button
-asset descriptions. A production build must present consent before recording
-and link to a privacy policy describing Meta/Wit voice processing.
+Quest and macOS microphone access is requested for push-to-talk guesses and
+held-button asset descriptions. Guess audio is processed locally and is not
+uploaded. Asset descriptions are a separate feature and are uploaded to the
+configured `asset_generator_server`; production consent and privacy text must
+describe that distinction.
+
+The bundled model, native libraries, source pins, licenses, and checksums are
+documented in `meshup-game/THIRD_PARTY_NOTICES.md`. Binary assets use Git LFS,
+so contributors must install Git LFS before cloning or committing updates.

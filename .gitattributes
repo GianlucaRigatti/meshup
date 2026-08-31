@@ -127,6 +127,7 @@
 
 # Bundles and binaries
 *.dll lfs-file
+*.dylib lfs-file
 *.exe lfs-file
 *.mdb lfs-file
 *.pdb lfs-file

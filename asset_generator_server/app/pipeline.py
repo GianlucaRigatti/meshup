@@ -32,8 +32,11 @@ from app.config import (
     FLUX_VAE_MODEL_ID,
     FLUX_VAE_REVISION,
     GENERATION_SEED_VERSION,
+    GLTF_TRANSFORM_VERSION,
     IMAGE_GENERATOR,
     MODEL_3D,
+    MAX_ASSET_TRIANGLES,
+    MAX_ASSET_TEXTURE_SIZE,
     OUTPUT_MODE,
     PIPELINE_SCHEMA_VERSION,
     PIPELINE_VERSION,
@@ -43,6 +46,8 @@ from app.config import (
     PROMPT_SUFFIX,
     QWEN_MODEL_ID,
     QWEN_MODEL_REVISION,
+    SIMPLIFICATION_ERROR,
+    SIMPLIFICATION_LOCK_BORDER,
     STABLE_DIFFUSION_CPP_REVISION,
     TRELLIS_CPP_REVISION,
     TRELLIS_MODEL_ID,
@@ -231,7 +236,9 @@ class AssetGenerator:
                 )
                 metadata_extra = {
                     "input_type": "audio",
+                    "transcript": transcript,
                     "transcript_hash": hashlib.sha256(transcript.encode()).hexdigest(),
+                    "enhanced_prompt": enhanced_prompt,
                     "enhanced_prompt_hash": hashlib.sha256(
                         enhanced_prompt.encode()
                     ).hexdigest(),
@@ -305,6 +312,8 @@ class AssetGenerator:
             prompt_path = temporary / "prompt.txt"
             source_image = temporary / "source.png"
             temporary_glb = temporary / "asset.glb"
+            simplified_glb = temporary / "asset-simplified.glb"
+            simplification_stats = temporary / "simplification.json"
             cutout_image = temporary / "input.png"
             prompt_path.write_text(prompt + PROMPT_SUFFIX, encoding="utf-8")
 
@@ -341,9 +350,36 @@ class AssetGenerator:
             )
             _require_signature(temporary_glb, b"glTF", "TRELLIS output GLB")
             timings["reconstruction_ms"] = _elapsed_ms(stage)
+
+            stage = time.perf_counter()
+            self._runner(
+                self._simplification_command(
+                    temporary_glb, simplified_glb, simplification_stats
+                ),
+                dict(os.environ),
+                self.settings.gltf_transform_timeout_seconds,
+                "glTF-Transform simplification",
+            )
+            _require_signature(
+                simplified_glb, b"glTF", "glTF-Transform simplified GLB"
+            )
+            mesh_stats = _read_simplification_stats(simplification_stats)
+            timings["simplification_ms"] = _elapsed_ms(stage)
             timings["total_ms"] = _elapsed_ms(started)
 
-            os.replace(temporary_glb, self._asset_path(asset_id))
+            artifact_stats = {
+                "original_glb": {
+                    "filename": f"{asset_id}.original.glb",
+                    "bytes": temporary_glb.stat().st_size,
+                },
+                "network_glb": {
+                    "filename": f"{asset_id}.glb",
+                    "bytes": simplified_glb.stat().st_size,
+                },
+            }
+
+            os.replace(temporary_glb, self._original_asset_path(asset_id))
+            os.replace(simplified_glb, self._asset_path(asset_id))
             os.replace(cutout_image, self._image_path(asset_id))
             self._write_metadata(
                 self._metadata_path(asset_id),
@@ -355,6 +391,8 @@ class AssetGenerator:
                     pipeline_version=pipeline_version,
                     schema_version=schema_version,
                     extra=metadata_extra,
+                    mesh_stats=mesh_stats,
+                    artifact_stats=artifact_stats,
                 ),
             )
         return GenerationResult(asset_id, False, timings)
@@ -439,6 +477,16 @@ class AssetGenerator:
         _check_help(
             self.settings.trellis_executable_path,
             _runtime_environment(self.settings.trellis_build_path),
+        )
+        _run_native(
+            [
+                "node",
+                str((PROJECT_ROOT / "scripts" / "simplify_glb.mjs").resolve()),
+                "--help",
+            ],
+            dict(os.environ),
+            60,
+            "glTF-Transform",
         )
         _check_prompt_runtime(self.settings.prompt_enhancer_python_path)
 
@@ -586,11 +634,33 @@ class AssetGenerator:
             "--require-gpu",
         ]
 
+    def _simplification_command(
+        self, source: Path, output: Path, stats: Path
+    ) -> list[str]:
+        return [
+            "node",
+            str((PROJECT_ROOT / "scripts" / "simplify_glb.mjs").resolve()),
+            "--input",
+            str(source.resolve()),
+            "--output",
+            str(output.resolve()),
+            "--stats",
+            str(stats.resolve()),
+            "--max-triangles",
+            str(MAX_ASSET_TRIANGLES),
+            "--max-texture-size",
+            str(MAX_ASSET_TEXTURE_SIZE),
+            "--error",
+            str(SIMPLIFICATION_ERROR),
+            "--lock-border",
+        ]
+
     def _cache_exists(self, asset_id: str) -> bool:
         return all(
             path.is_file()
             for path in (
                 self._asset_path(asset_id),
+                self._original_asset_path(asset_id),
                 self._image_path(asset_id),
                 self._metadata_path(asset_id),
             )
@@ -599,6 +669,7 @@ class AssetGenerator:
     def _remove_artifacts(self, asset_id: str) -> None:
         for path in (
             self._asset_path(asset_id),
+            self._original_asset_path(asset_id),
             self._image_path(asset_id),
             self._metadata_path(asset_id),
             self._metadata_path(asset_id).with_suffix(".json.tmp"),
@@ -607,6 +678,9 @@ class AssetGenerator:
 
     def _asset_path(self, asset_id: str) -> Path:
         return self.output_dir / f"{asset_id}.glb"
+
+    def _original_asset_path(self, asset_id: str) -> Path:
+        return self.output_dir / f"{asset_id}.original.glb"
 
     def _image_path(self, asset_id: str) -> Path:
         return self.output_dir / f"{asset_id}.png"
@@ -624,6 +698,8 @@ class AssetGenerator:
         pipeline_version: str,
         schema_version: int,
         extra: dict | None = None,
+        mesh_stats: dict | None = None,
+        artifact_stats: dict | None = None,
     ) -> dict:
         metadata = {
             "schema_version": schema_version,
@@ -665,9 +741,16 @@ class AssetGenerator:
                 "background_removal_resolution": 1024,
                 "foreground_ratio": 435 / 512,
                 "geometry_resolution": 512,
-                "texture_resolution": 1024,
+                "reconstruction_texture_resolution": 1024,
+                "texture_resolution": MAX_ASSET_TEXTURE_SIZE,
+                "texture_format": "png",
                 "box_uv": False,
+                "max_triangles": MAX_ASSET_TRIANGLES,
+                "simplification_error": SIMPLIFICATION_ERROR,
+                "simplification_lock_border": SIMPLIFICATION_LOCK_BORDER,
             },
+            "geometry": mesh_stats,
+            "artifacts": artifact_stats,
             "created_at": datetime.now(UTC).isoformat(),
             "timings": timings,
         }
@@ -794,11 +877,58 @@ def _require_signature(path: Path, signature: bytes, label: str) -> None:
 
 
 def _cached_timings() -> dict[str, int]:
-    return {"text_to_image_ms": 0, "reconstruction_ms": 0, "total_ms": 0}
+    return {
+        "text_to_image_ms": 0,
+        "reconstruction_ms": 0,
+        "simplification_ms": 0,
+        "total_ms": 0,
+    }
 
 
 def _cached_downstream_timings() -> dict[str, int]:
-    return {"text_to_image_ms": 0, "reconstruction_ms": 0}
+    return {
+        "text_to_image_ms": 0,
+        "reconstruction_ms": 0,
+        "simplification_ms": 0,
+    }
+
+
+def _read_simplification_stats(path: Path) -> dict:
+    try:
+        stats = json.loads(path.read_text(encoding="utf-8"))
+        source = int(stats["source_triangles"])
+        output = int(stats["output_triangles"])
+        simplified = stats["simplified"]
+        source_texture_bytes = int(stats["source_texture_bytes"])
+        output_texture_bytes = int(stats["output_texture_bytes"])
+        textures_resized = stats["textures_resized"]
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise RuntimeError("glTF-Transform produced invalid statistics.") from exc
+    if (
+        source < 0
+        or output < 0
+        or output > source
+        or not isinstance(simplified, bool)
+        or simplified != (output < source)
+        or source_texture_bytes < 0
+        or output_texture_bytes < 0
+        or not isinstance(textures_resized, bool)
+    ):
+        raise RuntimeError("glTF-Transform produced invalid statistics.")
+    return {
+        "source_triangles": source,
+        "triangles": output,
+        "simplified": simplified,
+        "max_triangles": MAX_ASSET_TRIANGLES,
+        "simplifier": "glTF-Transform",
+        "simplifier_version": GLTF_TRANSFORM_VERSION,
+        "lock_border": SIMPLIFICATION_LOCK_BORDER,
+        "source_texture_bytes": source_texture_bytes,
+        "texture_bytes": output_texture_bytes,
+        "textures_resized": textures_resized,
+        "max_texture_size": MAX_ASSET_TEXTURE_SIZE,
+        "texture_format": "png",
+    }
 
 
 def _parse_audio_probe(payload: str) -> tuple[str, str, float]:

@@ -18,6 +18,7 @@ namespace Meshup.Game
             SelectWord,
             StartTimer,
             Guess,
+            GuessFeedback,
             GenerationRequest,
             GenerationAuthorized,
             GenerationComplete,
@@ -73,12 +74,15 @@ namespace Meshup.Game
         private NetworkContext context;
         private bool contextRegistered;
         private MeshupGameView view;
-        private MetaGuessTranscriber transcriber;
+        private VoskGuessTranscriber transcriber;
         private MeshupAssetGeneratorClient generatorClient;
         private string[] privateWordOptions = Array.Empty<string>();
         private string privateSelectedWord = string.Empty;
         private string activeGenerationRequest = string.Empty;
         private string transientMessage = string.Empty;
+        private string guessFeedback = string.Empty;
+        private float guessFeedbackUntil;
+        private bool guessListening;
         private float previousWallSide;
         private int crossingSentVersion = -1;
         private bool originalWallEnabled;
@@ -138,10 +142,11 @@ namespace Meshup.Game
             view = gameObject.AddComponent<MeshupGameView>();
             view.Build(guesserMonitor, mimeTerminal, localPlayer.transform,
                 ChooseWord, StartRound);
-            transcriber = gameObject.AddComponent<MetaGuessTranscriber>();
-            transcriber.Configure(() => CanGuessLocally);
+            transcriber = gameObject.AddComponent<VoskGuessTranscriber>();
+            transcriber.Configure(() => CanGuessLocally, wordService.Verbs);
             transcriber.TranscriptionReceived += SubmitGuess;
             transcriber.ErrorOccurred += ReportLocalMessage;
+            transcriber.ListeningChanged += HandleListeningChanged;
             generatorClient = generatorButton.GetComponent<
                 MeshupAssetGeneratorClient>()
                 ?? generatorButton.AddComponent<MeshupAssetGeneratorClient>();
@@ -170,6 +175,13 @@ namespace Meshup.Game
                 return;
             }
             UpdateWallAndCrossing();
+            if (guessFeedbackUntil > 0f
+                && Time.unscaledTime >= guessFeedbackUntil)
+            {
+                guessFeedback = string.Empty;
+                guessFeedbackUntil = 0f;
+                Render();
+            }
             if (session.IsRoomCreator && hostState != null
                 && hostState.Tick(Time.unscaledDeltaTime))
             {
@@ -192,9 +204,7 @@ namespace Meshup.Game
         {
             var message = networkMessage.FromJson<GameMessage>();
             var kind = (MessageKind)message.kind;
-            if (kind is MessageKind.Snapshot or MessageKind.PrivateWords
-                or MessageKind.GenerationAuthorized
-                or MessageKind.ObjectTransform)
+            if (IsAuthoritativeInbound(kind, message))
             {
                 if (!string.Equals(message.creatorPeerId,
                     session?.CreatorPeerId, StringComparison.Ordinal))
@@ -208,6 +218,16 @@ namespace Meshup.Game
             {
                 ProcessHostCommand(kind, message);
             }
+        }
+
+        private static bool IsAuthoritativeInbound(MessageKind kind,
+            GameMessage message)
+        {
+            return kind is MessageKind.Snapshot or MessageKind.PrivateWords
+                    or MessageKind.GenerationAuthorized
+                    or MessageKind.GuessFeedback
+                || (kind == MessageKind.ObjectTransform
+                    && !string.IsNullOrEmpty(message.creatorPeerId));
         }
 
         private void ProcessAuthoritativeMessage(MessageKind kind,
@@ -230,6 +250,14 @@ namespace Meshup.Game
                     {
                         privateWordOptions = message.words ?? Array.Empty<string>();
                         privateSelectedWord = message.text ?? string.Empty;
+                        Render();
+                    }
+                    break;
+                case MessageKind.GuessFeedback:
+                    if (message.targetPeerId == session.LocalPeerId)
+                    {
+                        guessFeedback = message.text ?? string.Empty;
+                        guessFeedbackUntil = Time.unscaledTime + 2.5f;
                         Render();
                     }
                     break;
@@ -297,6 +325,13 @@ namespace Meshup.Game
                     {
                         BroadcastSnapshot();
                     }
+                    else if (hostState.Phase == MeshupGamePhase.TimedGuessing
+                        && message.senderPeerId != hostState.MimePeerId
+                        && hostState.Players.Any(item => item.connected
+                            && item.peerId == message.senderPeerId))
+                    {
+                        SendGuessFeedback(message.senderPeerId, message.text);
+                    }
                     break;
                 case MessageKind.GenerationRequest:
                     if (hostState.TryBeginGeneration(message.senderPeerId))
@@ -334,8 +369,8 @@ namespace Meshup.Game
                             {
                                 objectId = Guid.NewGuid().ToString("N"),
                                 url = message.text,
-                                position = generatorAnchor.position
-                                    + generatorAnchor.up * 0.4f,
+                                position = GetGeneratedSpawnPosition(
+                                    generatedStates.Count),
                                 rotation = Quaternion.identity,
                                 scale = Vector3.one
                             });
@@ -417,6 +452,10 @@ namespace Meshup.Game
             {
                 ReportLocalMessage(error);
             }
+            else
+            {
+                ReportLocalMessage(string.Empty);
+            }
             SendCommand(new GameMessage
             {
                 kind = (int)MessageKind.GenerationComplete,
@@ -447,6 +486,16 @@ namespace Meshup.Game
         public void ReportLocalMessage(string message)
         {
             transientMessage = message ?? string.Empty;
+            Render();
+        }
+
+        private void HandleListeningChanged(bool listening)
+        {
+            guessListening = listening;
+            if (listening)
+            {
+                transientMessage = string.Empty;
+            }
             Render();
         }
 
@@ -531,6 +580,25 @@ namespace Meshup.Game
             Send(message);
         }
 
+        private void SendGuessFeedback(string target, string transcription)
+        {
+            var heard = MeshupMatchState.NormalizeGuess(transcription);
+            var message = new GameMessage
+            {
+                kind = (int)MessageKind.GuessFeedback,
+                creatorPeerId = session.LocalPeerId,
+                targetPeerId = target,
+                text = string.IsNullOrWhiteSpace(heard)
+                    ? "Incorrect guess — try again"
+                    : $"{heard} is an incorrect guess — try again"
+            };
+            if (target == session.LocalPeerId)
+            {
+                ProcessAuthoritativeMessage(MessageKind.GuessFeedback, message);
+            }
+            Send(message);
+        }
+
         private void BroadcastObjectTransform(MeshupGeneratedObjectState state)
         {
             var message = new GameMessage
@@ -541,6 +609,17 @@ namespace Meshup.Game
             };
             ProcessAuthoritativeMessage(MessageKind.ObjectTransform, message);
             Send(message);
+        }
+
+        private Vector3 GetGeneratedSpawnPosition(int slot)
+        {
+            var center = generatorAnchor.position + generatorAnchor.up * 0.9f;
+            return slot switch
+            {
+                1 => center + generatorAnchor.right * 0.8f,
+                2 => center - generatorAnchor.right * 0.8f,
+                _ => center
+            };
         }
 
         private void Send(GameMessage message)
@@ -649,7 +728,8 @@ namespace Meshup.Game
         private void Render()
         {
             view?.Render(snapshot, session?.LocalPeerId ?? string.Empty,
-                privateWordOptions, privateSelectedWord, transientMessage);
+                privateWordOptions, privateSelectedWord, transientMessage,
+                guessFeedback, guessListening);
         }
 
         private void LoadRuntimeConfiguration()
@@ -690,6 +770,7 @@ namespace Meshup.Game
             {
                 transcriber.TranscriptionReceived -= SubmitGuess;
                 transcriber.ErrorOccurred -= ReportLocalMessage;
+                transcriber.ListeningChanged -= HandleListeningChanged;
             }
             if (invisibleWall != null)
             {

@@ -117,9 +117,66 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void SnapshotRetainsEveryGeneratedObjectInTheRound()
+        {
+            var state = CreateState();
+            var generated = new[]
+            {
+                new MeshupGeneratedObjectState
+                {
+                    objectId = "first",
+                    url = "http://server/first.glb"
+                },
+                new MeshupGeneratedObjectState
+                {
+                    objectId = "second",
+                    url = "http://server/second.glb"
+                }
+            };
+
+            var snapshot = state.CreateSnapshot(generated);
+
+            Assert.That(snapshot.generatedObjects.Select(item => item.objectId),
+                Is.EqualTo(new[] { "first", "second" }));
+        }
+
+        [Test]
+        public void TransformCommandsAndHostBroadcastsUseDifferentRoutes()
+        {
+            var coordinatorType = typeof(MeshupGameCoordinator);
+            var kindType = coordinatorType.GetNestedType("MessageKind",
+                System.Reflection.BindingFlags.NonPublic);
+            var messageType = coordinatorType.GetNestedType("GameMessage",
+                System.Reflection.BindingFlags.NonPublic);
+            var routeMethod = coordinatorType.GetMethod(
+                "IsAuthoritativeInbound",
+                System.Reflection.BindingFlags.Static
+                | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(kindType, Is.Not.Null);
+            Assert.That(messageType, Is.Not.Null);
+            Assert.That(routeMethod, Is.Not.Null);
+
+            var transformKind = Enum.Parse(kindType, "ObjectTransform");
+            var message = Activator.CreateInstance(messageType);
+            Assert.That(routeMethod.Invoke(null,
+                new[] { transformKind, message }), Is.False,
+                "A mime transform must reach the host command handler.");
+
+            messageType.GetField("creatorPeerId")?.SetValue(message, "host");
+            Assert.That(routeMethod.Invoke(null,
+                new[] { transformKind, message }), Is.True,
+                "A host transform must be applied as authoritative state.");
+        }
+
+        [Test]
         public void MimeTerminalMountsOnItsScreenAndShowsBothChoices()
         {
             var owner = new GameObject("Game View Owner");
+            var desktopOverlay = new GameObject("Desktop Hints",
+                typeof(RectTransform), typeof(Canvas),
+                typeof(GraphicRaycaster));
+            desktopOverlay.GetComponent<Canvas>().renderMode =
+                RenderMode.ScreenSpaceOverlay;
             var monitor = CreateScreenProp("Monitor", "pPlane1_monter_MTL_0",
                 new Vector3(-3f, 1f, 0f), new Vector3(2f, 1f, 1f));
             var terminal = CreateScreenProp("Terminal", "screen_low_Material_0",
@@ -127,12 +184,13 @@ namespace Meshup.Editor.Tests
                 PrimitiveType.Cube);
             var viewer = new GameObject("Viewer");
             viewer.transform.position = new Vector3(0f, 1.5f, 0f);
+            var startInvoked = false;
 
             try
             {
                 var view = owner.AddComponent<MeshupGameView>();
                 view.Build(monitor.transform, terminal.transform,
-                    viewer.transform, _ => { }, () => { });
+                    viewer.transform, _ => { }, () => startInvoked = true);
                 view.Render(new MeshupMatchSnapshot
                 {
                     phase = (int)MeshupGamePhase.ChoosingWord,
@@ -170,9 +228,72 @@ namespace Meshup.Editor.Tests
                 Assert.That(buttons.Where(button => button.name.Contains("Choice"))
                     .All(button => button.gameObject.activeSelf && button.interactable),
                     Is.True);
+
+                view.Render(new MeshupMatchSnapshot
+                {
+                    phase = (int)MeshupGamePhase.Preparation,
+                    mimePeerId = "mime",
+                    generationTokens = 2,
+                    scores = new[]
+                    {
+                        new MeshupPlayerScore
+                        {
+                            peerId = "mime",
+                            displayName = "Mime",
+                            connected = true
+                        }
+                    }
+                }, "mime", Array.Empty<string>(), "jump");
+                var start = buttons.Single(button => button.name == "Start");
+                Assert.That(start.gameObject.activeSelf, Is.True);
+                Assert.That(start.interactable, Is.True);
+                var cursorField = typeof(MeshupGameView).GetField(
+                    "cursorReleasedForTerminal",
+                    System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.NonPublic);
+                Assert.That(cursorField?.GetValue(view), Is.True,
+                    "Desktop interaction must remain active for Start.");
+                Assert.That(desktopOverlay.GetComponent<GraphicRaycaster>().enabled,
+                    Is.False, "Decorative desktop hints must not consume clicks.");
+                start.onClick.Invoke();
+                Assert.That(startInvoked, Is.True);
+
+                view.Render(new MeshupMatchSnapshot
+                {
+                    phase = (int)MeshupGamePhase.TimedGuessing,
+                    mimePeerId = "mime",
+                    maskedWord = "____",
+                    remainingSeconds = 100,
+                    scores = new[]
+                    {
+                        new MeshupPlayerScore
+                        {
+                            peerId = "guesser",
+                            displayName = "Guesser",
+                            connected = true
+                        }
+                    }
+                }, "guesser", Array.Empty<string>(), string.Empty,
+                    string.Empty,
+                    "thing is an incorrect guess — try again", true);
+                var monitorStatus = monitor.transform
+                    .Find("MeshUp Monitor UI")
+                    .GetComponentsInChildren<Text>(true)
+                    .Single(text => text.name == "Game Status");
+                Assert.That(monitorStatus.text,
+                    Does.Contain("thing is an incorrect guess — try again"));
+                var listening = monitor.transform
+                    .Find("MeshUp Monitor UI")
+                    .GetComponentsInChildren<Text>(true)
+                    .Single(text => text.name == "Listening Indicator");
+                Assert.That(listening.gameObject.activeSelf, Is.True);
+                Assert.That(listening.text, Does.Contain("LISTENING"));
+                Assert.That(desktopOverlay.GetComponent<GraphicRaycaster>().enabled,
+                    Is.True, "The desktop overlay raycaster must be restored.");
             }
             finally
             {
+                UnityEngine.Object.DestroyImmediate(desktopOverlay);
                 UnityEngine.Object.DestroyImmediate(owner);
                 UnityEngine.Object.DestroyImmediate(monitor);
                 UnityEngine.Object.DestroyImmediate(terminal);

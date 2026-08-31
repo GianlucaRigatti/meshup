@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using Meta.WitAi.Data;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -29,8 +28,6 @@ namespace Meshup.Game
             {
                 return;
             }
-
-            PreserveVoiceAudioBuffer();
 
             if (UnityEngine.Object.FindAnyObjectByType<
                     MeshupGameCoordinator>() != null)
@@ -67,21 +64,6 @@ namespace Meshup.Game
             var coordinator = root.AddComponent<MeshupGameCoordinator>();
             coordinator.Configure(gameStart, player, wall, monitor.transform,
                 terminal.transform, anchor, button, particles);
-        }
-
-        private static void PreserveVoiceAudioBuffer()
-        {
-            // Meta's Wit component looks up AudioBuffer again from OnDisable if
-            // its cached reference was destroyed first. During a single-scene
-            // load that lookup creates a new root object while Unity is tearing
-            // the scene down, producing the "objects were not cleaned up"
-            // error. AudioBuffer is an SDK-wide singleton, so keep it for the
-            // application lifetime and reuse it on subsequent game visits.
-            var audioBuffer = AudioBuffer.Instance;
-            if (audioBuffer != null)
-            {
-                UnityEngine.Object.DontDestroyOnLoad(audioBuffer.gameObject);
-            }
         }
 
         private static GameObject Find(Scene scene, string objectName)

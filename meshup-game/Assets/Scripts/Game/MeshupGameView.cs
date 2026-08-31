@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
@@ -11,6 +12,7 @@ namespace Meshup.Game
     {
         private Text leaderboard;
         private Text status;
+        private Text listeningIndicator;
         private Text terminalTitle;
         private Text terminalStatus;
         private Button firstChoice;
@@ -18,9 +20,11 @@ namespace Meshup.Game
         private Button startButton;
         private Action<int> chooseWord;
         private Action startRound;
-        private bool cursorReleasedForChoices;
+        private bool cursorReleasedForTerminal;
         private CursorLockMode previousCursorLockMode;
         private bool previousCursorVisible;
+        private readonly Dictionary<GraphicRaycaster, bool>
+            desktopOverlayRaycasterStates = new();
         private readonly System.Collections.Generic.List<ScreenMount>
             screenMounts = new();
 
@@ -36,7 +40,8 @@ namespace Meshup.Game
 
         public void Render(MeshupMatchSnapshot snapshot, string localPeerId,
             string[] privateWordOptions, string privateSelectedWord,
-            string transientMessage = "")
+            string transientMessage = "", string guessFeedback = "",
+            bool isListening = false)
         {
             if (snapshot == null || leaderboard == null || status == null)
             {
@@ -49,6 +54,7 @@ namespace Meshup.Game
                     + (score.connected ? "" : "  (left)")));
 
             var phase = (MeshupGamePhase)snapshot.phase;
+            var isMime = localPeerId == snapshot.mimePeerId;
             var mimeName = snapshot.scores.FirstOrDefault(item =>
                 item.peerId == snapshot.mimePeerId)?.displayName ?? "Mime";
             status.text = phase switch
@@ -65,8 +71,19 @@ namespace Meshup.Game
                 MeshupGamePhase.Finished => "FINAL LEADERBOARD",
                 _ => string.Empty
             };
+            if (!isMime && phase == MeshupGamePhase.TimedGuessing)
+            {
+                var feedback = !string.IsNullOrWhiteSpace(guessFeedback)
+                    ? guessFeedback
+                    : transientMessage;
+                if (!string.IsNullOrWhiteSpace(feedback))
+                {
+                    status.text += $"\n\n{feedback}";
+                }
+            }
+            listeningIndicator.gameObject.SetActive(!isMime
+                && phase == MeshupGamePhase.TimedGuessing && isListening);
 
-            var isMime = localPeerId == snapshot.mimePeerId;
             var choicesVisible = isMime
                 && phase == MeshupGamePhase.ChoosingWord
                 && privateWordOptions?.Length == 2;
@@ -79,11 +96,13 @@ namespace Meshup.Game
             }
             firstChoice.interactable = choicesVisible;
             secondChoice.interactable = choicesVisible;
-            SetDesktopChoiceCursor(choicesVisible);
 
             var preparation = isMime && phase == MeshupGamePhase.Preparation;
+            SetDesktopTerminalCursor(choicesVisible || preparation);
             startButton.gameObject.SetActive(preparation);
             startButton.interactable = preparation && !snapshot.generationPending;
+            startButton.GetComponentInChildren<Text>().text =
+                snapshot.generationPending ? "GENERATING…" : "START";
             terminalTitle.text = isMime
                 ? phase switch
                 {
@@ -134,6 +153,15 @@ namespace Meshup.Game
                 TextAnchor.MiddleCenter, new Color(0.65f, 0.95f, 1f));
             SetRect(status.rectTransform, new Vector2(0.34f, 0f), Vector2.one,
                 new Vector2(30f, 30f), new Vector2(-30f, -30f));
+
+            listeningIndicator = CreateText(background.transform,
+                "Listening Indicator", 30, TextAnchor.UpperRight,
+                new Color(1f, 0.12f, 0.12f));
+            listeningIndicator.text = "●  LISTENING";
+            SetRect(listeningIndicator.rectTransform,
+                new Vector2(0.72f, 0.86f), new Vector2(0.98f, 0.98f),
+                Vector2.zero, Vector2.zero);
+            listeningIndicator.gameObject.SetActive(false);
         }
 
         private void BuildTerminal(Transform target, Transform localViewer)
@@ -202,22 +230,26 @@ namespace Meshup.Game
             return canvas;
         }
 
-        private void SetDesktopChoiceCursor(bool choicesVisible)
+        private void SetDesktopTerminalCursor(bool terminalInteractionActive)
         {
             if (Application.isMobilePlatform)
             {
                 return;
             }
 
-            if (choicesVisible && !cursorReleasedForChoices)
+            if (terminalInteractionActive && !cursorReleasedForTerminal)
             {
                 previousCursorLockMode = Cursor.lockState;
                 previousCursorVisible = Cursor.visible;
-                cursorReleasedForChoices = true;
+                cursorReleasedForTerminal = true;
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
             }
-            else if (!choicesVisible && cursorReleasedForChoices)
+            if (terminalInteractionActive)
+            {
+                SuppressDesktopOverlayRaycasters();
+            }
+            else if (!terminalInteractionActive && cursorReleasedForTerminal)
             {
                 RestoreDesktopCursor();
             }
@@ -225,13 +257,46 @@ namespace Meshup.Game
 
         private void RestoreDesktopCursor()
         {
-            if (!cursorReleasedForChoices)
+            if (!cursorReleasedForTerminal)
             {
                 return;
             }
-            cursorReleasedForChoices = false;
+            cursorReleasedForTerminal = false;
             Cursor.lockState = previousCursorLockMode;
             Cursor.visible = previousCursorVisible;
+            RestoreDesktopOverlayRaycasters();
+        }
+
+        private void SuppressDesktopOverlayRaycasters()
+        {
+            foreach (var raycaster in FindObjectsByType<GraphicRaycaster>(
+                FindObjectsInactive.Include))
+            {
+                var canvas = raycaster.GetComponent<Canvas>();
+                if (canvas == null || canvas.renderMode != RenderMode.ScreenSpaceOverlay
+                    || raycaster.GetComponent<GameSessionMenu>() != null)
+                {
+                    continue;
+                }
+                if (!desktopOverlayRaycasterStates.ContainsKey(raycaster))
+                {
+                    desktopOverlayRaycasterStates.Add(raycaster,
+                        raycaster.enabled);
+                }
+                raycaster.enabled = false;
+            }
+        }
+
+        private void RestoreDesktopOverlayRaycasters()
+        {
+            foreach (var item in desktopOverlayRaycasterStates)
+            {
+                if (item.Key != null)
+                {
+                    item.Key.enabled = item.Value;
+                }
+            }
+            desktopOverlayRaycasterStates.Clear();
         }
 
         private void OnDestroy()

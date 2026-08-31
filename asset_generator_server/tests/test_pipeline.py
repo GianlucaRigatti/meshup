@@ -50,9 +50,15 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
     _asset_id, cached, _ = service.generate("private test object")
 
     assert cached is False
-    assert [call[3] for call in runner.calls] == ["FLUX.2 Klein", "TRELLIS.2"]
+    assert [call[3] for call in runner.calls] == [
+        "FLUX.2 Klein",
+        "TRELLIS.2",
+        "glTF-Transform simplification",
+    ]
     flux = runner.calls[0][0]
     trellis = runner.calls[1][0]
+    simplifier = runner.calls[2][0]
+    assert runner.calls[2][2] == service.settings.gltf_transform_timeout_seconds
     assert "private test object" not in flux
     assert runner.prompts == ["private test object" + PROMPT_SUFFIX]
     assert flux[flux.index("--steps") + 1] == "4"
@@ -74,6 +80,10 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
         service.generation_seed("private test object")
     )
     assert runner.trellis_input_modes == ["RGBA"]
+    assert simplifier[simplifier.index("--max-triangles") + 1] == "30000"
+    assert simplifier[simplifier.index("--max-texture-size") + 1] == "512"
+    assert simplifier[simplifier.index("--error") + 1] == "0.0001"
+    assert "--lock-border" in simplifier
     assert "minimal shading gradients" in PROMPT_SUFFIX
     assert "no cast shadows" in PROMPT_SUFFIX
     assert "no reflections" in PROMPT_SUFFIX
@@ -97,6 +107,7 @@ def test_audio_pipeline_is_sequential_and_private(
         "Qwen3.5-4B",
         "FLUX.2 Klein",
         "TRELLIS.2",
+        "glTF-Transform simplification",
     ]
     assert runner.prompts == [runner.enhanced_prompt + PROMPT_SUFFIX]
     commands = " ".join(part for call in runner.calls for part in call[0])
@@ -105,11 +116,11 @@ def test_audio_pipeline_is_sequential_and_private(
     metadata_text = (settings.asset_output_dir / f"{result.asset_id}.json").read_text(
         encoding="utf-8"
     )
-    assert runner.transcript not in metadata_text
-    assert runner.enhanced_prompt not in metadata_text
     metadata = json.loads(metadata_text)
     assert metadata["pipeline_version"] == AUDIO_PIPELINE_VERSION
     assert metadata["input_type"] == "audio"
+    assert metadata["transcript"] == runner.transcript
+    assert metadata["enhanced_prompt"] == runner.enhanced_prompt
     assert not list(tmp_path.glob("asset-generator-audio-*"))
 
 
@@ -155,6 +166,7 @@ def test_audio_cache_reruns_text_stages_but_skips_asset_stages(
     ]
     assert second.timings["text_to_image_ms"] == 0
     assert second.timings["reconstruction_ms"] == 0
+    assert second.timings["simplification_ms"] == 0
     assert second.transcript == runner.transcript
     assert second.enhanced_prompt == runner.enhanced_prompt
 
@@ -322,7 +334,7 @@ def test_birefnet_load_suppresses_only_pinned_timm_deprecations(
     assert [str(item.message) for item in caught] == ["unrelated future warning"]
 
 
-def test_success_creates_three_artifacts_without_storing_prompt(
+def test_success_creates_original_and_network_artifacts_without_storing_prompt(
     settings: Settings,
     generator: tuple[AssetGenerator, FakeRunner],
 ) -> None:
@@ -330,9 +342,11 @@ def test_success_creates_three_artifacts_without_storing_prompt(
     asset_id, _, timings = service.generate("a confidential object")
 
     glb = settings.asset_output_dir / f"{asset_id}.glb"
+    original_glb = settings.asset_output_dir / f"{asset_id}.original.glb"
     image = settings.asset_output_dir / f"{asset_id}.png"
     metadata_path = settings.asset_output_dir / f"{asset_id}.json"
     assert glb.read_bytes().startswith(b"glTF")
+    assert original_glb.read_bytes().startswith(b"glTF")
     assert image.read_bytes().startswith(PNG_SIGNATURE)
     with Image.open(image) as cutout:
         assert cutout.mode == "RGBA"
@@ -347,6 +361,32 @@ def test_success_creates_three_artifacts_without_storing_prompt(
     assert metadata["models"]["background_removal"]["id"] == "ZhengPeng7/BiRefNet"
     assert metadata["output_settings"]["background_removal_resolution"] == 1024
     assert metadata["output_settings"]["box_uv"] is False
+    assert metadata["output_settings"]["max_triangles"] == 30_000
+    assert metadata["output_settings"]["texture_resolution"] == 512
+    assert metadata["geometry"] == {
+        "source_triangles": 120_000,
+        "triangles": 30_000,
+        "simplified": True,
+        "max_triangles": 30_000,
+        "simplifier": "glTF-Transform",
+        "simplifier_version": "4.4.2",
+        "lock_border": True,
+        "source_texture_bytes": 4_672_122,
+        "texture_bytes": 437_615,
+        "textures_resized": True,
+        "max_texture_size": 512,
+        "texture_format": "png",
+    }
+    assert metadata["artifacts"] == {
+        "original_glb": {
+            "filename": f"{asset_id}.original.glb",
+            "bytes": original_glb.stat().st_size,
+        },
+        "network_glb": {
+            "filename": f"{asset_id}.glb",
+            "bytes": glb.stat().st_size,
+        },
+    }
     assert "memory" not in metadata
 
 
@@ -363,6 +403,7 @@ def test_complete_cache_skips_native_processes(
     assert second[2] == {
         "text_to_image_ms": 0,
         "reconstruction_ms": 0,
+        "simplification_ms": 0,
         "total_ms": 0,
     }
     assert runner.calls == []
@@ -374,14 +415,18 @@ def test_partial_cache_is_removed_and_regenerated(
 ) -> None:
     service, runner = generator
     asset_id, _, _ = service.generate("partial object")
-    (settings.asset_output_dir / f"{asset_id}.png").unlink()
+    (settings.asset_output_dir / f"{asset_id}.original.glb").unlink()
     runner.calls.clear()
 
     regenerated = service.generate("partial object")
 
     assert regenerated[1] is False
-    assert [call[3] for call in runner.calls] == ["FLUX.2 Klein", "TRELLIS.2"]
-    assert (settings.asset_output_dir / f"{asset_id}.png").is_file()
+    assert [call[3] for call in runner.calls] == [
+        "FLUX.2 Klein",
+        "TRELLIS.2",
+        "glTF-Transform simplification",
+    ]
+    assert (settings.asset_output_dir / f"{asset_id}.original.glb").is_file()
 
 
 def test_failure_is_wrapped_and_cleans_artifacts(

@@ -10,6 +10,11 @@ their original behavior and skip both stages.
   then crops and recenters the subject on a transparent 768px canvas.
 - `trellis2-fast` receives that prematted RGBA image and reconstructs a
   512-resolution, 1024px xatlas-UV textured mesh.
+- glTF-Transform welds and simplifies oversized meshes toward a 30,000-triangle
+  network-delivery target with a conservative 0.01% geometric-error limit and
+  locked topology borders, then resizes embedded textures to at most 512×512
+  PNG. The error limit may stop simplification above the target when needed to
+  preserve detailed geometry.
 
 The former cross-platform/model-comparison implementation is preserved in
 [`../model_experiments`](../model_experiments). It is not part of this server.
@@ -31,6 +36,25 @@ sudo apt-get install -y build-essential cmake ffmpeg git ninja-build
 Install CUDA Toolkit 12.8 so `nvcc --version` reports release 12.8. CUDA 12.8
 requires GCC/G++ 14 or older; the installer selects an installed matching pair
 from versions 10 through 14.
+
+Install Node.js 20.9 or newer and npm for the pinned glTF-Transform
+postprocessor. Ubuntu 24.04 may still have Node.js 18 installed, which is too
+old. If you use `nvm`, upgrade and select the default runtime with:
+
+```bash
+nvm install 20
+nvm alias default 20
+nvm use 20
+node --version  # must print v20.9 or newer
+```
+
+After changing Node.js versions, install the locked JavaScript dependencies
+from the server directory:
+
+```bash
+cd asset_generator_server
+npm ci
+```
 
 Install Python and the server dependencies:
 
@@ -57,7 +81,8 @@ The two new checkpoints add roughly 13 GB to the installation. Every revision
 is pinned. Because the official ASR package requires Transformers 4.57.6 while
 Qwen3.5 requires Transformers 5, the installer also creates a small isolated
 Qwen3.5 Python runtime under `.model_sources/runtimes/`. It reuses the project's
-CUDA PyTorch installation rather than installing a second copy. Use
+CUDA PyTorch installation rather than installing a second copy. It also runs
+`npm ci` to install the locked glTF-Transform runtime. Use
 `MAX_JOBS=1` if WSL is under memory pressure. `--force` replaces and rebuilds
 only the two native source trees; downloaded weights are retained.
 
@@ -112,6 +137,7 @@ Response:
 ```json
 {
   "url": "http://127.0.0.1:8000/assets/<asset-id>.glb",
+  "original_url": "http://127.0.0.1:8000/assets/<asset-id>.original.glb",
   "asset_id": "<asset-id>",
   "cached": false,
   "image_generation_time_ms": 1200,
@@ -155,9 +181,10 @@ stages in addition to the normal asset fields.
 
 ASR and prompt cleanup run in separate short-lived GPU subprocesses before
 the existing asset pipeline. This keeps the 10 GiB VRAM target but adds model
-loading latency to every audio request. Both text values are returned only in
-the immediate response; the upload, transcript, and enhanced prompt are deleted
-after the request and never stored in generated-asset metadata.
+loading latency to every audio request. The transcript and cleaned prompt are
+returned in the response and stored in the generated asset's JSON metadata,
+together with their hashes. The uploaded and normalized audio files are deleted
+after every request and are never persisted as asset artifacts.
 
 Audio assets use a separate cache identity containing both Qwen revisions and
 the fixed cleanup policy. A cache lookup happens after transcription and
@@ -168,16 +195,24 @@ generation report zero milliseconds.
 
 Each successful uncached request atomically creates:
 
-- `generated_assets/<asset-id>.glb`: textured binary glTF.
+- `generated_assets/<asset-id>.glb`: textured binary glTF, simplified toward a
+  target of 30,000 triangles when reconstruction exceeds that budget, with
+  conservative error and border-preservation constraints and embedded textures
+  resized to at most 512×512 PNG.
+- `generated_assets/<asset-id>.original.glb`: untouched 1024px TRELLIS output
+  before geometry simplification or texture resizing.
 - `generated_assets/<asset-id>.png`: the full-resolution BiRefNet RGBA cutout,
   cropped and centered exactly as in the archived preprocessing path. This is
   the image actually conditioned by TRELLIS.
 - `generated_assets/<asset-id>.json`: prompt hash, seed, pinned revisions,
-  fixed settings, timestamp, and stage timings.
+  fixed settings, source/output triangle and texture byte counts, timestamp,
+  and stage timings. Audio-generated metadata also
+  stores the transcript, cleaned prompt, detected language, and text hashes.
 
-All three files must exist for a cache hit. Cached requests do not run either
-native process and report zero timings. Static artifacts are served from
-`/assets/`.
+All four files must exist for a cache hit. Cached requests do not run generation
+or postprocessing subprocesses and report zero timings. Static artifacts are
+served from `/assets/`; API responses continue to point to the smaller
+`<asset-id>.glb` asset.
 
 ## Configuration
 
@@ -189,6 +224,7 @@ Only operational settings remain:
   `.model_sources`.
 - `IMAGE_TIMEOUT_SECONDS`: FLUX subprocess timeout; default 600.
 - `TRELLIS_TIMEOUT_SECONDS`: TRELLIS subprocess timeout; default 1800.
+- `GLTF_TRANSFORM_TIMEOUT_SECONDS`: mesh simplification timeout; default 300.
 - `AUDIO_MAX_BYTES`: maximum audio upload size; default 10485760.
 - `AUDIO_MAX_DURATION_SECONDS`: maximum decoded duration; default 60.
 - `AUDIO_DECODE_TIMEOUT_SECONDS`: `ffprobe`/`ffmpeg` timeout; default 30.
@@ -213,6 +249,10 @@ model selectors or pipeline profiles.
 - If readiness reports a missing or mismatched Qwen3.5 Python runtime, rerun
   `uv run python scripts/install_models.py --accept-licenses`. Do not install
   Transformers 5 into the main project environment; Qwen3-ASR pins 4.57.6.
+- If glTF-Transform fails in `sharp` with `Unexpected token 'with'`, check
+  `node --version`. Node.js 18 cannot load the pinned dependencies. Select
+  Node.js 20.9 or newer, rerun `npm ci` in `asset_generator_server`, and
+  restart the server.
 - Native stderr/stdout tails are logged server-side on failure, while API
   errors remain intentionally generic.
 
