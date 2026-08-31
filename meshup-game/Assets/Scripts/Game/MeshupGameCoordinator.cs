@@ -74,7 +74,7 @@ namespace Meshup.Game
         private NetworkContext context;
         private bool contextRegistered;
         private MeshupGameView view;
-        private MetaGuessTranscriber transcriber;
+        private VoskGuessTranscriber transcriber;
         private MeshupAssetGeneratorClient generatorClient;
         private string[] privateWordOptions = Array.Empty<string>();
         private string privateSelectedWord = string.Empty;
@@ -142,8 +142,8 @@ namespace Meshup.Game
             view = gameObject.AddComponent<MeshupGameView>();
             view.Build(guesserMonitor, mimeTerminal, localPlayer.transform,
                 ChooseWord, StartRound);
-            transcriber = gameObject.AddComponent<MetaGuessTranscriber>();
-            transcriber.Configure(() => CanGuessLocally);
+            transcriber = gameObject.AddComponent<VoskGuessTranscriber>();
+            transcriber.Configure(() => CanGuessLocally, wordService.Verbs);
             transcriber.TranscriptionReceived += SubmitGuess;
             transcriber.ErrorOccurred += ReportLocalMessage;
             transcriber.ListeningChanged += HandleListeningChanged;
