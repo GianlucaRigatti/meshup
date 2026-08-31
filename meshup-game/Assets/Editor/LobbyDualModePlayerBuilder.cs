@@ -5,6 +5,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Meshup.EditorTools
 {
@@ -79,6 +80,7 @@ namespace Meshup.EditorTools
 
             var lobbyUi = RequireRoot(lobbyScene, "Lobby UI");
             AddTrackedDeviceRaycaster(lobbyUi);
+            ConfigureXrUiInputModule(RequireRoot(lobbyScene, "EventSystem"));
 
             EditorSceneManager.MarkSceneDirty(lobbyScene);
             EditorSceneManager.SaveScene(lobbyScene, LobbyScenePath);
@@ -92,6 +94,19 @@ namespace Meshup.EditorTools
         public static void BuildFromCommandLine()
         {
             Build();
+        }
+
+        public static void RepairXrUiFromCommandLine()
+        {
+            var lobbyScene = EditorSceneManager.OpenScene(LobbyScenePath,
+                OpenSceneMode.Single);
+            var lobbyUi = RequireRoot(lobbyScene, "Lobby UI");
+            AddTrackedDeviceRaycaster(lobbyUi);
+            ConfigureXrUiInputModule(RequireRoot(lobbyScene, "EventSystem"));
+            EditorSceneManager.MarkSceneDirty(lobbyScene);
+            EditorSceneManager.SaveScene(lobbyScene, LobbyScenePath);
+            AssetDatabase.SaveAssets();
+            Validate();
         }
 
         [MenuItem("Meshup/Lobby/Validate Ubiq Desktop + VR Controls")]
@@ -129,9 +144,12 @@ namespace Meshup.EditorTools
             }
 
             var eventSystem = RequireRoot(lobbyScene, "EventSystem");
-            if (eventSystem.GetComponent<BaseInputModule>() == null)
+            if (eventSystem.GetComponent<XRUIInputModule>() == null
+                || eventSystem.GetComponents<BaseInputModule>()
+                    .Any(module => module is not XRUIInputModule))
             {
-                throw new InvalidOperationException("The lobby EventSystem has no input module.");
+                throw new InvalidOperationException(
+                    "The lobby EventSystem must use XRUIInputModule without a competing input module.");
             }
 
             Debug.Log("Lobby dual-mode validation passed: desktop controller, XR Origin, controller rays and hologram raycaster are present.");
@@ -151,6 +169,26 @@ namespace Meshup.EditorTools
                 ?? throw new InvalidOperationException(
                     "XR Interaction Toolkit's TrackedDeviceGraphicRaycaster is unavailable.");
             canvasObject.AddComponent(raycasterType);
+        }
+
+        private static void ConfigureXrUiInputModule(GameObject eventSystem)
+        {
+            // XRI interactors register with XRUIInputModule. A regular
+            // InputSystemUIInputModule can remain the EventSystem's active
+            // module and consume the update instead, which makes Quest rays
+            // visible but unable to click world-space UI.
+            foreach (var inputModule in eventSystem.GetComponents<BaseInputModule>())
+            {
+                if (inputModule is not XRUIInputModule)
+                {
+                    UnityEngine.Object.DestroyImmediate(inputModule);
+                }
+            }
+
+            if (eventSystem.GetComponent<XRUIInputModule>() == null)
+            {
+                eventSystem.AddComponent<XRUIInputModule>();
+            }
         }
 
         private static bool HasComponentNamed(GameObject root, string typeName)
