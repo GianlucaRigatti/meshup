@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -8,6 +10,9 @@ public sealed class FishSchoolController : MonoBehaviour
     [SerializeField] private GameObject fishPrefab;
     [SerializeField] private Vector2 fishScaleRange = new Vector2(1f, 1.35f);
     [SerializeField] private Vector3 modelRotationOffset;
+
+    [Header("Performance")]
+    [SerializeField, Range(10f, 60f)] private float simulationRate = 30f;
 
     [Header("Swimming")]
     [SerializeField, Min(0.01f)] private float minimumSpeed = 1.2f;
@@ -38,7 +43,18 @@ public sealed class FishSchoolController : MonoBehaviour
     [Header("Debug")]
     [SerializeField] private bool drawVolumeGizmos;
 
+    private static readonly ProfilerMarker SimulationMarker = new("Meshup.Fish.Simulate");
+    private static readonly ProfilerMarker PresentationMarker = new("Meshup.Fish.Present");
     private Transform[] fish;
+    private Vector3[] positions;
+    private Vector3[] previousPositions;
+    private Quaternion[] rotations;
+    private Quaternion[] previousRotations;
+    // Each occupied cell points to a linked list stored in nextInCell; no per-tick lists.
+    private Dictionary<Vector3Int, int> cellHeads;
+    private int[] nextInCell;
+    private float accumulatedTime;
+    private float simulationTime;
     private Vector3[] velocities;
     private Vector3[] nextVelocities;
     private Vector3[] wanderAxes;
@@ -66,6 +82,12 @@ public sealed class FishSchoolController : MonoBehaviour
     private void SpawnSchool()
     {
         fish = new Transform[fishCount];
+        positions = new Vector3[fishCount];
+        previousPositions = new Vector3[fishCount];
+        rotations = new Quaternion[fishCount];
+        previousRotations = new Quaternion[fishCount];
+        nextInCell = new int[fishCount];
+        cellHeads = new Dictionary<Vector3Int, int>(fishCount);
         velocities = new Vector3[fishCount];
         nextVelocities = new Vector3[fishCount];
         wanderAxes = new Vector3[fishCount];
@@ -79,7 +101,21 @@ public sealed class FishSchoolController : MonoBehaviour
             GameObject instance = Instantiate(fishPrefab, transform);
             instance.name = $"Fish {i + 1:000}";
             fish[i] = instance.transform;
-            fish[i].localPosition = FindSpawnPosition(swimBounds, exclusionBounds);
+            positions[i] = previousPositions[i] = FindSpawnPosition(swimBounds, exclusionBounds);
+            fish[i].localPosition = positions[i];
+            // Decorative animation must not keep every offscreen school member updating.
+            foreach (var animation in instance.GetComponentsInChildren<Animation>(true))
+                animation.cullingType = AnimationCullingType.BasedOnRenderers;
+            foreach (var animator in instance.GetComponentsInChildren<Animator>(true))
+                animator.cullingMode = AnimatorCullingMode.CullCompletely;
+            foreach (var renderer in instance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                renderer.updateWhenOffscreen = false;
+                // Leave room for the tail animation when Unity uses fixed culling bounds.
+                var bounds = renderer.localBounds;
+                bounds.Expand(bounds.size);
+                renderer.localBounds = bounds;
+            }
             fish[i].localScale = Vector3.one * Random.Range(fishScaleRange.x, fishScaleRange.y);
 
             Vector3 direction = Random.onUnitSphere;
@@ -89,7 +125,8 @@ public sealed class FishSchoolController : MonoBehaviour
             nextVelocities[i] = velocities[i];
             wanderAxes[i] = Random.onUnitSphere;
             wanderPhases[i] = Random.Range(0f, Mathf.PI * 2f);
-            fish[i].localRotation = RotationForVelocity(velocities[i]);
+            rotations[i] = previousRotations[i] = RotationForVelocity(velocities[i]);
+            fish[i].localRotation = rotations[i];
         }
     }
 
@@ -100,7 +137,55 @@ public sealed class FishSchoolController : MonoBehaviour
             return;
         }
 
-        float deltaTime = Mathf.Min(Time.deltaTime, 0.05f);
+        Advance(Time.deltaTime);
+    }
+
+    private void Advance(float deltaTime)
+    {
+        float step = 1f / Mathf.Clamp(simulationRate, 10f, 60f);
+        // Cap catch-up after stalls; decorative fish must never create a spiral of work.
+        accumulatedTime = Mathf.Min(accumulatedTime + Mathf.Max(0f, deltaTime), step * 4f);
+        while (accumulatedTime >= step)
+        {
+            using (SimulationMarker.Auto()) Simulate(step);
+            accumulatedTime -= step;
+        }
+
+        using (PresentationMarker.Auto())
+        {
+            float alpha = accumulatedTime / step;
+            Bounds exclusionBounds = GetForbiddenBounds();
+            for (int i = 0; i < fish.Length; i++)
+            {
+                Vector3 position = Vector3.Lerp(previousPositions[i], positions[i], alpha);
+                // Interpolation near a corner must not cut through the player enclosure.
+                Vector3 ignoredVelocity = Vector3.zero;
+                position = PushOutsideForbiddenVolume(position, exclusionBounds, ref ignoredVelocity);
+                fish[i].SetLocalPositionAndRotation(position,
+                    Quaternion.Slerp(previousRotations[i], rotations[i], alpha));
+            }
+        }
+    }
+
+    private Vector3Int CellFor(Vector3 position)
+    {
+        float size = Mathf.Max(0.01f, neighborDistance);
+        return new Vector3Int(Mathf.FloorToInt(position.x / size),
+            Mathf.FloorToInt(position.y / size), Mathf.FloorToInt(position.z / size));
+    }
+
+    private void Simulate(float deltaTime)
+    {
+        simulationTime += deltaTime;
+        cellHeads.Clear();
+        for (int i = 0; i < positions.Length; i++)
+        {
+            Vector3Int cell = CellFor(positions[i]);
+            nextInCell[i] = cellHeads.TryGetValue(cell, out int head) ? head : -1;
+            cellHeads[cell] = i;
+            previousPositions[i] = positions[i];
+            previousRotations[i] = rotations[i];
+        }
         Bounds swimBounds = GetSwimBounds();
         Bounds exclusionBounds = GetForbiddenBounds();
         float neighborDistanceSquared = neighborDistance * neighborDistance;
@@ -108,33 +193,30 @@ public sealed class FishSchoolController : MonoBehaviour
 
         for (int i = 0; i < fish.Length; i++)
         {
-            Vector3 position = fish[i].localPosition;
+            Vector3 position = positions[i];
             Vector3 averageVelocity = Vector3.zero;
             Vector3 averagePosition = Vector3.zero;
             Vector3 separation = Vector3.zero;
             int neighbors = 0;
 
-            for (int j = 0; j < fish.Length; j++)
+            Vector3Int cell = CellFor(position);
+            for (int x = -1; x <= 1; x++)
+            for (int y = -1; y <= 1; y++)
+            for (int z = -1; z <= 1; z++)
             {
-                if (i == j)
-                {
+                if (!cellHeads.TryGetValue(cell + new Vector3Int(x, y, z), out int head))
                     continue;
-                }
-
-                Vector3 offset = fish[j].localPosition - position;
-                float distanceSquared = offset.sqrMagnitude;
-                if (distanceSquared > neighborDistanceSquared)
+                for (int j = head; j >= 0; j = nextInCell[j])
                 {
-                    continue;
-                }
-
-                averageVelocity += velocities[j];
-                averagePosition += fish[j].localPosition;
-                neighbors++;
-
-                if (distanceSquared < separationDistanceSquared && distanceSquared > 0.0001f)
-                {
-                    separation -= offset / distanceSquared;
+                    if (i == j) continue;
+                    Vector3 offset = positions[j] - position;
+                    float distanceSquared = offset.sqrMagnitude;
+                    if (distanceSquared > neighborDistanceSquared) continue;
+                    averageVelocity += velocities[j];
+                    averagePosition += positions[j];
+                    neighbors++;
+                    if (distanceSquared < separationDistanceSquared && distanceSquared > 0.0001f)
+                        separation -= offset / distanceSquared;
                 }
             }
 
@@ -148,7 +230,7 @@ public sealed class FishSchoolController : MonoBehaviour
                 steering += SteerTowards(separation, velocities[i]) * separationWeight;
             }
 
-            float wanderTime = Time.time * wanderFrequency + wanderPhases[i];
+            float wanderTime = simulationTime * wanderFrequency + wanderPhases[i];
             Vector3 wander = new Vector3(
                 Mathf.Sin(wanderTime),
                 Mathf.Sin(wanderTime * 0.73f + wanderAxes[i].x) * 0.35f,
@@ -170,14 +252,14 @@ public sealed class FishSchoolController : MonoBehaviour
         for (int i = 0; i < fish.Length; i++)
         {
             velocities[i] = nextVelocities[i];
-            Vector3 position = fish[i].localPosition + velocities[i] * deltaTime;
+            Vector3 position = positions[i] + velocities[i] * deltaTime;
             position = ConstrainToSwimVolume(position, swimBounds, ref velocities[i]);
             position = PushOutsideForbiddenVolume(position, exclusionBounds, ref velocities[i]);
-            fish[i].localPosition = position;
+            positions[i] = position;
 
             Quaternion targetRotation = RotationForVelocity(velocities[i]);
-            fish[i].localRotation = Quaternion.Slerp(
-                fish[i].localRotation,
+            rotations[i] = Quaternion.Slerp(
+                rotations[i],
                 targetRotation,
                 1f - Mathf.Exp(-rotationResponsiveness * deltaTime));
         }
