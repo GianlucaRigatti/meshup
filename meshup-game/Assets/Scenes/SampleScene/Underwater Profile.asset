@@ -15,7 +15,7 @@ MonoBehaviour:
   active: 1
   redOutRedIn:
     m_OverrideState: 1
-    m_Value: 51
+    m_Value: 11
   redOutGreenIn:
     m_OverrideState: 1
     m_Value: 1
@@ -209,10 +209,10 @@ MonoBehaviour:
   active: 1
   lift:
     m_OverrideState: 1
-    m_Value: {x: 0.60692835, y: 0.71281266, z: 1, w: 0}
+    m_Value: {x: 0.80879307, y: 0.8771774, z: 1, w: 0}
   gamma:
     m_OverrideState: 1
-    m_Value: {x: 0.6605278, y: 0.6782888, z: 1, w: 0}
+    m_Value: {x: 0.81308424, y: 0.86749494, z: 1, w: 0}
   gain:
     m_OverrideState: 1
-    m_Value: {x: 0.614138, y: 0.6982728, z: 1, w: 0}
+    m_Value: {x: 0.78662956, y: 0.8502634, z: 1, w: 0}
