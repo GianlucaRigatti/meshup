@@ -22,6 +22,7 @@ namespace Meshup.Lobby
         };
 
         [SerializeField] private GameObject panelRoot;
+        [SerializeField] private InputField usernameInput;
         [SerializeField] private Text roomNameText;
         [SerializeField] private Button createButton;
         [SerializeField] private Button refreshButton;
@@ -51,6 +52,7 @@ namespace Meshup.Lobby
             }
             createButton.onClick.AddListener(CreateRoom);
             refreshButton.onClick.AddListener(RefreshRooms);
+            usernameInput.onEndEdit.AddListener(ApplyUsername);
             roomNameText.text = GenerateRoomName();
             closeButton.gameObject.SetActive(allowClose);
             if (allowClose)
@@ -97,6 +99,10 @@ namespace Meshup.Lobby
             }
             panelRoot.SetActive(true);
             BindSession();
+            if (session != null)
+            {
+                usernameInput.SetTextWithoutNotify(session.LocalDisplayName);
+            }
             nextRefreshTime = Time.unscaledTime + refreshInterval;
             RenderState(session != null
                 ? session.State
@@ -133,7 +139,18 @@ namespace Meshup.Lobby
                 return;
             }
 
+            ApplyUsername(usernameInput.text);
             session.CreateRoom(roomNameText.text);
+        }
+
+        private void ApplyUsername(string value)
+        {
+            if (session == null)
+            {
+                return;
+            }
+
+            usernameInput.SetTextWithoutNotify(session.SetLocalDisplayName(value));
         }
 
         private static string GenerateRoomName()
@@ -172,6 +189,7 @@ namespace Meshup.Lobby
             session.StateChanged += RenderState;
             session.RoomsChanged += RebuildRoomList;
             session.ErrorOccurred += ShowError;
+            usernameInput.SetTextWithoutNotify(session.LocalDisplayName);
         }
 
         private void UnbindSession()
@@ -193,6 +211,7 @@ namespace Meshup.Lobby
             var browsing = ready || state == RoomSessionState.Discovering;
             createButton.interactable = browsing;
             refreshButton.interactable = browsing || state == RoomSessionState.Error;
+            usernameInput.interactable = !IsBusy(state);
             closeButton.interactable = !IsBusy(state);
             foreach (var item in spawnedItems)
             {
@@ -242,7 +261,7 @@ namespace Meshup.Lobby
                         item.gameObject.SetActive(true);
                     }
 
-                    item.Bind(listing, session);
+                    item.Bind(listing, session, () => ApplyUsername(usernameInput.text));
                     item.transform.SetAsLastSibling();
                     updatedItems.Add(item);
                 }
@@ -285,6 +304,7 @@ namespace Meshup.Lobby
             UnbindSession();
             createButton?.onClick.RemoveListener(CreateRoom);
             refreshButton?.onClick.RemoveListener(RefreshRooms);
+            usernameInput?.onEndEdit.RemoveListener(ApplyUsername);
             if (allowClose)
             {
                 closeButton?.onClick.RemoveListener(Close);

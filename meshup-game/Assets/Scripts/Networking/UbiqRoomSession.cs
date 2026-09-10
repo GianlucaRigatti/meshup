@@ -80,6 +80,8 @@ namespace Meshup.Multiplayer
         private const string SceneProperty = "meshup.scene";
         private const string CreatorProperty = "meshup.creator";
         private const string GameStartedProperty = "meshup.game.started";
+        private const string DisplayNamePreference = "meshup.displayname";
+        private const int DisplayNameCharacterLimit = 24;
 
         private enum PendingOperation
         {
@@ -127,6 +129,7 @@ namespace Meshup.Multiplayer
         public RoomListing CurrentRoom { get; private set; }
         public string LastError { get; private set; } = string.Empty;
         public string LocalPeerId => roomClient?.Me?.uuid ?? string.Empty;
+        public string LocalDisplayName { get; private set; } = string.Empty;
         public string CreatorPeerId => roomClient?.Room?[CreatorProperty] ?? string.Empty;
         public bool IsRoomCreator => !string.IsNullOrEmpty(LocalPeerId)
             && string.Equals(LocalPeerId, CreatorPeerId, StringComparison.Ordinal);
@@ -197,6 +200,7 @@ namespace Meshup.Multiplayer
 
             Subscribe();
             roomClient.timeoutBehaviour = RoomClient.TimeoutBehaviour.ReconnectAndRejoin;
+            SetLocalDisplayName(PlayerPrefs.GetString(DisplayNamePreference, string.Empty));
 
             if (SceneManager.GetActiveScene().name == gameSceneName && roomClient.JoinedRoom)
             {
@@ -276,6 +280,49 @@ namespace Meshup.Multiplayer
             StartCoroutine(RoomOperationTimeout(version,
                 "Creating the room timed out. Check the network connection and try again."));
             return true;
+        }
+
+        /// <summary>
+        /// Updates the name advertised with this peer. Blank names receive a
+        /// friendly random guest name so every participant is identifiable.
+        /// </summary>
+        public string SetLocalDisplayName(string displayName)
+        {
+            var normalized = NormalizeDisplayName(displayName);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                normalized = GenerateGuestDisplayName();
+            }
+
+            LocalDisplayName = normalized;
+            PlayerPrefs.SetString(DisplayNamePreference, normalized);
+
+            if (roomClient?.Me != null)
+            {
+                roomClient.Me[Ubiq.DisplayNameManager.KEY] = normalized;
+            }
+
+            ParticipantsChanged?.Invoke();
+            return normalized;
+        }
+
+        public static string NormalizeDisplayName(string displayName)
+        {
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                return string.Empty;
+            }
+
+            var normalized = string.Join(" ", displayName
+                .Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
+            return normalized.Length <= DisplayNameCharacterLimit
+                ? normalized
+                : normalized[..DisplayNameCharacterLimit].TrimEnd();
+        }
+
+        public static string GenerateGuestDisplayName()
+        {
+            return $"Guest {UnityEngine.Random.Range(1000, 10000)}";
         }
 
         public bool JoinRoom(RoomListing room)

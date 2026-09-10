@@ -43,6 +43,7 @@ namespace Meshup.EditorTools
             public CanvasGroup PanelGroup;
             public GameObject IdleRoot;
             public GameObject LegacyPrompt;
+            public InputField UsernameInput;
             public Text RoomNameText;
             public Button CreateButton;
             public Button RefreshButton;
@@ -136,7 +137,7 @@ namespace Meshup.EditorTools
             var panelData = new SerializedObject(panel);
             foreach (var field in new[]
                      {
-                         "panelRoot", "roomNameText", "createButton", "refreshButton", "closeButton",
+                         "panelRoot", "usernameInput", "roomNameText", "createButton", "refreshButton", "closeButton",
                          "roomListContent", "roomListItemTemplate", "statusText", "noRoomsMessage"
                      })
             {
@@ -152,9 +153,11 @@ namespace Meshup.EditorTools
                 throw new InvalidOperationException("The persistent VR hologram must not close or lock locomotion.");
             }
 
-            if (lobbyUi.GetComponentInChildren<InputField>(true) != null)
+            var usernameInput = lobbyUi.GetComponentInChildren<InputField>(true);
+            if (usernameInput == null || !usernameInput.interactable
+                || usernameInput.characterLimit < 20)
             {
-                throw new InvalidOperationException("The minimal hologram must not contain an editable text field.");
+                throw new InvalidOperationException("The VR hologram needs a ray-interactable username field.");
             }
 
             var buttons = lobbyUi.GetComponentsInChildren<Button>(true);
@@ -361,7 +364,7 @@ namespace Meshup.EditorTools
 
             var rect = lobbyUi.GetComponent<RectTransform>();
             rect.SetParent(null, false);
-            rect.sizeDelta = new Vector2(840f, 520f);
+            rect.sizeDelta = new Vector2(840f, 640f);
             rect.localScale = Vector3.one * 0.0015f;
             rect.position = anchor.position;
             rect.rotation = Quaternion.LookRotation(rect.position - camera.transform.position, Vector3.up);
@@ -393,7 +396,7 @@ namespace Meshup.EditorTools
             result.LegacyPrompt.transform.SetParent(rect, false);
             result.LegacyPrompt.SetActive(false);
 
-            var panelRect = MakeImage("Room Totem Panel", rect, new Vector2(820f, 500f), Vector2.zero,
+            var panelRect = MakeImage("Room Totem Panel", rect, new Vector2(820f, 620f), Vector2.zero,
                 new Color(0.008f, 0.03f, 0.05f, 0.96f));
             result.PanelRoot = panelRect.gameObject;
             result.PanelRect = panelRect;
@@ -401,22 +404,30 @@ namespace Meshup.EditorTools
             Border(panelRect, new Color(0.18f, 0.78f, 0.9f, 0.75f), 3f);
 
             MakeText("Rooms Header", panelRect, "ROOMS", 34,
-                new Vector2(240f, 54f), new Vector2(-270f, 210f), Html("#D9FCFF"),
+                new Vector2(240f, 54f), new Vector2(-270f, 270f), Html("#D9FCFF"),
                 TextAnchor.MiddleLeft, FontStyle.Bold);
             result.CloseButton = MakeButton("Disabled Close Control", panelRect, "CLOSE",
                 new Vector2(128f, 62f), new Vector2(0f, -500f), Color.clear, Color.clear);
             result.CloseButton.gameObject.SetActive(false);
             result.RefreshButton = MakeButton("Refresh Button", panelRect, "REFRESH",
-                new Vector2(128f, 56f), new Vector2(330f, 210f),
+                new Vector2(128f, 56f), new Vector2(330f, 270f),
                 new Color(0.035f, 0.15f, 0.19f, 1f), Html("#DDFBFF"));
             result.StatusText = MakeText("Status Text", panelRect, string.Empty, 17,
-                new Vector2(410f, 36f), new Vector2(30f, 210f), Html("#74D6E1"),
+                new Vector2(410f, 36f), new Vector2(30f, 270f), Html("#74D6E1"),
                 TextAnchor.MiddleCenter);
-            MakeImage("Header Divider", panelRect, new Vector2(760f, 2f), new Vector2(0f, 171f),
+            MakeImage("Header Divider", panelRect, new Vector2(760f, 2f), new Vector2(0f, 231f),
                 new Color(0.18f, 0.78f, 0.9f, 0.32f));
 
+            MakeText("Username Label", panelRect, "YOUR NAME", 15,
+                new Vector2(150f, 26f), new Vector2(-300f, 188f), Html("#62AEB8"),
+                TextAnchor.MiddleLeft, FontStyle.Bold);
+            result.UsernameInput = MakeInput("Username Input", panelRect, string.Empty,
+                "Guest name", new Vector2(570f, 58f), new Vector2(90f, 188f));
+            MakeImage("Username Divider", panelRect, new Vector2(760f, 2f), new Vector2(0f, 145f),
+                new Color(0.18f, 0.78f, 0.9f, 0.22f));
+
             var scrollRoot = MakeImage("Room List", panelRect, new Vector2(760f, 270f),
-                new Vector2(0f, 20f), new Color(0.004f, 0.02f, 0.034f, 0.72f));
+                new Vector2(0f, -5f), new Color(0.004f, 0.02f, 0.034f, 0.72f));
             var viewport = MakeImage("Viewport", scrollRoot, new Vector2(740f, 250f), Vector2.zero,
                 new Color(0f, 0f, 0f, 0f));
             viewport.gameObject.AddComponent<RectMask2D>();
@@ -449,16 +460,16 @@ namespace Meshup.EditorTools
                 Html("#6EAAB3"), TextAnchor.MiddleCenter);
             result.NoRoomsMessage = noRooms.gameObject;
 
-            MakeImage("Create Divider", panelRect, new Vector2(760f, 2f), new Vector2(0f, -135f),
+            MakeImage("Create Divider", panelRect, new Vector2(760f, 2f), new Vector2(0f, -155f),
                 new Color(0.18f, 0.78f, 0.9f, 0.22f));
             MakeText("New Room Label", panelRect, "NEW ROOM", 15,
-                new Vector2(180f, 26f), new Vector2(-290f, -174f), Html("#62AEB8"),
+                new Vector2(180f, 26f), new Vector2(-290f, -205f), Html("#62AEB8"),
                 TextAnchor.MiddleLeft, FontStyle.Bold);
             result.RoomNameText = MakeText("Generated Room Name", panelRect, "Cozy Comet", 29,
-                new Vector2(430f, 48f), new Vector2(-165f, -209f), Html("#E2FCFF"),
+                new Vector2(430f, 48f), new Vector2(-165f, -245f), Html("#E2FCFF"),
                 TextAnchor.MiddleLeft, FontStyle.Bold);
             result.CreateButton = MakeButton("Create Button", panelRect, "CREATE",
-                new Vector2(176f, 66f), new Vector2(292f, -197f),
+                new Vector2(176f, 66f), new Vector2(292f, -230f),
                 new Color(0.04f, 0.52f, 0.62f, 1f), Color.white);
 
             panelRect.gameObject.SetActive(true);
@@ -482,6 +493,7 @@ namespace Meshup.EditorTools
 
             var panel = lobbyUi.GetComponent<RoomTotemPanel>() ?? lobbyUi.AddComponent<RoomTotemPanel>();
             SetObject(panel, "panelRoot", ui.PanelRoot);
+            SetObject(panel, "usernameInput", ui.UsernameInput);
             SetObject(panel, "roomNameText", ui.RoomNameText);
             SetObject(panel, "createButton", ui.CreateButton);
             SetObject(panel, "refreshButton", ui.RefreshButton);
@@ -555,20 +567,20 @@ namespace Meshup.EditorTools
         }
 
         private static InputField MakeInput(string name, Transform parent, string defaultValue,
-            Vector2 size, Vector2 position)
+            string placeholderValue, Vector2 size, Vector2 position)
         {
             var root = MakeImage(name, parent, size, position, new Color(0.01f, 0.035f, 0.055f, 0.98f));
             Border(root, new Color(0.12f, 0.5f, 0.6f, 0.75f), 3f);
             var text = MakeText("Text", root, defaultValue, 22,
                 size - new Vector2(34f, 8f), Vector2.zero, Html("#E7FDFF"), TextAnchor.MiddleLeft);
-            var placeholder = MakeText("Placeholder", root, "Room name", 22,
+            var placeholder = MakeText("Placeholder", root, placeholderValue, 22,
                 size - new Vector2(34f, 8f), Vector2.zero, Html("#56858D"), TextAnchor.MiddleLeft,
                 FontStyle.Italic);
             var input = root.gameObject.AddComponent<InputField>();
             input.textComponent = text;
             input.placeholder = placeholder;
             input.text = defaultValue;
-            input.characterLimit = 28;
+            input.characterLimit = 24;
             input.lineType = InputField.LineType.SingleLine;
             return input;
         }

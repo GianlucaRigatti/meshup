@@ -81,6 +81,24 @@ namespace Meshup.Editor.Tests
                 Is.EqualTo(expected));
         }
 
+        [TestCase(null, "")]
+        [TestCase("   ", "")]
+        [TestCase("  Ada    Lovelace  ", "Ada Lovelace")]
+        [TestCase("This username is much too long to fit", "This username is much to")]
+        public void LobbyDisplayNamesAreNormalizedAndLimited(string input,
+            string expected)
+        {
+            Assert.That(UbiqRoomSession.NormalizeDisplayName(input),
+                Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void LobbyCreatesAReadableRandomGuestName()
+        {
+            Assert.That(UbiqRoomSession.GenerateGuestDisplayName(),
+                Does.Match("^Guest [0-9]{4}$"));
+        }
+
         [Test]
         public void DisconnectRetainsScoreAndSkipsFutureMimeTurn()
         {

@@ -1,3 +1,4 @@
+using System;
 using Meshup.Multiplayer;
 using UnityEngine;
 using UnityEngine.UI;
@@ -12,15 +13,18 @@ namespace Meshup.Lobby
 
         private RoomListing listing;
         private UbiqRoomSession session;
+        private Action beforeJoin;
 
         public string RoomKey => !string.IsNullOrEmpty(listing?.Uuid)
             ? listing.Uuid
             : listing?.JoinCode ?? string.Empty;
 
-        public void Bind(RoomListing room, UbiqRoomSession roomSession)
+        public void Bind(RoomListing room, UbiqRoomSession roomSession,
+            Action beforeJoin = null)
         {
             listing = room;
             session = roomSession;
+            this.beforeJoin = beforeJoin;
             roomNameText.text = string.IsNullOrWhiteSpace(room.Name)
                 ? "Unnamed Room"
                 : room.Name;
@@ -34,6 +38,7 @@ namespace Meshup.Lobby
         {
             if (listing != null && session != null)
             {
+                beforeJoin?.Invoke();
                 session.JoinRoom(listing);
             }
         }
