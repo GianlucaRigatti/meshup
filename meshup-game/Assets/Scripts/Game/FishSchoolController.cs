@@ -32,9 +32,15 @@ public sealed class FishSchoolController : MonoBehaviour
     [Header("Volumes (local space)")]
     [SerializeField] private Vector3 swimVolumeCenter = new Vector3(25f, 0f, 20f);
     [SerializeField] private Vector3 swimVolumeSize = new Vector3(85f, 16f, 80f);
-    [Tooltip("Interior of the glass player enclosure. Fish may swim above this finite-height volume.")]
+    [Tooltip("Interior of the waiting room. Fish may swim above this finite-height volume.")]
     [SerializeField] private Vector3 forbiddenVolumeCenter = new Vector3(58.1f, -3.29f, 34.1f);
     [SerializeField] private Vector3 forbiddenVolumeSize = new Vector3(20f, 10f, 20f);
+    [Tooltip("Interior of the corridor connecting the two player rooms.")]
+    [SerializeField] private Vector3 corridorForbiddenVolumeCenter = new Vector3(36.35f, -3.29f, 27.91f);
+    [SerializeField] private Vector3 corridorForbiddenVolumeSize = new Vector3(25f, 10f, 10f);
+    [Tooltip("Interior of the glass playing room.")]
+    [SerializeField] private Vector3 playingRoomForbiddenVolumeCenter = new Vector3(17.35f, -3.29f, 24.01f);
+    [SerializeField] private Vector3 playingRoomForbiddenVolumeSize = new Vector3(17f, 10f, 21f);
     [SerializeField, Min(0f)] private float forbiddenSafetyMargin = 2f;
     [SerializeField, Min(0.01f)] private float boundaryLookAhead = 4f;
     [SerializeField, Min(0f)] private float boundaryWeight = 4.5f;
@@ -94,14 +100,17 @@ public sealed class FishSchoolController : MonoBehaviour
         wanderPhases = new float[fishCount];
 
         Bounds swimBounds = GetSwimBounds();
-        Bounds exclusionBounds = GetForbiddenBounds();
+        Bounds waitingRoomBounds = GetForbiddenBounds();
+        Bounds corridorBounds = GetCorridorForbiddenBounds();
+        Bounds playingRoomBounds = GetPlayingRoomForbiddenBounds();
 
         for (int i = 0; i < fishCount; i++)
         {
             GameObject instance = Instantiate(fishPrefab, transform);
             instance.name = $"Fish {i + 1:000}";
             fish[i] = instance.transform;
-            positions[i] = previousPositions[i] = FindSpawnPosition(swimBounds, exclusionBounds);
+            positions[i] = previousPositions[i] = FindSpawnPosition(
+                swimBounds, waitingRoomBounds, corridorBounds, playingRoomBounds);
             fish[i].localPosition = positions[i];
             // Decorative animation must not keep every offscreen school member updating.
             foreach (var animation in instance.GetComponentsInChildren<Animation>(true))
@@ -154,13 +163,16 @@ public sealed class FishSchoolController : MonoBehaviour
         using (PresentationMarker.Auto())
         {
             float alpha = accumulatedTime / step;
-            Bounds exclusionBounds = GetForbiddenBounds();
+            Bounds waitingRoomBounds = GetForbiddenBounds();
+            Bounds corridorBounds = GetCorridorForbiddenBounds();
+            Bounds playingRoomBounds = GetPlayingRoomForbiddenBounds();
             for (int i = 0; i < fish.Length; i++)
             {
                 Vector3 position = Vector3.Lerp(previousPositions[i], positions[i], alpha);
-                // Interpolation near a corner must not cut through the player enclosure.
+                // Interpolation near a corner must not cut through the player area.
                 Vector3 ignoredVelocity = Vector3.zero;
-                position = PushOutsideForbiddenVolume(position, exclusionBounds, ref ignoredVelocity);
+                position = PushOutsidePlayerArea(position, waitingRoomBounds,
+                    corridorBounds, playingRoomBounds, ref ignoredVelocity);
                 fish[i].SetLocalPositionAndRotation(position,
                     Quaternion.Slerp(previousRotations[i], rotations[i], alpha));
             }
@@ -187,7 +199,9 @@ public sealed class FishSchoolController : MonoBehaviour
             previousRotations[i] = rotations[i];
         }
         Bounds swimBounds = GetSwimBounds();
-        Bounds exclusionBounds = GetForbiddenBounds();
+        Bounds waitingRoomBounds = GetForbiddenBounds();
+        Bounds corridorBounds = GetCorridorForbiddenBounds();
+        Bounds playingRoomBounds = GetPlayingRoomForbiddenBounds();
         float neighborDistanceSquared = neighborDistance * neighborDistance;
         float separationDistanceSquared = separationDistance * separationDistance;
 
@@ -236,7 +250,8 @@ public sealed class FishSchoolController : MonoBehaviour
                 Mathf.Sin(wanderTime * 0.73f + wanderAxes[i].x) * 0.35f,
                 Mathf.Cos(wanderTime * 0.91f + wanderAxes[i].z));
             steering += wander.normalized * wanderStrength;
-            steering += GetBoundarySteering(position, velocities[i], swimBounds, exclusionBounds) * boundaryWeight;
+            steering += GetBoundarySteering(position, velocities[i], swimBounds,
+                waitingRoomBounds, corridorBounds, playingRoomBounds) * boundaryWeight;
             steering = Vector3.ClampMagnitude(steering, maximumSteering);
 
             Vector3 candidateVelocity = velocities[i] + steering * deltaTime;
@@ -254,7 +269,8 @@ public sealed class FishSchoolController : MonoBehaviour
             velocities[i] = nextVelocities[i];
             Vector3 position = positions[i] + velocities[i] * deltaTime;
             position = ConstrainToSwimVolume(position, swimBounds, ref velocities[i]);
-            position = PushOutsideForbiddenVolume(position, exclusionBounds, ref velocities[i]);
+            position = PushOutsidePlayerArea(position, waitingRoomBounds,
+                corridorBounds, playingRoomBounds, ref velocities[i]);
             positions[i] = position;
 
             Quaternion targetRotation = RotationForVelocity(velocities[i]);
@@ -265,7 +281,9 @@ public sealed class FishSchoolController : MonoBehaviour
         }
     }
 
-    private Vector3 GetBoundarySteering(Vector3 position, Vector3 velocity, Bounds swimBounds, Bounds exclusionBounds)
+    private Vector3 GetBoundarySteering(Vector3 position, Vector3 velocity,
+        Bounds swimBounds, Bounds waitingRoomBounds, Bounds corridorBounds,
+        Bounds playingRoomBounds)
     {
         Vector3 predictedPosition = position + velocity.normalized * boundaryLookAhead;
         Vector3 steering = Vector3.zero;
@@ -276,22 +294,30 @@ public sealed class FishSchoolController : MonoBehaviour
             steering += (closestInsideSwim - predictedPosition).normalized;
         }
 
+        steering += GetForbiddenVolumeSteering(predictedPosition, waitingRoomBounds);
+        steering += GetForbiddenVolumeSteering(predictedPosition, corridorBounds);
+        steering += GetForbiddenVolumeSteering(predictedPosition, playingRoomBounds);
+
+        return steering;
+    }
+
+    private Vector3 GetForbiddenVolumeSteering(Vector3 predictedPosition,
+        Bounds exclusionBounds)
+    {
         Vector3 closestOnExclusion = exclusionBounds.ClosestPoint(predictedPosition);
         if (exclusionBounds.Contains(predictedPosition))
         {
-            steering += NearestExitNormal(predictedPosition, exclusionBounds) * 2f;
-        }
-        else
-        {
-            Vector3 away = predictedPosition - closestOnExclusion;
-            float distance = away.magnitude;
-            if (distance < boundaryLookAhead && distance > 0.0001f)
-            {
-                steering += away.normalized * (1f - distance / boundaryLookAhead);
-            }
+            return NearestExitNormal(predictedPosition, exclusionBounds) * 2f;
         }
 
-        return steering;
+        Vector3 away = predictedPosition - closestOnExclusion;
+        float distance = away.magnitude;
+        if (distance < boundaryLookAhead && distance > 0.0001f)
+        {
+            return away.normalized * (1f - distance / boundaryLookAhead);
+        }
+
+        return Vector3.zero;
     }
 
     private Vector3 ConstrainToSwimVolume(Vector3 position, Bounds bounds, ref Vector3 velocity)
@@ -348,7 +374,28 @@ public sealed class FishSchoolController : MonoBehaviour
         return position + exitNormal * 0.001f;
     }
 
-    private Vector3 FindSpawnPosition(Bounds swimBounds, Bounds exclusionBounds)
+    private Vector3 PushOutsidePlayerArea(Vector3 position,
+        Bounds waitingRoomBounds, Bounds corridorBounds,
+        Bounds playingRoomBounds, ref Vector3 velocity)
+    {
+        // The boxes overlap at the doorways. A few passes let a fish leave the
+        // union of those boxes instead of being left inside an adjacent one.
+        for (int pass = 0; pass < 3; pass++)
+        {
+            position = PushOutsideForbiddenVolume(position, waitingRoomBounds,
+                ref velocity);
+            position = PushOutsideForbiddenVolume(position, corridorBounds,
+                ref velocity);
+            position = PushOutsideForbiddenVolume(position, playingRoomBounds,
+                ref velocity);
+        }
+
+        return position;
+    }
+
+    private Vector3 FindSpawnPosition(Bounds swimBounds,
+        Bounds waitingRoomBounds, Bounds corridorBounds,
+        Bounds playingRoomBounds)
     {
         for (int attempt = 0; attempt < 64; attempt++)
         {
@@ -356,13 +403,23 @@ public sealed class FishSchoolController : MonoBehaviour
                 Random.Range(swimBounds.min.x + fishRadius, swimBounds.max.x - fishRadius),
                 Random.Range(swimBounds.min.y + fishRadius, swimBounds.max.y - fishRadius),
                 Random.Range(swimBounds.min.z + fishRadius, swimBounds.max.z - fishRadius));
-            if (!exclusionBounds.Contains(candidate))
+            if (!IsInsidePlayerArea(candidate, waitingRoomBounds,
+                corridorBounds, playingRoomBounds))
             {
                 return candidate;
             }
         }
 
         return swimBounds.min + Vector3.one * fishRadius;
+    }
+
+    private static bool IsInsidePlayerArea(Vector3 position,
+        Bounds waitingRoomBounds, Bounds corridorBounds,
+        Bounds playingRoomBounds)
+    {
+        return waitingRoomBounds.Contains(position)
+            || corridorBounds.Contains(position)
+            || playingRoomBounds.Contains(position);
     }
 
     private Vector3 SteerTowards(Vector3 desiredDirection, Vector3 currentVelocity)
@@ -389,6 +446,22 @@ public sealed class FishSchoolController : MonoBehaviour
     private Bounds GetForbiddenBounds()
     {
         Bounds bounds = new Bounds(forbiddenVolumeCenter, PositiveSize(forbiddenVolumeSize));
+        bounds.Expand((forbiddenSafetyMargin + fishRadius) * 2f);
+        return bounds;
+    }
+
+    private Bounds GetCorridorForbiddenBounds()
+    {
+        Bounds bounds = new Bounds(corridorForbiddenVolumeCenter,
+            PositiveSize(corridorForbiddenVolumeSize));
+        bounds.Expand((forbiddenSafetyMargin + fishRadius) * 2f);
+        return bounds;
+    }
+
+    private Bounds GetPlayingRoomForbiddenBounds()
+    {
+        Bounds bounds = new Bounds(playingRoomForbiddenVolumeCenter,
+            PositiveSize(playingRoomForbiddenVolumeSize));
         bounds.Expand((forbiddenSafetyMargin + fishRadius) * 2f);
         return bounds;
     }
@@ -428,6 +501,8 @@ public sealed class FishSchoolController : MonoBehaviour
         fishScaleRange.y = Mathf.Max(fishScaleRange.x, fishScaleRange.y);
         swimVolumeSize = PositiveSize(swimVolumeSize);
         forbiddenVolumeSize = PositiveSize(forbiddenVolumeSize);
+        corridorForbiddenVolumeSize = PositiveSize(corridorForbiddenVolumeSize);
+        playingRoomForbiddenVolumeSize = PositiveSize(playingRoomForbiddenVolumeSize);
     }
 
     private void OnDrawGizmosSelected()
@@ -443,6 +518,10 @@ public sealed class FishSchoolController : MonoBehaviour
         Gizmos.DrawWireCube(swimVolumeCenter, PositiveSize(swimVolumeSize));
         Gizmos.color = new Color(1f, 0.2f, 0.1f, 0.8f);
         Gizmos.DrawWireCube(forbiddenVolumeCenter, PositiveSize(forbiddenVolumeSize) + Vector3.one * forbiddenSafetyMargin * 2f);
+        Gizmos.DrawWireCube(corridorForbiddenVolumeCenter,
+            PositiveSize(corridorForbiddenVolumeSize) + Vector3.one * forbiddenSafetyMargin * 2f);
+        Gizmos.DrawWireCube(playingRoomForbiddenVolumeCenter,
+            PositiveSize(playingRoomForbiddenVolumeSize) + Vector3.one * forbiddenSafetyMargin * 2f);
         Gizmos.matrix = oldMatrix;
     }
 }

@@ -57385,6 +57385,10 @@ MonoBehaviour:
   swimVolumeSize: {x: 85, y: 16, z: 80}
   forbiddenVolumeCenter: {x: 58.1, y: -3.29, z: 34.1}
   forbiddenVolumeSize: {x: 20, y: 10, z: 20}
+  corridorForbiddenVolumeCenter: {x: 36.35, y: -3.29, z: 27.91}
+  corridorForbiddenVolumeSize: {x: 25, y: 10, z: 10}
+  playingRoomForbiddenVolumeCenter: {x: 17.35, y: -3.29, z: 24.01}
+  playingRoomForbiddenVolumeSize: {x: 17, y: 10, z: 21}
   forbiddenSafetyMargin: 2
   boundaryLookAhead: 4
   boundaryWeight: 4.5

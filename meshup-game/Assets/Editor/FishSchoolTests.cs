@@ -38,6 +38,8 @@ namespace Meshup.Editor.Tests
             Set("wanderStrength", 0f); Set("boundaryWeight", 0f);
             Set("swimVolumeCenter", Vector3.zero); Set("swimVolumeSize", Vector3.one * 1000);
             Set("forbiddenVolumeCenter", Vector3.one * 1000);
+            Set("corridorForbiddenVolumeCenter", Vector3.one * 1000);
+            Set("playingRoomForbiddenVolumeCenter", Vector3.one * 1000);
             var p = Get<Vector3[]>("positions"); var v = Get<Vector3[]>("velocities");
             var rng = new System.Random(42);
             for (int i = 0; i < p.Length; i++)
@@ -78,21 +80,52 @@ namespace Meshup.Editor.Tests
             for(int i=0;i<actual.Length;i++)Assert.That(Vector3.Distance(actual[i],expected[i]),Is.LessThan(.001f));
         }
 
-        [Test] public void FishStayInSwimVolumeAndOutsideEnclosureIncludingInterpolatedFrames()
+        [Test] public void FishStayInSwimVolumeAndOutsideEntirePlayerAreaIncludingInterpolatedFrames()
         {
             Bounds swim = new Bounds(new Vector3(25,0,20),new Vector3(85,16,80));
-            Bounds exclusion = new Bounds(new Vector3(58.1f,-3.29f,34.1f),new Vector3(20,10,20));
-            exclusion.Expand(4.8f);
+            var exclusions = PlayerAreaBounds();
             for(int frame=0;frame<3600;frame++)
             {
                 Call("Advance",1f/120);
                 foreach(var fish in Get<Transform[]>("fish"))
                 {
                     Assert.That(swim.Contains(fish.localPosition),Is.True);
-                    Assert.That(exclusion.Contains(fish.localPosition),Is.False);
+                    foreach (var exclusion in exclusions)
+                        Assert.That(exclusion.Contains(fish.localPosition),Is.False);
                     Assert.That(float.IsNaN(fish.localPosition.x),Is.False);
                 }
             }
+        }
+
+        [Test] public void FishInsideEachPlayerAreaVolumeAreImmediatelyExpelled()
+        {
+            var positions = Get<Vector3[]>("positions");
+            var velocities = Get<Vector3[]>("velocities");
+            var exclusions = PlayerAreaBounds();
+            for (int i = 0; i < exclusions.Length; i++)
+            {
+                positions[i] = exclusions[i].center;
+                velocities[i] = Vector3.forward * 2f;
+            }
+
+            Call("Simulate", 1f / 30f);
+
+            for (int i = 0; i < exclusions.Length; i++)
+                foreach (var exclusion in exclusions)
+                    Assert.That(exclusion.Contains(positions[i]), Is.False,
+                        $"Fish in player-area volume {i} remained inside an exclusion.");
+        }
+
+        private static Bounds[] PlayerAreaBounds()
+        {
+            var result = new[]
+            {
+                new Bounds(new Vector3(58.1f,-3.29f,34.1f),new Vector3(20,10,20)),
+                new Bounds(new Vector3(36.35f,-3.29f,27.91f),new Vector3(25,10,10)),
+                new Bounds(new Vector3(17.35f,-3.29f,24.01f),new Vector3(17,10,21))
+            };
+            for (int i = 0; i < result.Length; i++) result[i].Expand(4.8f);
+            return result;
         }
         [Test] public void ImportedFishUsesCulledAnimationAndBoundsContainSwimmingClip()
         {
