@@ -270,7 +270,8 @@ namespace Meshup.Editor.Tests
                 Assert.That(centerDistance, Is.LessThan(0.15f));
                 Assert.That(Vector3.Dot(-canvas.forward,
                     (viewer.transform.position - canvas.position).normalized),
-                    Is.GreaterThan(0.99f));
+                    Is.LessThan(-0.99f),
+                    "The mime UI must mount on the terminal's opposite face.");
 
                 var initialPosition = canvas.position;
                 var initialRotation = canvas.rotation;

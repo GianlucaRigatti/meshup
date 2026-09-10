@@ -477,7 +477,7 @@ namespace Meshup.Game
                     var center = renderer.transform.TransformPoint(bounds.center);
                     var normal = renderer.transform
                         .TransformDirection(localNormal).normalized;
-                    if (Vector3.Dot(viewer.position - center, normal) < 0f)
+                    if (Vector3.Dot(viewer.position - center, normal) >= 0f)
                     {
                         localNormal = -localNormal;
                     }
@@ -494,7 +494,7 @@ namespace Meshup.Game
                 var localNormal = Vector3.forward;
                 if (!followViewerAcrossFaces && viewer != null
                     && Vector3.Dot(viewer.position - target.position,
-                        target.TransformDirection(localNormal)) < 0f)
+                        target.TransformDirection(localNormal)) >= 0f)
                 {
                     localNormal = -localNormal;
                 }
