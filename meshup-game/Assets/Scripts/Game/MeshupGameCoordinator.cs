@@ -10,6 +10,8 @@ namespace Meshup.Game
     [DisallowMultipleComponent]
     public sealed class MeshupGameCoordinator : MonoBehaviour
     {
+        private const float GeneratedObjectSpawnHeight = 2.5f;
+
         private enum MessageKind
         {
             Snapshot,
@@ -613,13 +615,12 @@ namespace Meshup.Game
 
         private Vector3 GetGeneratedSpawnPosition(int slot)
         {
-            var center = generatorAnchor.position + generatorAnchor.up * 0.9f;
-            return slot switch
-            {
-                1 => center + generatorAnchor.right * 0.8f,
-                2 => center - generatorAnchor.right * 0.8f,
-                _ => center
-            };
+            // The authored generator is rotated, so its local up direction points
+            // sideways in world space. Always lift vertically and keep every new
+            // object on the generator's center line; players can move earlier
+            // objects out of the way before generating another one.
+            return generatorAnchor.position
+                + Vector3.up * GeneratedObjectSpawnHeight;
         }
 
         private void Send(GameMessage message)

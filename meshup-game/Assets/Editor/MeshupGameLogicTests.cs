@@ -159,6 +159,43 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void GeneratedObjectsSpawnCenteredAndWellAboveTheGenerator()
+        {
+            var owner = new GameObject("Coordinator Test");
+            var anchor = new GameObject("Generator Anchor");
+            try
+            {
+                var coordinator = owner.AddComponent<MeshupGameCoordinator>();
+                anchor.transform.SetPositionAndRotation(
+                    new Vector3(4f, 1f, -3f),
+                    Quaternion.Euler(90f, 35f, 20f));
+
+                typeof(MeshupGameCoordinator).GetField("generatorAnchor",
+                    System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.NonPublic)
+                    ?.SetValue(coordinator, anchor.transform);
+                var getSpawnPosition = typeof(MeshupGameCoordinator).GetMethod(
+                    "GetGeneratedSpawnPosition",
+                    System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.NonPublic);
+
+                Assert.That(getSpawnPosition, Is.Not.Null);
+                var first = (Vector3)getSpawnPosition.Invoke(coordinator,
+                    new object[] { 0 });
+                var later = (Vector3)getSpawnPosition.Invoke(coordinator,
+                    new object[] { 2 });
+                Assert.That(first, Is.EqualTo(new Vector3(4f, 3.5f, -3f)));
+                Assert.That(later, Is.EqualTo(first),
+                    "Spawn slots must remain centered on the generator.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(anchor);
+                UnityEngine.Object.DestroyImmediate(owner);
+            }
+        }
+
+        [Test]
         public void TransformCommandsAndHostBroadcastsUseDifferentRoutes()
         {
             var coordinatorType = typeof(MeshupGameCoordinator);
