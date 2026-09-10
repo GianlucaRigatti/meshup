@@ -77,8 +77,14 @@ namespace Meshup.Game
             var body = gameObject.AddComponent<Rigidbody>();
             body.useGravity = false;
             body.isKinematic = true;
+            body.interpolation = RigidbodyInterpolation.Interpolate;
+            body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             grab = gameObject.AddComponent<XRGrabInteractable>();
-            grab.movementType = XRBaseInteractable.MovementType.Kinematic;
+            // Kinematic grab motion follows the controller even when a static
+            // collider is in the way. Velocity tracking temporarily makes this
+            // body dynamic while held, allowing floors and walls to resolve the
+            // contact instead of letting the object pass through them.
+            grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
             grab.selectEntered.AddListener(HandleGrabbed);
             grab.selectExited.AddListener(HandleReleased);
         }

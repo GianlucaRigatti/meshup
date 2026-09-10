@@ -66,7 +66,9 @@ namespace Meshup.Game
                 MeshupGamePhase.CallingMime =>
                     $"{mimeName}\nPlease reach the stage",
                 MeshupGamePhase.ChoosingWord => $"{mimeName} is choosing a word",
-                MeshupGamePhase.Preparation => FormatPuzzle(snapshot, "Get ready"),
+                MeshupGamePhase.Preparation => isMime
+                    ? FormatPuzzle(snapshot, "Get ready")
+                    : "generating objects...",
                 MeshupGamePhase.TimedGuessing => FormatPuzzle(snapshot,
                     $"{snapshot.remainingSeconds / 60:0}:{snapshot.remainingSeconds % 60:00}"),
                 MeshupGamePhase.Result =>

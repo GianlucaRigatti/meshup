@@ -169,6 +169,40 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void GeneratedObjectsUseCollisionSafeGrabMovement()
+        {
+            var gameObject = new GameObject("Generated Object Test");
+            try
+            {
+                var generated = gameObject.AddComponent<MeshupGeneratedObject>();
+                var addInteractionComponents = typeof(MeshupGeneratedObject)
+                    .GetMethod("AddInteractionComponents",
+                        System.Reflection.BindingFlags.Instance
+                        | System.Reflection.BindingFlags.NonPublic);
+
+                Assert.That(addInteractionComponents, Is.Not.Null);
+                addInteractionComponents.Invoke(generated, null);
+
+                var body = gameObject.GetComponent<Rigidbody>();
+                var grab = gameObject.GetComponent<UnityEngine.XR.Interaction
+                    .Toolkit.Interactables.XRGrabInteractable>();
+                Assert.That(body, Is.Not.Null);
+                Assert.That(grab, Is.Not.Null);
+                Assert.That(grab.movementType, Is.EqualTo(
+                    UnityEngine.XR.Interaction.Toolkit.Interactables
+                        .XRBaseInteractable.MovementType.VelocityTracking));
+                Assert.That(body.collisionDetectionMode,
+                    Is.EqualTo(CollisionDetectionMode.ContinuousDynamic));
+                Assert.That(body.interpolation,
+                    Is.EqualTo(RigidbodyInterpolation.Interpolate));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [Test]
         public void MimeTerminalMountsOnItsScreenAndShowsBothChoices()
         {
             var owner = new GameObject("Game View Owner");
