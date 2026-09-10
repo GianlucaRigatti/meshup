@@ -17,6 +17,8 @@ namespace Meshup.EditorTools
         private const string EnvironmentName = "Bedroom Environment";
         private const string MaterialFolder = "Assets/Materials/Lobby/Bedroom";
         private const string ModelFolder = "Assets/ThirdParty/KenneyFurnitureKit/Models";
+        private static readonly Vector3 PlayerSpawnPosition =
+            new(0f, 0.02f, -1.5f);
 
         private static readonly Dictionary<string, Material> MaterialCache = new();
         private static readonly (string Collider, string Model)[] FurnitureColliderPairs =
@@ -63,8 +65,19 @@ namespace Meshup.EditorTools
 
             // Preserve the existing controller, camera hierarchy, serialized values, and scripts.
             player.transform.SetPositionAndRotation(
-                new Vector3(0f, 0.02f, -2.03f),
+                PlayerSpawnPosition,
                 Quaternion.identity);
+
+            // Keep the installed dual-mode rig in sync when the bedroom is rebuilt.
+            var dualModePlayer = scene.GetRootGameObjects()
+                .FirstOrDefault(item => item.name == "Lobby Dual Mode Controls")
+                ?.GetComponentsInChildren<Transform>(true)
+                .FirstOrDefault(item => item.name == "Ubiq Demo Player");
+            if (dualModePlayer != null)
+            {
+                dualModePlayer.SetPositionAndRotation(PlayerSpawnPosition,
+                    Quaternion.identity);
+            }
 
             // Preserve the current RoomTotemInteraction, trigger, rigidbody, and menu references.
             totem.transform.SetPositionAndRotation(

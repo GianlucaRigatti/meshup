@@ -19,6 +19,8 @@ namespace Meshup.Editor
         private const string RootName = "Game Start Sequence";
         private const string ConsoleName = "Game starter";
         private const string FinishWallName = "Invisible_wall_game_start";
+        private static readonly Vector3 DefaultPlayerSpawn =
+            new(31.65f, 0.69f, 13.83f);
 
         // These points follow the staircase corridor from the spawn deck into
         // the glass room. They remain ordinary scene Transforms so designers
@@ -64,6 +66,10 @@ namespace Meshup.Editor
             var playerObject = FindRequired(scene, "Ubiq Demo Player");
             var sessionMenuObject = FindRequired(scene, "Game Session UI");
             var finishWall = FindRequired(scene, FinishWallName);
+
+            // The XR rig origin sits 0.08 m below the CharacterController's
+            // lower edge, so this places the controller directly on the deck.
+            playerObject.transform.position = DefaultPlayerSpawn;
 
             var root = FindRoot(scene, RootName) ?? new GameObject(RootName);
             SceneManager.MoveGameObjectToScene(root, scene);
