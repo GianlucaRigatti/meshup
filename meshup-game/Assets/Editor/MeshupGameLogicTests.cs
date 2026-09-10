@@ -272,6 +272,17 @@ namespace Meshup.Editor.Tests
                     (viewer.transform.position - canvas.position).normalized),
                     Is.GreaterThan(0.99f));
 
+                var initialPosition = canvas.position;
+                var initialRotation = canvas.rotation;
+                viewer.transform.position = new Vector3(4f, 1.5f, 0f);
+                typeof(MeshupGameView).GetMethod("LateUpdate",
+                    System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.NonPublic)?.Invoke(view, null);
+                Assert.That(canvas.position, Is.EqualTo(initialPosition),
+                    "The mime UI must remain on its original display face.");
+                Assert.That(canvas.rotation, Is.EqualTo(initialRotation),
+                    "The mime UI must not turn around to follow the player.");
+
                 var buttons = canvas.GetComponentsInChildren<Button>(true);
                 Assert.That(buttons.Single(button => button.name == "First Choice")
                     .GetComponentInChildren<Text>().text, Is.EqualTo("jump"));

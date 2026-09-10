@@ -142,7 +142,7 @@ namespace Meshup.Game
         private void BuildMonitor(Transform target, Transform localViewer)
         {
             var canvas = CreateCanvas("MeshUp Monitor UI", target,
-                new Vector2(1200f, 600f), 0.003f, localViewer,
+                new Vector2(1200f, 600f), 0.003f, true, localViewer,
                 "pPlane1_monter_MTL_0", "pPlane1");
             var background = CreatePanel(canvas.transform, "Background",
                 new Color(0.015f, 0.04f, 0.07f, 0.94f));
@@ -173,7 +173,7 @@ namespace Meshup.Game
         private void BuildTerminal(Transform target, Transform localViewer)
         {
             var canvas = CreateCanvas("MeshUp Mime Terminal UI", target,
-                new Vector2(800f, 600f), 0.002f, localViewer,
+                new Vector2(800f, 600f), 0.002f, false, localViewer,
                 "screen_low_Material_0", "screen_low");
             var background = CreatePanel(canvas.transform, "Background",
                 new Color(0.02f, 0.04f, 0.08f, 0.96f));
@@ -220,7 +220,8 @@ namespace Meshup.Game
         }
 
         private Canvas CreateCanvas(string name, Transform target,
-            Vector2 size, float fallbackWorldScale, Transform localViewer,
+            Vector2 size, float fallbackWorldScale, bool followViewerAcrossFaces,
+            Transform localViewer,
             params string[] preferredSurfaceNames)
         {
             var gameObject = new GameObject(name, typeof(RectTransform),
@@ -230,9 +231,10 @@ namespace Meshup.Game
             gameObject.transform.SetParent(target, false);
             var surface = FindDisplaySurface(target, preferredSurfaceNames);
             var placement = surface != null
-                ? SurfacePlacement.From(surface, localViewer, size)
+                ? SurfacePlacement.From(surface, localViewer, size,
+                    followViewerAcrossFaces)
                 : SurfacePlacement.From(target, localViewer,
-                    fallbackWorldScale);
+                    fallbackWorldScale, followViewerAcrossFaces);
             placement.Resolve(out var position, out var rotation);
             gameObject.transform.SetPositionAndRotation(position, rotation);
             var parentScale = target.lossyScale;
@@ -417,10 +419,11 @@ namespace Meshup.Game
             public readonly Vector3 LocalUp;
             public readonly float Offset;
             public readonly float WorldScale;
+            public readonly bool FollowViewerAcrossFaces;
 
             private SurfacePlacement(Transform surface, Transform viewer,
                 Vector3 localCenter, Vector3 localNormal, Vector3 localUp,
-                float offset, float worldScale)
+                float offset, float worldScale, bool followViewerAcrossFaces)
             {
                 Surface = surface;
                 Viewer = viewer;
@@ -429,10 +432,12 @@ namespace Meshup.Game
                 LocalUp = localUp;
                 Offset = offset;
                 WorldScale = worldScale;
+                FollowViewerAcrossFaces = followViewerAcrossFaces;
             }
 
             public static SurfacePlacement From(Renderer renderer,
-                Transform viewer, Vector2 canvasSize)
+                Transform viewer, Vector2 canvasSize,
+                bool followViewerAcrossFaces)
             {
                 TryGetLocalBounds(renderer, out var bounds);
                 var localSize = bounds.size;
@@ -466,16 +471,36 @@ namespace Meshup.Game
                     Mathf.Min(dimensions[widthIndex], dimensions[upIndex])
                     * 0.0125f);
                 var offset = dimensions[normalIndex] * 0.5f + faceClearance;
+                var localNormal = Axis(normalIndex);
+                if (!followViewerAcrossFaces && viewer != null)
+                {
+                    var center = renderer.transform.TransformPoint(bounds.center);
+                    var normal = renderer.transform
+                        .TransformDirection(localNormal).normalized;
+                    if (Vector3.Dot(viewer.position - center, normal) < 0f)
+                    {
+                        localNormal = -localNormal;
+                    }
+                }
                 return new SurfacePlacement(renderer.transform, viewer,
-                    bounds.center, Axis(normalIndex), localUp, offset,
-                    Mathf.Max(0.0001f, fittedScale));
+                    bounds.center, localNormal, localUp, offset,
+                    Mathf.Max(0.0001f, fittedScale), followViewerAcrossFaces);
             }
 
             public static SurfacePlacement From(Transform target,
-                Transform viewer, float worldScale)
+                Transform viewer, float worldScale,
+                bool followViewerAcrossFaces)
             {
+                var localNormal = Vector3.forward;
+                if (!followViewerAcrossFaces && viewer != null
+                    && Vector3.Dot(viewer.position - target.position,
+                        target.TransformDirection(localNormal)) < 0f)
+                {
+                    localNormal = -localNormal;
+                }
                 return new SurfacePlacement(target, viewer, Vector3.zero,
-                    Vector3.forward, Vector3.up, 0.01f, worldScale);
+                    localNormal, Vector3.up, 0.01f, worldScale,
+                    followViewerAcrossFaces);
             }
 
             public void Resolve(out Vector3 position, out Quaternion rotation)
@@ -483,12 +508,14 @@ namespace Meshup.Game
                 var center = Surface.TransformPoint(LocalCenter);
                 var normal = Surface.TransformDirection(LocalNormal).normalized;
                 var up = Surface.TransformDirection(LocalUp).normalized;
-                var viewerDirection = Viewer != null
-                    ? Viewer.position - center
-                    : -normal;
-                var towardViewer = Vector3.Dot(viewerDirection, normal) >= 0f
-                    ? normal
-                    : -normal;
+                var towardViewer = normal;
+                if (FollowViewerAcrossFaces && Viewer != null)
+                {
+                    var viewerDirection = Viewer.position - center;
+                    towardViewer = Vector3.Dot(viewerDirection, normal) >= 0f
+                        ? normal
+                        : -normal;
+                }
                 position = center + towardViewer * Offset;
                 rotation = Quaternion.LookRotation(-towardViewer, up);
             }
