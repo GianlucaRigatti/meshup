@@ -69580,7 +69580,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e9a206bf51b2b2d40a35a121bf02ff17, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlaylistManager
-  audioSource: {fileID: 2049147494}
+  audioSource: {fileID: 0}
   playlist:
   - {fileID: 8300000, guid: 57280f7eb58617940bcafb1c14afeb8b, type: 3}
   - {fileID: 8300000, guid: 153f926d474bdbb46b93eb592f6fd615, type: 3}
