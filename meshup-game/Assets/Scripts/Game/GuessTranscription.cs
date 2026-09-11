@@ -7,6 +7,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Meshup.Multiplayer;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Networking;
@@ -33,7 +34,6 @@ namespace Meshup.Game
         private const string ModelName = "vosk-model-small-en-us-0.15";
         private const string ModelArchive = ModelName + ".zip";
         private const int RecognitionSampleRate = 16000;
-        private const int MicrophoneBufferSeconds = 6;
         private const float MaximumRecordingSeconds = 5f;
         private const float MinimumRecordingSeconds = 0.1f;
         public const float MinimumConfidence = 0.55f;
@@ -46,8 +46,6 @@ namespace Meshup.Game
         private Model model;
         private Task<Model> modelLoadTask;
         private Task decodeTask;
-        private AudioClip recording;
-        private string microphoneDevice = string.Empty;
         private Coroutine recordingTimeout;
         private Coroutine permissionRequest;
         private bool initializationStarted;
@@ -135,7 +133,7 @@ namespace Meshup.Game
         public void Deactivate()
         {
             activationRequested = false;
-            if (!isListening || recording == null)
+            if (!isListening)
             {
                 return;
             }
@@ -425,20 +423,16 @@ namespace Meshup.Game
             {
                 return;
             }
-            if (Microphone.devices.Length == 0)
+            var voice = VoiceChatController.Instance;
+            var error = string.Empty;
+            if (voice == null || !voice.TryBeginExclusiveCapture(
+                    VoiceMuteReason.GuessRecording, MaximumRecordingSeconds,
+                    out error))
             {
                 activationRequested = false;
-                ErrorOccurred?.Invoke("No microphone is available.");
-                return;
-            }
-
-            microphoneDevice = Microphone.devices[0];
-            recording = Microphone.Start(microphoneDevice, false,
-                MicrophoneBufferSeconds, RecognitionSampleRate);
-            if (recording == null)
-            {
-                activationRequested = false;
-                ErrorOccurred?.Invoke("The microphone could not start.");
+                ErrorOccurred?.Invoke(string.IsNullOrEmpty(error)
+                    ? "Voice chat is unavailable."
+                    : error);
                 return;
             }
             SetListening(true);
@@ -463,35 +457,20 @@ namespace Meshup.Game
                 StopCoroutine(recordingTimeout);
                 recordingTimeout = null;
             }
-            var clip = recording;
-            recording = null;
-            var position = string.IsNullOrEmpty(microphoneDevice)
-                ? 0
-                : Microphone.GetPosition(microphoneDevice);
-            if (!string.IsNullOrEmpty(microphoneDevice))
-            {
-                Microphone.End(microphoneDevice);
-            }
-            microphoneDevice = string.Empty;
+            var capture = VoiceChatController.Instance?.EndExclusiveCapture(
+                VoiceMuteReason.GuessRecording)
+                ?? new VoiceCapture(Array.Empty<float>(), 1,
+                    RecognitionSampleRate);
             SetListening(false);
 
-            if (clip == null || position <= 0)
+            if (!capture.HasAudio)
             {
-                if (clip != null)
-                {
-                    Destroy(clip);
-                }
                 ErrorOccurred?.Invoke("No speech was recorded. Try again.");
                 return;
             }
 
-            var interleaved = new float[position * clip.channels];
-            clip.GetData(interleaved, 0);
-            var frequency = clip.frequency;
-            var channels = clip.channels;
-            Destroy(clip);
-            var samples = ConvertToMonoPcm(interleaved, channels, frequency,
-                RecognitionSampleRate);
+            var samples = ConvertToMonoPcm(capture.Samples, capture.Channels,
+                capture.SampleRate, RecognitionSampleRate);
             if (samples.Length < RecognitionSampleRate * MinimumRecordingSeconds)
             {
                 ErrorOccurred?.Invoke("The guess was too short. Try again.");
@@ -720,15 +699,8 @@ namespace Meshup.Game
             {
                 StopCoroutine(recordingTimeout);
             }
-            if (recording != null)
-            {
-                if (!string.IsNullOrEmpty(microphoneDevice))
-                {
-                    Microphone.End(microphoneDevice);
-                }
-                Destroy(recording);
-                recording = null;
-            }
+            VoiceChatController.Instance?.CancelExclusiveCapture(
+                VoiceMuteReason.GuessRecording);
             SetListening(false);
 
             var modelToDispose = model;

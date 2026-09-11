@@ -17,11 +17,17 @@ desktop, say one guess, and release. The model is extracted to the application's
 persistent data directory on first use; no network connection or voice-service
 credential is required.
 
-Quest and macOS microphone access is requested for push-to-talk guesses and
-held-button asset descriptions. Guess audio is processed locally and is not
+Quest, macOS, and Windows microphone access is used for push-to-talk guesses,
+held-button asset descriptions, and live spatial voice chat with the other
+players in the current Ubiq room. UWP/MSIX builds declare Unity's Microphone
+capability; Win32 builds and the Windows Editor rely on the Windows desktop-app
+microphone privacy setting. Outgoing voice is automatically muted while a
+guess or asset description is being recorded; incoming voice remains audible.
+Press `M` on desktop, or use the Voice button in the in-game pause menu, to keep
+your outgoing voice manually muted. Guess audio is processed locally and is not
 uploaded. Asset descriptions are a separate feature and are uploaded to the
 configured `asset_generator_server`; production consent and privacy text must
-describe that distinction.
+describe these distinct microphone uses.
 
 The bundled model, native libraries, source pins, licenses, and checksums are
 documented in `meshup-game/THIRD_PARTY_NOTICES.md`. Binary assets use Git LFS,

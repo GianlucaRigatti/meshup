@@ -575,8 +575,9 @@ PlayerSettings:
   enableCrashReportAPI: 0
   cameraUsageDescription: 
   locationUsageDescription: 
-  microphoneUsageDescription: MeshUp records speech while you hold push-to-talk or
-    the object generator button so it can transcribe guesses and create game objects.
+  microphoneUsageDescription: MeshUp uses your microphone for live voice chat. Voice
+    transmission is muted while you record a guess or object description; guesses
+    are transcribed locally and object descriptions are uploaded for generation.
   bluetoothUsageDescription: 
   macOSTargetOSVersion: 12.0
   switchNMETAOverride: 
@@ -877,7 +878,9 @@ PlayerSettings:
   metroSplashScreenBackgroundColor: {r: 0.12941177, g: 0.17254902, b: 0.21568628, a: 1}
   metroSplashScreenUseBackgroundColor: 0
   syncCapabilities: 0
-  platformCapabilities: {}
+  platformCapabilities:
+    WindowsStoreApps:
+      Microphone: True
   metroTargetDeviceFamilies: {}
   metroFTAName: 
   metroFTAFileTypes: []

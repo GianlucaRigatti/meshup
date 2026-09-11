@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Ubiq.Avatars;
 using Ubiq.Rooms;
+using Ubiq.Voip;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UbiqAvatar = Ubiq.Avatars.Avatar;
@@ -171,6 +172,21 @@ namespace Meshup.Multiplayer
             avatarManager ??= GetComponentInChildren<AvatarManager>(true);
             readOnlyRooms = rooms.AsReadOnly();
             SceneManager.sceneLoaded += HandleSceneLoaded;
+
+            var voipManager = GetComponentInChildren<
+                VoipPeerConnectionManager>(true);
+            if (voipManager != null)
+            {
+                if (voipManager.GetComponent<VoiceChatController>() == null)
+                {
+                    voipManager.gameObject.AddComponent<VoiceChatController>();
+                }
+                voipManager.gameObject.SetActive(true);
+            }
+            else
+            {
+                Debug.LogError("[MeshUp] Ubiq Voip Manager is missing.");
+            }
 
             if (avatarManager != null)
             {

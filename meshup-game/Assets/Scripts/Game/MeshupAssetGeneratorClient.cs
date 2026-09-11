@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using Meshup.Multiplayer;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.XR.Interaction.Toolkit;
@@ -12,6 +13,10 @@ namespace Meshup.Game
     [DisallowMultipleComponent]
     public sealed class MeshupAssetGeneratorClient : MonoBehaviour
     {
+        private const float MaximumRecordingSeconds = 60f;
+        private const float MinimumRecordingSeconds = 0.1f;
+        private const int UploadSampleRate = 16000;
+
         [Serializable]
         private sealed class GenerateResponse
         {
@@ -21,8 +26,7 @@ namespace Meshup.Game
 
         private MeshupGameCoordinator coordinator;
         private XRSimpleInteractable interactable;
-        private AudioClip recording;
-        private string microphoneDevice;
+        private Coroutine recordingTimeout;
         private bool recordingActive;
 
         public void Configure(MeshupGameCoordinator owner)
@@ -47,18 +51,20 @@ namespace Meshup.Game
             {
                 return;
             }
-            if (Microphone.devices.Length == 0)
+            var voice = VoiceChatController.Instance;
+            var error = string.Empty;
+            if (voice == null || !voice.TryBeginExclusiveCapture(
+                    VoiceMuteReason.ObjectDescription,
+                    MaximumRecordingSeconds, out error))
             {
-                coordinator.ReportLocalMessage("No microphone is available.");
+                coordinator.ReportLocalMessage(string.IsNullOrEmpty(error)
+                    ? "Voice chat is unavailable."
+                    : error);
                 return;
             }
-            microphoneDevice = Microphone.devices[0];
-            recording = Microphone.Start(microphoneDevice, false, 60, 16000);
-            recordingActive = recording != null;
-            if (recordingActive)
-            {
-                coordinator.ReportLocalMessage("Recording object description…");
-            }
+            recordingActive = true;
+            recordingTimeout = StartCoroutine(StopAtMaximumDuration());
+            coordinator.ReportLocalMessage("Recording object description…");
         }
 
         private void HandleReleased(SelectExitEventArgs args)
@@ -67,17 +73,40 @@ namespace Meshup.Game
             {
                 return;
             }
-            var samplePosition = Microphone.GetPosition(microphoneDevice);
-            Microphone.End(microphoneDevice);
+            FinishRecording();
+        }
+
+        private IEnumerator StopAtMaximumDuration()
+        {
+            yield return new WaitForSecondsRealtime(MaximumRecordingSeconds);
+            recordingTimeout = null;
+            if (recordingActive)
+            {
+                FinishRecording();
+            }
+        }
+
+        private void FinishRecording()
+        {
+            if (recordingTimeout != null)
+            {
+                StopCoroutine(recordingTimeout);
+                recordingTimeout = null;
+            }
             recordingActive = false;
-            if (recording == null || samplePosition <= 0)
+            var capture = VoiceChatController.Instance?.EndExclusiveCapture(
+                VoiceMuteReason.ObjectDescription)
+                ?? new VoiceCapture(Array.Empty<float>(), 1,
+                    UploadSampleRate);
+            if (!capture.HasAudio
+                || capture.DurationSeconds < MinimumRecordingSeconds)
             {
                 coordinator.ReportLocalMessage("No audio was recorded.");
                 return;
             }
-            var wav = EncodeWav(recording, samplePosition);
-            Destroy(recording);
-            recording = null;
+            var pcm = VoskGuessTranscriber.ConvertToMonoPcm(capture.Samples,
+                capture.Channels, capture.SampleRate, UploadSampleRate);
+            var wav = EncodeWav(pcm, UploadSampleRate);
             coordinator.ReportLocalMessage("Sending description…");
             coordinator.RequestGeneration(wav);
         }
@@ -178,11 +207,46 @@ namespace Meshup.Game
             return bytes;
         }
 
+        public static byte[] EncodeWav(short[] monoSamples, int sampleRate)
+        {
+            monoSamples ??= Array.Empty<short>();
+            sampleRate = Mathf.Max(1, sampleRate);
+            const int headerSize = 44;
+            var bytes = new byte[headerSize + monoSamples.Length * 2];
+            using var stream = new MemoryStream(bytes);
+            using var writer = new BinaryWriter(stream);
+            writer.Write(new[] { 'R', 'I', 'F', 'F' });
+            writer.Write(bytes.Length - 8);
+            writer.Write(new[] { 'W', 'A', 'V', 'E' });
+            writer.Write(new[] { 'f', 'm', 't', ' ' });
+            writer.Write(16);
+            writer.Write((short)1);
+            writer.Write((short)1);
+            writer.Write(sampleRate);
+            writer.Write(sampleRate * 2);
+            writer.Write((short)2);
+            writer.Write((short)16);
+            writer.Write(new[] { 'd', 'a', 't', 'a' });
+            writer.Write(monoSamples.Length * 2);
+            foreach (var sample in monoSamples)
+            {
+                writer.Write(sample);
+            }
+            return bytes;
+        }
+
         private void OnDestroy()
         {
             if (recordingActive)
             {
-                Microphone.End(microphoneDevice);
+                VoiceChatController.Instance?.CancelExclusiveCapture(
+                    VoiceMuteReason.ObjectDescription);
+                recordingActive = false;
+            }
+            if (recordingTimeout != null)
+            {
+                StopCoroutine(recordingTimeout);
+                recordingTimeout = null;
             }
             if (interactable != null)
             {

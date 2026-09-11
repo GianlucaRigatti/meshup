@@ -9,6 +9,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.XR.Interaction.Toolkit.Locomotion.Movement;
 using UnityEngine.XR.Interaction.Toolkit.UI;
+using Ubiq.Voip;
 
 namespace Meshup.Editor.Tests
 {
@@ -97,6 +98,53 @@ namespace Meshup.Editor.Tests
         {
             Assert.That(UbiqRoomSession.GenerateGuestDisplayName(),
                 Does.Match("^Guest [0-9]{4}$"));
+        }
+
+        [Test]
+        public void LobbyContainsRoomScopedVoipManager()
+        {
+            var scene = EditorSceneManager.OpenScene(
+                "Assets/Scenes/SampleScene.unity", OpenSceneMode.Single);
+            var session = scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<
+                    UbiqRoomSession>(true))
+                .Single();
+
+            Assert.That(session.GetComponentInChildren<
+                VoipPeerConnectionManager>(true), Is.Not.Null);
+        }
+
+        [Test]
+        public void WindowsStoreBuildDeclaresMicrophoneCapability()
+        {
+            Assert.That(UnityEditor.PlayerSettings.WSA.GetCapability(
+                UnityEditor.PlayerSettings.WSACapability.Microphone), Is.True);
+        }
+
+        [Test]
+        public void SharedVoiceCaptureReportsFramesAndDuration()
+        {
+            var capture = new VoiceCapture(new float[32000], 2, 16000);
+
+            Assert.That(capture.SampleFrames, Is.EqualTo(16000));
+            Assert.That(capture.DurationSeconds, Is.EqualTo(1f));
+            Assert.That(capture.HasAudio, Is.True);
+        }
+
+        [Test]
+        public void PcmWavEncodingProducesMonoSixteenBitHeader()
+        {
+            var wav = MeshupAssetGeneratorClient.EncodeWav(
+                new short[] { short.MinValue, 0, short.MaxValue }, 16000);
+
+            Assert.That(System.Text.Encoding.ASCII.GetString(wav, 0, 4),
+                Is.EqualTo("RIFF"));
+            Assert.That(System.Text.Encoding.ASCII.GetString(wav, 8, 4),
+                Is.EqualTo("WAVE"));
+            Assert.That(BitConverter.ToInt16(wav, 22), Is.EqualTo(1));
+            Assert.That(BitConverter.ToInt32(wav, 24), Is.EqualTo(16000));
+            Assert.That(BitConverter.ToInt16(wav, 34), Is.EqualTo(16));
+            Assert.That(BitConverter.ToInt32(wav, 40), Is.EqualTo(6));
         }
 
         [Test]
