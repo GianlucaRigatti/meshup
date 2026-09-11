@@ -121,8 +121,7 @@ namespace Meshup.Lobby
             {
                 elapsed += Time.deltaTime;
                 var t = Mathf.Clamp01(elapsed / openingDuration);
-                var overshoot = Mathf.Sin(t * Mathf.PI) * 0.06f;
-                SetBookPose(Mathf.Clamp01(t + overshoot));
+                SetBookPose(t);
                 yield return null;
             }
             SetBookPose(1f);
