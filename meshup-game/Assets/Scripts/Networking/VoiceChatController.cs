@@ -283,6 +283,7 @@ namespace Meshup.Multiplayer
                     UserAuthorization.Microphone);
             }
 #endif
+            yield break;
         }
 
         private void OnDestroy()
