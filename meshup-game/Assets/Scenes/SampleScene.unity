@@ -56384,7 +56384,6 @@ MonoBehaviour:
   hologramDuration: 0.65
   shelfPosition: {x: 2.8529546, y: 1.4798, z: 0.19627279}
   landingPosition: {x: 0.16, y: 0.085, z: -0.18}
-  arcControlPoint: {x: 1.2803365, y: 2.060296, z: 0.13566186}
   shelfEuler: {x: 270, y: 90, z: 0}
   landingEuler: {x: 0, y: 12, z: 0}
   shelfScale: 0.52

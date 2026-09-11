@@ -15,7 +15,6 @@ namespace Meshup.Lobby
         [SerializeField] private float hologramDuration = 0.65f;
         [SerializeField] private Vector3 shelfPosition;
         [SerializeField] private Vector3 landingPosition;
-        [SerializeField] private Vector3 arcControlPoint;
         [SerializeField] private Vector3 shelfEuler = new(90f, 90f, 0f);
         [SerializeField] private Vector3 landingEuler = new(0f, 12f, 0f);
         [SerializeField] private float shelfScale = 0.52f;
@@ -62,24 +61,7 @@ namespace Meshup.Lobby
         private IEnumerator Start()
         {
             yield return new WaitForSeconds(revealDelay);
-
-            var startRotation = Quaternion.Euler(shelfEuler);
-            var endRotation = Quaternion.Euler(landingEuler);
-            var elapsed = 0f;
-            while (elapsed < flightDuration)
-            {
-                elapsed += Time.deltaTime;
-                var t = Mathf.Clamp01(elapsed / flightDuration);
-                var eased = t * t * (3f - 2f * t);
-                transform.position = QuadraticBezier(shelfPosition, arcControlPoint, landingPosition, eased);
-                transform.localScale = Vector3.one * Mathf.Lerp(shelfScale, 1f, eased);
-                var tumble = Quaternion.Euler(410f * t, -235f * t, 520f * t);
-                transform.rotation = Quaternion.Slerp(startRotation, endRotation, eased) * tumble;
-                yield return null;
-            }
-
-            transform.SetPositionAndRotation(landingPosition, Quaternion.Euler(landingEuler));
-            transform.localScale = Vector3.one;
+            yield return AnimateTravel();
             yield return AnimateImpact();
 
             flightBook.SetActive(false);
@@ -94,6 +76,25 @@ namespace Meshup.Lobby
 
             IsRevealed = true;
             panel.Open(lobbyPlayer);
+        }
+
+        private IEnumerator AnimateTravel()
+        {
+            var startRotation = Quaternion.Euler(shelfEuler);
+            var endRotation = Quaternion.Euler(landingEuler);
+            var elapsed = 0f;
+            while (elapsed < flightDuration)
+            {
+                elapsed += Time.deltaTime;
+                var t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / flightDuration));
+                transform.position = Vector3.Lerp(shelfPosition, landingPosition, t);
+                transform.rotation = Quaternion.Slerp(startRotation, endRotation, t);
+                transform.localScale = Vector3.one * Mathf.Lerp(shelfScale, 1f, t);
+                yield return null;
+            }
+
+            transform.SetPositionAndRotation(landingPosition, endRotation);
+            transform.localScale = Vector3.one;
         }
 
         private IEnumerator AnimateImpact()
@@ -121,7 +122,8 @@ namespace Meshup.Lobby
             {
                 elapsed += Time.deltaTime;
                 var t = Mathf.Clamp01(elapsed / openingDuration);
-                SetBookPose(t);
+                var overshoot = Mathf.Sin(t * Mathf.PI) * 0.06f;
+                SetBookPose(Mathf.Clamp01(t + overshoot));
                 yield return null;
             }
             SetBookPose(1f);
@@ -149,12 +151,6 @@ namespace Meshup.Lobby
                 yield return null;
             }
             hologramCanvasGroup.alpha = 1f;
-        }
-
-        private static Vector3 QuadraticBezier(Vector3 start, Vector3 control, Vector3 end, float t)
-        {
-            var inverse = 1f - t;
-            return inverse * inverse * start + 2f * inverse * t * control + t * t * end;
         }
     }
 }

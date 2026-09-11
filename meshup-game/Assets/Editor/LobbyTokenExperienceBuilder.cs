@@ -33,7 +33,6 @@ namespace Meshup.EditorTools
             public Vector3 ShelfPosition;
             public Vector3 ShelfEuler;
             public Vector3 LandingPosition;
-            public Vector3 ArcControlPoint;
         }
 
         private sealed class UiParts
@@ -264,8 +263,6 @@ namespace Meshup.EditorTools
             // Local Z is the book's height, local X its cover width, and local Y
             // the cover normal. Map those to world up, shelf-left, and room-facing.
             parts.ShelfEuler = Quaternion.LookRotation(Vector3.up, Vector3.left).eulerAngles;
-            parts.ArcControlPoint = Vector3.Lerp(parts.ShelfPosition, parts.LandingPosition, 0.48f)
-                + new Vector3(-0.28f, 1.25f, 0.12f);
 
             totem.SetPositionAndRotation(parts.ShelfPosition, Quaternion.Euler(parts.ShelfEuler));
             totem.localScale = Vector3.one * shelfScale;
@@ -526,7 +523,6 @@ namespace Meshup.EditorTools
             var reveal = totem.AddComponent<FallingBookReveal>();
             SetVector(reveal, "shelfPosition", token.ShelfPosition);
             SetVector(reveal, "landingPosition", token.LandingPosition);
-            SetVector(reveal, "arcControlPoint", token.ArcControlPoint);
             SetVector(reveal, "shelfEuler", token.ShelfEuler);
             SetObject(reveal, "flightBook", token.FlightBook);
             SetObject(reveal, "openBook", token.OpenBook);
