@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Ubiq.Voip;
 using Ubiq.Voip.Implementations.Unity;
 using UnityEngine;
 
@@ -46,10 +47,14 @@ namespace Meshup.Multiplayer
     public sealed class VoiceChatController : MonoBehaviour
     {
         private const string ManualMutePreference = "meshup.voice.muted";
+        private const float RemoteVoiceGain = 1.3f;
+        private const float RemoteVoiceFullVolumeDistance = 4f;
+        private const float RemoteVoiceMaximumDistance = 40f;
 
         public static VoiceChatController Instance { get; private set; }
 
         private PeerConnectionMicrophone microphone;
+        private VoipPeerConnectionManager peerConnectionManager;
         private VoiceCaptureTap captureTap;
         private VoiceMuteReason muteReasons;
         private VoiceMuteReason exclusiveReason;
@@ -88,6 +93,9 @@ namespace Meshup.Multiplayer
             }
             captureTap = GetComponent<VoiceCaptureTap>()
                 ?? gameObject.AddComponent<VoiceCaptureTap>();
+            peerConnectionManager = GetComponent<VoipPeerConnectionManager>();
+            peerConnectionManager?.OnPeerConnection.AddListener(
+                HandlePeerConnection, true);
         }
 
         private IEnumerator Start()
@@ -250,6 +258,67 @@ namespace Meshup.Multiplayer
             }
         }
 
+        private void HandlePeerConnection(VoipPeerConnection connection)
+        {
+            if (connection != null)
+            {
+                StartCoroutine(ConfigureRemoteVoicePlayback(connection));
+            }
+        }
+
+        private static void ConfigureDistanceRolloff(AudioSource source)
+        {
+            source.volume = 1f;
+            source.spatialBlend = 1f;
+            source.minDistance = RemoteVoiceFullVolumeDistance;
+            source.maxDistance = RemoteVoiceMaximumDistance;
+            source.rolloffMode = AudioRolloffMode.Custom;
+            source.SetCustomCurve(AudioSourceCurveType.CustomRolloff,
+                new AnimationCurve(
+                    new Keyframe(0f, 1f),
+                    new Keyframe(0.25f, 0.9f),
+                    new Keyframe(0.5f, 0.75f),
+                    new Keyframe(0.75f, 0.6f),
+                    new Keyframe(1f, 0.45f)));
+        }
+
+        private static IEnumerator ConfigureRemoteVoicePlayback(
+            VoipPeerConnection connection)
+        {
+            AudioSource source = null;
+            while (connection != null && source == null)
+            {
+                source = connection.GetComponent<AudioSource>();
+                if (source == null)
+                {
+                    yield return null;
+                }
+            }
+            if (connection == null || source == null)
+            {
+                yield break;
+            }
+
+            ConfigureDistanceRolloff(source);
+
+            // Ubiq installs its spatialisation restore filter when the remote
+            // track starts. Add gain afterwards so both directionality and the
+            // custom distance curve are preserved before amplification.
+            while (connection != null && !source.isPlaying)
+            {
+                yield return null;
+            }
+            if (connection == null)
+            {
+                yield break;
+            }
+
+            var gain = connection.GetComponent<RemoteVoicePlaybackGain>()
+                ?? connection.gameObject.AddComponent<
+                    RemoteVoicePlaybackGain>();
+            gain.Multiplier = RemoteVoiceGain;
+        }
+
         private IEnumerator RequestMicrophonePermission()
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -316,7 +385,33 @@ namespace Meshup.Multiplayer
             {
                 StopCoroutine(keeperCoroutine);
             }
+            peerConnectionManager?.OnPeerConnection.RemoveListener(
+                HandlePeerConnection);
             Instance = null;
+        }
+    }
+
+    /// <summary>
+    /// Applies a small amount of gain after Ubiq has restored its spatialised
+    /// remote stream. Kept on the peer connection object so Unity runs it in
+    /// that AudioSource's filter chain.
+    /// </summary>
+    internal sealed class RemoteVoicePlaybackGain : MonoBehaviour
+    {
+        public float Multiplier { get; set; } = 1f;
+
+        private void OnAudioFilterRead(float[] data, int channels)
+        {
+            if (data == null)
+            {
+                return;
+            }
+
+            var multiplier = Multiplier;
+            for (var i = 0; i < data.Length; i++)
+            {
+                data[i] = Mathf.Clamp(data[i] * multiplier, -1f, 1f);
+            }
         }
     }
 
