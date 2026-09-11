@@ -76,6 +76,7 @@ namespace Meshup.Game
         private NetworkContext context;
         private bool contextRegistered;
         private MeshupGameView view;
+        private MeshupVictoryFireworks victoryFireworks;
         private VoskGuessTranscriber transcriber;
         private MeshupAssetGeneratorClient generatorClient;
         private string[] privateWordOptions = Array.Empty<string>();
@@ -144,6 +145,8 @@ namespace Meshup.Game
             view = gameObject.AddComponent<MeshupGameView>();
             view.Build(guesserMonitor, mimeTerminal, localPlayer.transform,
                 ChooseWord, StartRound);
+            victoryFireworks = gameObject.AddComponent<MeshupVictoryFireworks>();
+            victoryFireworks.Configure(localPlayer.transform);
             transcriber = gameObject.AddComponent<VoskGuessTranscriber>();
             transcriber.Configure(() => CanGuessLocally, wordService.Verbs);
             transcriber.TranscriptionReceived += SubmitGuess;
@@ -245,6 +248,11 @@ namespace Meshup.Game
                         SetParticleState(snapshot.generationPending);
                         ReconcileGeneratedObjects();
                         Render();
+                        if ((MeshupGamePhase)snapshot.phase
+                            == MeshupGamePhase.Finished)
+                        {
+                            victoryFireworks?.Play();
+                        }
                     }
                     break;
                 case MessageKind.PrivateWords:

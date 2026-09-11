@@ -391,6 +391,30 @@ namespace Meshup.Editor.Tests
                 Assert.That(listening.text, Does.Contain("LISTENING"));
                 Assert.That(desktopOverlay.GetComponent<GraphicRaycaster>().enabled,
                     Is.True, "The desktop overlay raycaster must be restored.");
+
+                view.Render(new MeshupMatchSnapshot
+                {
+                    phase = (int)MeshupGamePhase.Finished,
+                    scores = new[]
+                    {
+                        new MeshupPlayerScore
+                        {
+                            peerId = "winner",
+                            displayName = "Ada",
+                            points = 5,
+                            connected = true
+                        },
+                        new MeshupPlayerScore
+                        {
+                            peerId = "runner-up",
+                            displayName = "Grace",
+                            points = 3,
+                            connected = true
+                        }
+                    }
+                }, "winner", Array.Empty<string>(), string.Empty);
+                Assert.That(monitorStatus.text,
+                    Is.EqualTo("FINAL LEADERBOARD\n\nAda won"));
             }
             finally
             {

@@ -73,7 +73,7 @@ namespace Meshup.Game
                     $"{snapshot.remainingSeconds / 60:0}:{snapshot.remainingSeconds % 60:00}"),
                 MeshupGamePhase.Result =>
                     $"{snapshot.resultMessage}\n\n{snapshot.resultWord}",
-                MeshupGamePhase.Finished => "FINAL LEADERBOARD",
+                MeshupGamePhase.Finished => FormatWinner(snapshot),
                 _ => string.Empty
             };
             if (!isMime && phase == MeshupGamePhase.TimedGuessing)
@@ -137,6 +137,14 @@ namespace Meshup.Game
             var spaced = string.Join(" ", (snapshot.maskedWord ?? string.Empty)
                 .Select(character => character.ToString()));
             return $"{spaced}\n\n{footer}";
+        }
+
+        private static string FormatWinner(MeshupMatchSnapshot snapshot)
+        {
+            var winner = snapshot.scores.FirstOrDefault();
+            return winner == null
+                ? "FINAL LEADERBOARD"
+                : $"FINAL LEADERBOARD\n\n{winner.displayName} won";
         }
 
         private void BuildMonitor(Transform target, Transform localViewer)
