@@ -10,8 +10,6 @@ namespace Meshup.Game
     [DisallowMultipleComponent]
     public sealed class MeshupGameCoordinator : MonoBehaviour
     {
-        private const float GeneratedObjectSpawnHeight = 2.5f;
-
         private enum MessageKind
         {
             Snapshot,
@@ -64,9 +62,7 @@ namespace Meshup.Game
         [SerializeField] private string assetServerBaseUrl =
             "http://127.0.0.1:8000";
 
-        private readonly List<MeshupGeneratedObjectState> generatedStates = new();
-        private readonly Dictionary<string, MeshupGeneratedObject> generatedObjects =
-            new(StringComparer.Ordinal);
+        private GeneratedObjectManager generatedObjects;
         private readonly Dictionary<string, byte[]> pendingAudio =
             new(StringComparer.Ordinal);
         private UbiqRoomSession session;
@@ -121,6 +117,10 @@ namespace Meshup.Game
 
             wordService = MimeWordService.LoadDefault();
             LoadRuntimeConfiguration();
+            generatedObjects = new GeneratedObjectManager(generatorAnchor,
+                (instance, state, cancellation) =>
+                    instance.Initialize(this, state, cancellation),
+                ReportLocalMessage);
             context = NetworkScene.Register(this);
             contextRegistered = true;
             originalWallEnabled = invisibleWall.enabled;
@@ -233,7 +233,7 @@ namespace Meshup.Game
                     {
                         snapshot = message.snapshot;
                         SetParticleState(snapshot.generationPending);
-                        ReconcileGeneratedObjects();
+                        generatedObjects.Reconcile(snapshot.generatedObjects);
                         Render();
                         if ((MeshupGamePhase)snapshot.phase
                             == MeshupGamePhase.Finished)
@@ -267,12 +267,7 @@ namespace Meshup.Game
                     }
                     break;
                 case MessageKind.ObjectTransform:
-                    if (message.generatedObject != null
-                        && generatedObjects.TryGetValue(
-                            message.generatedObject.objectId, out var instance))
-                    {
-                        instance.ApplyState(message.generatedObject, false);
-                    }
+                    generatedObjects.ApplyTransform(message.generatedObject);
                     break;
             }
         }
@@ -298,7 +293,7 @@ namespace Meshup.Game
                     }
                     else if (hostState.MimeExited(message.senderPeerId))
                     {
-                        ClearGeneratedObjects();
+                        ClearRoundGeneration();
                         BroadcastSnapshot();
                     }
                     break;
@@ -362,15 +357,7 @@ namespace Meshup.Game
                         hostState.EndGeneration();
                         if (!string.IsNullOrWhiteSpace(message.text))
                         {
-                            generatedStates.Add(new MeshupGeneratedObjectState
-                            {
-                                objectId = Guid.NewGuid().ToString("N"),
-                                url = message.text,
-                                position = GetGeneratedSpawnPosition(
-                                    generatedStates.Count),
-                                rotation = Quaternion.identity,
-                                scale = Vector3.one
-                            });
+                            generatedObjects.Add(message.text);
                         }
                         BroadcastSnapshot();
                     }
@@ -379,13 +366,10 @@ namespace Meshup.Game
                     if (message.senderPeerId == hostState.MimePeerId
                         && message.generatedObject != null)
                     {
-                        var state = generatedStates.FirstOrDefault(item =>
-                            item.objectId == message.generatedObject.objectId);
+                        var state = generatedObjects.UpdateHostTransform(
+                            message.generatedObject);
                         if (state != null)
                         {
-                            state.position = message.generatedObject.position;
-                            state.rotation = message.generatedObject.rotation;
-                            state.scale = message.generatedObject.scale;
                             BroadcastObjectTransform(state);
                         }
                     }
@@ -548,7 +532,7 @@ namespace Meshup.Game
 
         private void BroadcastSnapshot()
         {
-            snapshot = hostState.CreateSnapshot(generatedStates);
+            snapshot = hostState.CreateSnapshot(generatedObjects.States);
             ProcessAuthoritativeMessage(MessageKind.Snapshot,
                 new GameMessage { snapshot = snapshot });
             Send(new GameMessage
@@ -608,16 +592,6 @@ namespace Meshup.Game
             Send(message);
         }
 
-        private Vector3 GetGeneratedSpawnPosition(int slot)
-        {
-            // The authored generator is rotated, so its local up direction points
-            // sideways in world space. Always lift vertically and keep every new
-            // object on the generator's center line; players can move earlier
-            // objects out of the way before generating another one.
-            return generatorAnchor.position
-                + Vector3.up * GeneratedObjectSpawnHeight;
-        }
-
         private void Send(GameMessage message)
         {
             if (contextRegistered && context.Scene != null)
@@ -642,7 +616,7 @@ namespace Meshup.Game
                 changed |= hostState.Disconnect(player.peerId);
                 if (wasMime)
                 {
-                    ClearGeneratedObjects();
+                    ClearRoundGeneration();
                 }
             }
             if (changed)
@@ -651,54 +625,8 @@ namespace Meshup.Game
             }
         }
 
-        private async void LoadGeneratedObject(MeshupGeneratedObjectState state)
+        private void ClearRoundGeneration()
         {
-            var gameObject = new GameObject();
-            var generated = gameObject.AddComponent<MeshupGeneratedObject>();
-            generatedObjects[state.objectId] = generated;
-            if (!await generated.Initialize(this, state))
-            {
-                generatedObjects.Remove(state.objectId);
-                Destroy(gameObject);
-                ReportLocalMessage("A generated model could not be loaded.");
-            }
-        }
-
-        private void ReconcileGeneratedObjects()
-        {
-            var expected = new HashSet<string>(snapshot.generatedObjects
-                .Select(item => item.objectId), StringComparer.Ordinal);
-            foreach (var pair in generatedObjects.ToArray())
-            {
-                if (!expected.Contains(pair.Key))
-                {
-                    Destroy(pair.Value.gameObject);
-                    generatedObjects.Remove(pair.Key);
-                }
-            }
-            foreach (var state in snapshot.generatedObjects)
-            {
-                if (generatedObjects.TryGetValue(state.objectId, out var instance))
-                {
-                    instance.ApplyState(state, false);
-                }
-                else
-                {
-                    LoadGeneratedObject(state);
-                }
-            }
-        }
-
-        private void ClearGeneratedObjects()
-        {
-            generatedStates.Clear();
-            foreach (var instance in generatedObjects.Values)
-            {
-                if (instance != null)
-                {
-                    Destroy(instance.gameObject);
-                }
-            }
             generatedObjects.Clear();
             pendingAudio.Clear();
             activeGenerationRequest = string.Empty;
@@ -754,6 +682,7 @@ namespace Meshup.Game
 
         private void OnDestroy()
         {
+            generatedObjects?.Dispose();
             if (session != null)
             {
                 session.ParticipantsChanged -= HandleParticipantsChanged;

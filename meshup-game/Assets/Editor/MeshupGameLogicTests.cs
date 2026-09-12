@@ -209,37 +209,29 @@ namespace Meshup.Editor.Tests
         [Test]
         public void GeneratedObjectsSpawnCenteredAndWellAboveTheGenerator()
         {
-            var owner = new GameObject("Coordinator Test");
             var anchor = new GameObject("Generator Anchor");
             try
             {
-                var coordinator = owner.AddComponent<MeshupGameCoordinator>();
                 anchor.transform.SetPositionAndRotation(
                     new Vector3(4f, 1f, -3f),
                     Quaternion.Euler(90f, 35f, 20f));
-
-                typeof(MeshupGameCoordinator).GetField("generatorAnchor",
-                    System.Reflection.BindingFlags.Instance
-                    | System.Reflection.BindingFlags.NonPublic)
-                    ?.SetValue(coordinator, anchor.transform);
-                var getSpawnPosition = typeof(MeshupGameCoordinator).GetMethod(
-                    "GetGeneratedSpawnPosition",
-                    System.Reflection.BindingFlags.Instance
-                    | System.Reflection.BindingFlags.NonPublic);
-
-                Assert.That(getSpawnPosition, Is.Not.Null);
-                var first = (Vector3)getSpawnPosition.Invoke(coordinator,
-                    new object[] { 0 });
-                var later = (Vector3)getSpawnPosition.Invoke(coordinator,
-                    new object[] { 2 });
-                Assert.That(first, Is.EqualTo(new Vector3(4f, 3.5f, -3f)));
-                Assert.That(later, Is.EqualTo(first),
+                using var objects = new GeneratedObjectManager(anchor.transform,
+                    (_, _, _) => throw new InvalidOperationException(
+                        "Adding host state must not start a local import."), null);
+                var first = objects.Add("https://example.test/first.glb");
+                objects.Add("https://example.test/second.glb");
+                var later = objects.Add("https://example.test/third.glb");
+                Assert.That(first.position, Is.EqualTo(new Vector3(4f, 3.5f, -3f)));
+                Assert.That(later.position, Is.EqualTo(first.position),
                     "Spawn slots must remain centered on the generator.");
+                Assert.That(first.rotation, Is.EqualTo(Quaternion.identity));
+                Assert.That(first.scale, Is.EqualTo(Vector3.one));
+                Assert.That(objects.States.Select(item => item.objectId).Distinct().Count(),
+                    Is.EqualTo(3));
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(anchor);
-                UnityEngine.Object.DestroyImmediate(owner);
             }
         }
 

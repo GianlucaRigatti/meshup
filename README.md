@@ -14,6 +14,13 @@ Renaming those objects does not break the coordinator's wiring. Keep these
 references assigned when replacing an object. The game still creates its
 dynamic UI and generated models at runtime with the existing behavior.
 
+`GeneratedObjectManager` owns generated-object state, local instances, and
+pending imports. The coordinator handles match permissions and network messages.
+Round cleanup hides retired objects immediately and cancels their imports;
+import targets and resources are released after the pending work finishes.
+Scene teardown also disposes the manager, and late completions cannot affect
+replacement objects or display errors from a previous round.
+
 The `Meshup/Lobby/Validate …` and `Meshup/Game/Validate …` editor commands check
 the authored scenes without rebuilding or saving them. They inspect the current
 in-memory scene if it is already open, preserving unsaved edits; otherwise they

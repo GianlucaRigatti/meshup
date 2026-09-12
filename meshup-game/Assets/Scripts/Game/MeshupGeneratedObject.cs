@@ -1,5 +1,5 @@
-using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using GLTFast;
 using UnityEngine;
@@ -21,29 +21,48 @@ namespace Meshup.Game
         public string ObjectId => objectId;
 
         public async Task<bool> Initialize(MeshupGameCoordinator owner,
-            MeshupGeneratedObjectState state)
+            MeshupGeneratedObjectState state, CancellationToken cancellationToken)
         {
             coordinator = owner;
             objectId = state.objectId;
             name = $"Generated Object {objectId}";
             ApplyState(state, true);
-            importer = new GltfImport();
+            using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, destroyCancellationToken);
+            var token = lifetime.Token;
+            var loadingImporter = new GltfImport();
             try
             {
-                if (!await importer.Load(state.url)
-                    || !await importer.InstantiateMainSceneAsync(transform))
+                token.ThrowIfCancellationRequested();
+                if (!await loadingImporter.Load(state.url, cancellationToken: token))
                 {
                     return false;
                 }
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning($"[MeshUp] GLB load failed: {exception.Message}");
-                return false;
-            }
+                token.ThrowIfCancellationRequested();
+                if (this == null || !await loadingImporter.InstantiateMainSceneAsync(
+                    transform, token))
+                {
+                    return false;
+                }
+                token.ThrowIfCancellationRequested();
+                if (this == null)
+                {
+                    return false;
+                }
 
-            AddInteractionComponents();
-            return true;
+                AddInteractionComponents();
+                importer = loadingImporter;
+                return true;
+            }
+            finally
+            {
+                // OnDestroy owns completed imports. An in-flight import keeps
+                // its resources until its async work has stopped using them.
+                if (importer != loadingImporter)
+                {
+                    loadingImporter.Dispose();
+                }
+            }
         }
 
         public void ApplyState(MeshupGeneratedObjectState state, bool force)
