@@ -82,6 +82,8 @@ namespace Meshup.Game
         private string guessFeedback = string.Empty;
         private float guessFeedbackUntil;
         private bool guessListening;
+        private bool hasAppliedSnapshot;
+        private MeshupGamePhase lastAppliedPhase;
         private float previousWallSide;
         private int crossingSentVersion = -1;
         private bool originalWallEnabled;
@@ -231,12 +233,18 @@ namespace Meshup.Game
                     if (message.snapshot != null
                         && message.snapshot.version >= snapshot.version)
                     {
+                        var nextPhase =
+                            (MeshupGamePhase)message.snapshot.phase;
+                        var enteredFinishedPhase = hasAppliedSnapshot
+                            && lastAppliedPhase != MeshupGamePhase.Finished
+                            && nextPhase == MeshupGamePhase.Finished;
                         snapshot = message.snapshot;
+                        lastAppliedPhase = nextPhase;
+                        hasAppliedSnapshot = true;
                         SetParticleState(snapshot.generationPending);
                         generatedObjects.Reconcile(snapshot.generatedObjects);
                         Render();
-                        if ((MeshupGamePhase)snapshot.phase
-                            == MeshupGamePhase.Finished)
+                        if (enteredFinishedPhase)
                         {
                             victoryFireworks?.Play();
                         }

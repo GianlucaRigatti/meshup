@@ -64,6 +64,21 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void SavedGameDoesNotAutoplayAuthoredFireworks()
+        {
+            using var validation = new SceneValidationScope(GameScenePath);
+            var fireworks = validation.Scene.GetRootGameObjects()
+                .Where(root => root.name.StartsWith("Firework_",
+                    System.StringComparison.Ordinal))
+                .ToArray();
+
+            Assert.That(fireworks, Is.Not.Empty);
+            Assert.That(fireworks.All(firework => !firework.activeSelf), Is.True,
+                "Authored firework prefabs must remain inactive; victory "
+                + "fireworks are spawned by MeshupVictoryFireworks.");
+        }
+
+        [Test]
         public void LobbyValidationPreservesAnOpenSceneWithUnsavedEdits()
         {
             var scene = EditorSceneManager.OpenScene(LobbyScenePath,

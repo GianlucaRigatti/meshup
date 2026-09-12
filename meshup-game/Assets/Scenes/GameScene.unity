@@ -4406,7 +4406,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 12d892f95f454dc68bfe1b8453d79006, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.MeshupGameCoordinator
   gameStart: {fileID: 390863633}
   localPlayer: {fileID: 656482935}
@@ -4427,7 +4427,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 04ec7060a0d14ddf9143187e0bc358e4, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.FpsCounter
   refreshInterval: 0.5
 --- !u!4 &122342286
@@ -5497,7 +5497,11 @@ PrefabInstance:
     - target: {fileID: 3771338534377215406, guid: 07cd8a2247f6a254fb760c0a87ca5855, type: 3}
       propertyPath: m_Resource
       value: 
-      objectReference: {fileID: 8300000, guid: c3a0cb1aea6bb4e4fa4665f1528c9c1c, type: 3}
+      objectReference: {fileID: 8300000, guid: cfd90b495c4f39341963589379cb1762, type: 3}
+    - target: {fileID: 9012721465422563009, guid: 07cd8a2247f6a254fb760c0a87ca5855, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 9012721465422563009, guid: 07cd8a2247f6a254fb760c0a87ca5855, type: 3}
       propertyPath: m_Name
       value: Firework_SlimeSurprise
@@ -5508,11 +5512,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 9012721465422563036, guid: 07cd8a2247f6a254fb760c0a87ca5855, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 3.08
+      value: 0.79
       objectReference: {fileID: 0}
     - target: {fileID: 9012721465422563036, guid: 07cd8a2247f6a254fb760c0a87ca5855, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -8.96
+      value: -19.19
       objectReference: {fileID: 0}
     - target: {fileID: 9012721465422563036, guid: 07cd8a2247f6a254fb760c0a87ca5855, type: 3}
       propertyPath: m_LocalRotation.w
@@ -30161,6 +30165,10 @@ PrefabInstance:
       value: 0.6058345
       objectReference: {fileID: 0}
     - target: {fileID: 5821612293820402016, guid: 7ee18f92cf3523f43bb4863517ef48d1, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5821612293820402016, guid: 7ee18f92cf3523f43bb4863517ef48d1, type: 3}
       propertyPath: m_Name
       value: Firework_BlueNeon
       objectReference: {fileID: 0}
@@ -30170,11 +30178,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5821612293820402045, guid: 7ee18f92cf3523f43bb4863517ef48d1, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 2.73
+      value: 0.57
       objectReference: {fileID: 0}
     - target: {fileID: 5821612293820402045, guid: 7ee18f92cf3523f43bb4863517ef48d1, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -10.36
+      value: -16.374
       objectReference: {fileID: 0}
     - target: {fileID: 5821612293820402045, guid: 7ee18f92cf3523f43bb4863517ef48d1, type: 3}
       propertyPath: m_LocalRotation.w
