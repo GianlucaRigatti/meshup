@@ -2,7 +2,25 @@
 
 ## Game runtime configuration
 
-The multiplayer game logic is installed automatically when `GameScene` loads.
+`Assets/Scenes/SampleScene.unity` and `Assets/Scenes/GameScene.unity` in
+`meshup-game` are the authoritative, hand-edited scenes. The old environment,
+lobby, player-rig, and formation rebuild/install scripts have been removed;
+edit the existing scene objects and prefabs in Unity instead.
+
+`GameScene` contains a `MeshUp Game Runtime` root with the game coordinator and
+FPS counter. The coordinator's Scene fields reference the existing player,
+formation sequence, wall, monitors, generator button, and particles directly.
+Renaming those objects does not break the coordinator's wiring. Keep these
+references assigned when replacing an object. The game still creates its
+dynamic UI and generated models at runtime with the existing behavior.
+
+The `Meshup/Lobby/Validate …` and `Meshup/Game/Validate …` editor commands check
+the authored scenes without rebuilding or saving them. They inspect the current
+in-memory scene if it is already open, preserving unsaved edits; otherwise they
+open it temporarily and close only that scene. Some checks enforce the existing
+layout and interaction requirements, so review them when intentionally changing
+the design. Lighting baking and model-import processing remain available.
+
 Before testing on headsets, edit
 `meshup-game/Assets/Resources/Game/meshup_game_config.json` so
 `assetServerBaseUrl` is the LAN-reachable address of the machine running

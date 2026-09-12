@@ -89,6 +89,7 @@ namespace Meshup.Game
         private float previousWallSide;
         private int crossingSentVersion = -1;
         private bool originalWallEnabled;
+        private bool wallStateCaptured;
 
         public MeshupMatchSnapshot CurrentSnapshot => snapshot;
         public bool CanRecordGeneratorLocally => IsLocalMime
@@ -104,21 +105,6 @@ namespace Meshup.Game
             && snapshot.mimePeerId == session.LocalPeerId;
         private MeshupGamePhase CurrentPhase =>
             (MeshupGamePhase)snapshot.phase;
-
-        public void Configure(GameStartCoordinator startCoordinator,
-            PlayerMovementAuthority player, Collider wall, Transform monitor,
-            Transform terminal, Transform assetAnchor, GameObject assetButton,
-            ParticleSystem particles)
-        {
-            gameStart = startCoordinator;
-            localPlayer = player;
-            invisibleWall = wall;
-            guesserMonitor = monitor;
-            mimeTerminal = terminal;
-            generatorAnchor = assetAnchor;
-            generatorButton = assetButton;
-            generatorParticles = particles;
-        }
 
         private void Start()
         {
@@ -138,6 +124,7 @@ namespace Meshup.Game
             context = NetworkScene.Register(this);
             contextRegistered = true;
             originalWallEnabled = invisibleWall.enabled;
+            wallStateCaptured = true;
             previousWallSide = WallSide;
             session.ParticipantsChanged += HandleParticipantsChanged;
             gameStart.Completed += HandleWalkCompleted;
@@ -781,7 +768,7 @@ namespace Meshup.Game
                 transcriber.ErrorOccurred -= ReportLocalMessage;
                 transcriber.ListeningChanged -= HandleListeningChanged;
             }
-            if (invisibleWall != null)
+            if (wallStateCaptured && invisibleWall != null)
             {
                 invisibleWall.enabled = originalWallEnabled;
             }
