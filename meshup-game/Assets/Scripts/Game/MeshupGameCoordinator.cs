@@ -10,6 +10,9 @@ namespace Meshup.Game
     [DisallowMultipleComponent]
     public sealed class MeshupGameCoordinator : MonoBehaviour
     {
+        // TODO: Remove this temporary binding after the fireworks are approved.
+        private const KeyCode FireworksTestKey = KeyCode.F8;
+
         private enum MessageKind
         {
             Snapshot,
@@ -135,7 +138,7 @@ namespace Meshup.Game
             view.Build(guesserMonitor, mimeTerminal, localPlayer.transform,
                 ChooseWord, StartRound);
             victoryFireworks = gameObject.AddComponent<MeshupVictoryFireworks>();
-            victoryFireworks.Configure(localPlayer.transform);
+            victoryFireworks.Configure(guesserMonitor);
             transcriber = gameObject.AddComponent<VoskGuessTranscriber>();
             transcriber.Configure(() => CanGuessLocally, wordService.Verbs);
             transcriber.TranscriptionReceived += SubmitGuess;
@@ -167,6 +170,10 @@ namespace Meshup.Game
             if (session == null)
             {
                 return;
+            }
+            if (Input.GetKeyDown(FireworksTestKey))
+            {
+                victoryFireworks?.PlayForTesting();
             }
             UpdateWallAndCrossing();
             if (guessFeedbackUntil > 0f
