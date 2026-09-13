@@ -150,7 +150,7 @@ namespace Meshup.Game
             glow.shadows = LightShadows.None;
             glow.range = Mathf.Max(0.25f, buttonRenderer.bounds.extents.magnitude
                 * 1.5f);
-            glow.intensity = 2f;
+            glow.intensity = size == GeneratedObjectSize.Small ? 0.65f : 2f;
             UnityAction<SelectEnterEventArgs> listener = _ => TrySelect(size);
             xr.selectEntered.AddListener(listener);
             bindings.Add(new Binding
@@ -181,7 +181,9 @@ namespace Meshup.Game
                         : Color.Lerp(binding.LabelColor, Color.black, 0.65f);
                     binding.Label.fontStyle = selected
                         ? FontStyles.Bold : FontStyles.Normal;
-                    binding.Label.alpha = selected ? 1f : 0.45f;
+                    binding.Label.alpha = selected
+                        ? binding.Size == GeneratedObjectSize.Small ? 0.8f : 1f
+                        : 0.45f;
                 }
                 if (binding.Glow != null)
                 {
@@ -194,8 +196,10 @@ namespace Meshup.Game
                     {
                         continue;
                     }
+                    var emissionStrength = binding.Size ==
+                        GeneratedObjectSize.Small ? 1.1f : 2.5f;
                     var emission = selected
-                        ? binding.LabelColor * 2.5f : Color.black;
+                        ? binding.LabelColor * emissionStrength : Color.black;
                     if (material.HasProperty("_EmissionColor"))
                     {
                         material.SetColor("_EmissionColor", emission);
