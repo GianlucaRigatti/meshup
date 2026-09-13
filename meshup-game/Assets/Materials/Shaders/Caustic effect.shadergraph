@@ -83,6 +83,9 @@
         },
         {
             "m_Id": "d649dbdc8cb748c190bd8e965f56e577"
+        },
+        {
+            "m_Id": "a11aa11aa11a411aa11aa11aa11aa11a"
         }
     ],
     "m_GroupDatas": [],
@@ -276,6 +279,20 @@
                     "m_Id": "d208694d064d4b01b9cb4507199260af"
                 },
                 "m_SlotId": 2
+            },
+            "m_InputSlot": {
+                "m_Node": {
+                    "m_Id": "a11aa11aa11a411aa11aa11aa11aa11a"
+                },
+                "m_SlotId": 0
+            }
+        },
+        {
+            "m_OutputSlot": {
+                "m_Node": {
+                    "m_Id": "a11aa11aa11a411aa11aa11aa11aa11a"
+                },
+                "m_SlotId": 1
             },
             "m_InputSlot": {
                 "m_Node": {
@@ -2319,3 +2336,76 @@
     "m_LiteralMode": false
 }
 
+{
+    "m_SGVersion": 1,
+    "m_Type": "UnityEditor.ShaderGraph.CustomFunctionNode",
+    "m_ObjectId": "a11aa11aa11a411aa11aa11aa11aa11a",
+    "m_Group": {
+        "m_Id": ""
+    },
+    "m_Name": "Derivative Band Limit (Custom Function)",
+    "m_DrawState": {
+        "m_Expanded": true,
+        "m_Position": {
+            "serializedVersion": "2",
+            "x": -245.0,
+            "y": 185.0,
+            "width": 240.0,
+            "height": 95.0
+        }
+    },
+    "m_Slots": [
+        {
+            "m_Id": "b11bb11bb11b411bb11bb11bb11bb11b"
+        },
+        {
+            "m_Id": "c11cc11cc11c411cc11cc11cc11cc11c"
+        }
+    ],
+    "synonyms": [
+        "code",
+        "HLSL",
+        "antialias"
+    ],
+    "m_Precision": 0,
+    "m_PreviewExpanded": false,
+    "m_DismissedVersion": 0,
+    "m_PreviewMode": 0,
+    "m_CustomColors": {
+        "m_SerializableColors": []
+    },
+    "m_SourceType": 1,
+    "m_FunctionName": "DerivativeBandLimit",
+    "m_FunctionSource": "",
+    "m_FunctionBody": "float footprint = saturate(fwidth(In) * 2.0);\nOut = lerp(In, 0.5, footprint);"
+}
+
+{
+    "m_SGVersion": 0,
+    "m_Type": "UnityEditor.ShaderGraph.Vector1MaterialSlot",
+    "m_ObjectId": "b11bb11bb11b411bb11bb11bb11bb11b",
+    "m_Id": 0,
+    "m_DisplayName": "In",
+    "m_SlotType": 0,
+    "m_Hidden": false,
+    "m_ShaderOutputName": "In",
+    "m_StageCapability": 2,
+    "m_Value": 0.0,
+    "m_DefaultValue": 0.0,
+    "m_Labels": []
+}
+
+{
+    "m_SGVersion": 0,
+    "m_Type": "UnityEditor.ShaderGraph.Vector1MaterialSlot",
+    "m_ObjectId": "c11cc11cc11c411cc11cc11cc11cc11c",
+    "m_Id": 1,
+    "m_DisplayName": "Out",
+    "m_SlotType": 1,
+    "m_Hidden": false,
+    "m_ShaderOutputName": "Out",
+    "m_StageCapability": 2,
+    "m_Value": 0.0,
+    "m_DefaultValue": 0.0,
+    "m_Labels": []
+}
