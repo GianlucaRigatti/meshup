@@ -7,6 +7,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Locomotion.Movement;
 using UnityEngine.XR.Interaction.Toolkit.UI;
 using Ubiq.Voip;
@@ -232,6 +233,66 @@ namespace Meshup.Editor.Tests
             finally
             {
                 UnityEngine.Object.DestroyImmediate(anchor);
+            }
+        }
+
+        [TestCase(GeneratedObjectSizes.SmallHeight, 2f, 0.175f)]
+        [TestCase(GeneratedObjectSizes.MediumHeight, 0.5f, 3.4f)]
+        [TestCase(GeneratedObjectSizes.ExtraLargeHeight, 10f, 0.5f)]
+        public void GeneratedObjectNormalizationTargetsRenderedHeight(
+            float targetHeight, float sourceHeight, float expectedScale)
+        {
+            Assert.That(MeshupGeneratedObject.CalculateNormalizationScale(
+                targetHeight, sourceHeight), Is.EqualTo(expectedScale)
+                .Within(0.0001f));
+        }
+
+        [TestCase(0f)]
+        [TestCase(-1f)]
+        public void GeneratedObjectNormalizationFallsBackForInvalidBounds(
+            float sourceHeight)
+        {
+            Assert.That(MeshupGeneratedObject.CalculateNormalizationScale(
+                GeneratedObjectSizes.MediumHeight, sourceHeight), Is.EqualTo(1f));
+        }
+
+        [Test]
+        public void SizeSelectorDefaultsToMediumAndHonorsPermissions()
+        {
+            var owner = new GameObject("Size selector test");
+            var small = SizeButton("SmallButton");
+            var medium = SizeButton("MediumButton");
+            var extraLarge = SizeButton("LargeButton");
+            var allowed = false;
+            try
+            {
+                var selector = owner.AddComponent<GeneratedObjectSizeSelector>();
+                selector.Configure(small, medium, extraLarge, () => allowed);
+                Assert.That(small.GetComponent<BoxCollider>(), Is.Not.Null);
+                Assert.That(medium.GetComponent<BoxCollider>(), Is.Not.Null);
+                Assert.That(extraLarge.GetComponent<BoxCollider>(), Is.Not.Null);
+                Assert.That(small.GetComponent<XRSimpleInteractable>(), Is.Not.Null);
+                Assert.That(medium.GetComponent<XRSimpleInteractable>(), Is.Not.Null);
+                Assert.That(extraLarge.GetComponent<XRSimpleInteractable>(), Is.Not.Null);
+                selector.SetInteractable(true);
+                Assert.That(selector.SelectedSize,
+                    Is.EqualTo(GeneratedObjectSize.Medium));
+                Assert.That(selector.TrySelect(GeneratedObjectSize.Small), Is.False);
+                allowed = true;
+                Assert.That(selector.TrySelect(GeneratedObjectSize.ExtraLarge),
+                    Is.True);
+                Assert.That(selector.SelectedSize,
+                    Is.EqualTo(GeneratedObjectSize.ExtraLarge));
+                selector.ResetToMedium();
+                Assert.That(selector.SelectedSize,
+                    Is.EqualTo(GeneratedObjectSize.Medium));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(owner);
+                UnityEngine.Object.DestroyImmediate(small);
+                UnityEngine.Object.DestroyImmediate(medium);
+                UnityEngine.Object.DestroyImmediate(extraLarge);
             }
         }
 
@@ -509,6 +570,11 @@ namespace Meshup.Editor.Tests
                 new ParticipantInfo("three", "Three", true)
             });
             return state;
+        }
+
+        private static GameObject SizeButton(string name)
+        {
+            return new GameObject(name, typeof(RectTransform));
         }
 
         private static void BeginTimedRound(MeshupMatchState state, string word)

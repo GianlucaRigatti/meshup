@@ -60,6 +60,9 @@ namespace Meshup.Game
         [SerializeField] private Transform generatorAnchor;
         [SerializeField] private GameObject generatorButton;
         [SerializeField] private ParticleSystem generatorParticles;
+        [SerializeField] private GameObject smallSizeButton;
+        [SerializeField] private GameObject mediumSizeButton;
+        [SerializeField] private GameObject extraLargeSizeButton;
 
         [Header("Services")]
         [SerializeField] private string assetServerBaseUrl =
@@ -78,9 +81,12 @@ namespace Meshup.Game
         private MeshupVictoryFireworks victoryFireworks;
         private VoskGuessTranscriber transcriber;
         private MeshupAssetGeneratorClient generatorClient;
+        private GeneratedObjectSizeSelector sizeSelector;
         private string[] privateWordOptions = Array.Empty<string>();
         private string privateSelectedWord = string.Empty;
         private string activeGenerationRequest = string.Empty;
+        private GeneratedObjectSize activeGenerationSize =
+            GeneratedObjectSize.Medium;
         private string transientMessage = string.Empty;
         private string guessFeedback = string.Empty;
         private float guessFeedbackUntil;
@@ -101,6 +107,9 @@ namespace Meshup.Game
                 or MeshupGamePhase.TimedGuessing;
         public bool CanGuessLocally => !IsLocalMime
             && CurrentPhase == MeshupGamePhase.TimedGuessing;
+        public GeneratedObjectSize SelectedGeneratedObjectSize =>
+            sizeSelector != null ? sizeSelector.SelectedSize
+                : GeneratedObjectSize.Medium;
 
         private bool IsLocalMime => session != null
             && snapshot.mimePeerId == session.LocalPeerId;
@@ -113,7 +122,8 @@ namespace Meshup.Game
             if (session == null || gameStart == null || localPlayer == null
                 || invisibleWall == null || guesserMonitor == null
                 || mimeTerminal == null || generatorAnchor == null
-                || generatorButton == null)
+                || generatorButton == null || smallSizeButton == null
+                || mediumSizeButton == null || extraLargeSizeButton == null)
             {
                 enabled = false;
                 Debug.LogError("[MeshUp] Game coordinator references are incomplete.");
@@ -148,6 +158,9 @@ namespace Meshup.Game
                 MeshupAssetGeneratorClient>()
                 ?? generatorButton.AddComponent<MeshupAssetGeneratorClient>();
             generatorClient.Configure(this);
+            sizeSelector = gameObject.AddComponent<GeneratedObjectSizeSelector>();
+            sizeSelector.Configure(smallSizeButton, mediumSizeButton,
+                extraLargeSizeButton, () => CanRecordGeneratorLocally);
             SetParticleState(false);
             Render();
 
@@ -245,11 +258,20 @@ namespace Meshup.Game
                         var enteredFinishedPhase = hasAppliedSnapshot
                             && lastAppliedPhase != MeshupGamePhase.Finished
                             && nextPhase == MeshupGamePhase.Finished;
+                        var enteredMimePreparation = nextPhase ==
+                                MeshupGamePhase.Preparation
+                            && (!hasAppliedSnapshot
+                                || lastAppliedPhase != MeshupGamePhase.Preparation)
+                            && message.snapshot.mimePeerId == session.LocalPeerId;
                         snapshot = message.snapshot;
                         lastAppliedPhase = nextPhase;
                         hasAppliedSnapshot = true;
                         SetParticleState(snapshot.generationPending);
                         generatedObjects.Reconcile(snapshot.generatedObjects);
+                        if (enteredMimePreparation)
+                        {
+                            sizeSelector?.ResetToMedium();
+                        }
                         Render();
                         if (enteredFinishedPhase)
                         {
@@ -344,6 +366,8 @@ namespace Meshup.Game
                     if (hostState.TryBeginGeneration(message.senderPeerId))
                     {
                         activeGenerationRequest = message.requestId;
+                        activeGenerationSize = GeneratedObjectSizes.Normalize(
+                            (GeneratedObjectSize)message.intValue);
                         BroadcastSnapshot();
                         Send(new GameMessage
                         {
@@ -372,7 +396,8 @@ namespace Meshup.Game
                         hostState.EndGeneration();
                         if (!string.IsNullOrWhiteSpace(message.text))
                         {
-                            generatedObjects.Add(message.text);
+                            generatedObjects.Add(message.text,
+                                activeGenerationSize);
                         }
                         BroadcastSnapshot();
                     }
@@ -427,7 +452,7 @@ namespace Meshup.Game
             });
         }
 
-        public void RequestGeneration(byte[] wav)
+        public void RequestGeneration(byte[] wav, GeneratedObjectSize size)
         {
             if (!CanRecordGeneratorLocally || wav == null || wav.Length == 0)
             {
@@ -438,7 +463,8 @@ namespace Meshup.Game
             SendCommand(new GameMessage
             {
                 kind = (int)MessageKind.GenerationRequest,
-                requestId = requestId
+                requestId = requestId,
+                intValue = (int)GeneratedObjectSizes.Normalize(size)
             });
         }
 
@@ -461,15 +487,15 @@ namespace Meshup.Game
             });
         }
 
-        public void SubmitObjectTransform(string objectId, Transform value,
-            bool final)
+        public void SubmitObjectTransform(string objectId, Vector3 position,
+            Quaternion rotation, Vector3 relativeScale, bool final)
         {
             var state = new MeshupGeneratedObjectState
             {
                 objectId = objectId,
-                position = value.position,
-                rotation = value.rotation,
-                scale = value.localScale
+                position = position,
+                rotation = rotation,
+                scale = relativeScale
             };
             SendCommand(new GameMessage
             {
@@ -645,6 +671,7 @@ namespace Meshup.Game
             generatedObjects.Clear();
             pendingAudio.Clear();
             activeGenerationRequest = string.Empty;
+            activeGenerationSize = GeneratedObjectSize.Medium;
         }
 
         private void SetParticleState(bool active)
@@ -666,6 +693,7 @@ namespace Meshup.Game
 
         private void Render()
         {
+            sizeSelector?.SetInteractable(CanRecordGeneratorLocally);
             view?.Render(snapshot, session?.LocalPeerId ?? string.Empty,
                 privateWordOptions, privateSelectedWord, transientMessage,
                 guessFeedback, guessListening);

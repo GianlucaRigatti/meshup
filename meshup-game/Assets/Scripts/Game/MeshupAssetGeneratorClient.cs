@@ -28,6 +28,7 @@ namespace Meshup.Game
         private XRSimpleInteractable interactable;
         private Coroutine recordingTimeout;
         private bool recordingActive;
+        private GeneratedObjectSize recordingSize = GeneratedObjectSize.Medium;
 
         public void Configure(MeshupGameCoordinator owner)
         {
@@ -63,6 +64,7 @@ namespace Meshup.Game
                 return;
             }
             recordingActive = true;
+            recordingSize = coordinator.SelectedGeneratedObjectSize;
             recordingTimeout = StartCoroutine(StopAtMaximumDuration());
             coordinator.ReportLocalMessage("Recording object description…");
         }
@@ -108,7 +110,7 @@ namespace Meshup.Game
                 capture.Channels, capture.SampleRate, UploadSampleRate);
             var wav = EncodeWav(pcm, UploadSampleRate);
             coordinator.ReportLocalMessage("Sending description…");
-            coordinator.RequestGeneration(wav);
+            coordinator.RequestGeneration(wav, recordingSize);
         }
 
         private IEnumerator Upload(string requestId, byte[] wav,

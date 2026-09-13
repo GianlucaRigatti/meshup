@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GLTFast;
@@ -17,6 +16,7 @@ namespace Meshup.Game
         private XRGrabInteractable grab;
         private bool held;
         private float nextSendTime;
+        private float normalizationScale = 1f;
 
         public string ObjectId => objectId;
 
@@ -50,7 +50,16 @@ namespace Meshup.Game
                     return false;
                 }
 
-                AddInteractionComponents();
+                var localBounds = CalculateLocalRendererBounds();
+                if (localBounds.HasValue)
+                {
+                    CenterImportedContent(localBounds.Value.center);
+                    normalizationScale = CalculateNormalizationScale(
+                        GeneratedObjectSizes.TargetHeight(state.size),
+                        localBounds.Value.size.y);
+                }
+                ApplyState(state, true);
+                AddInteractionComponentsForBounds(localBounds);
                 importer = loadingImporter;
                 return true;
             }
@@ -72,27 +81,76 @@ namespace Meshup.Game
                 return;
             }
             transform.SetPositionAndRotation(state.position, state.rotation);
-            transform.localScale = state.scale == Vector3.zero
+            var relativeScale = state.scale == Vector3.zero
                 ? Vector3.one : state.scale;
+            transform.localScale = relativeScale * normalizationScale;
+        }
+
+        public static float CalculateNormalizationScale(float targetHeight,
+            float sourceHeight)
+        {
+            if (!float.IsFinite(targetHeight) || targetHeight <= 0f
+                || !float.IsFinite(sourceHeight) || sourceHeight <= 0.0001f)
+            {
+                return 1f;
+            }
+            return targetHeight / sourceHeight;
+        }
+
+        private Bounds? CalculateLocalRendererBounds()
+        {
+            var renderers = GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0)
+            {
+                return null;
+            }
+            var hasPoint = false;
+            var bounds = new Bounds();
+            foreach (var renderer in renderers)
+            {
+                var local = renderer.localBounds;
+                for (var x = -1; x <= 1; x += 2)
+                for (var y = -1; y <= 1; y += 2)
+                for (var z = -1; z <= 1; z += 2)
+                {
+                    var corner = local.center + Vector3.Scale(local.extents,
+                        new Vector3(x, y, z));
+                    var point = transform.InverseTransformPoint(
+                        renderer.transform.TransformPoint(corner));
+                    if (!hasPoint)
+                    {
+                        bounds = new Bounds(point, Vector3.zero);
+                        hasPoint = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(point);
+                    }
+                }
+            }
+            return hasPoint ? bounds : null;
+        }
+
+        private void CenterImportedContent(Vector3 localCenter)
+        {
+            foreach (Transform child in transform)
+            {
+                child.localPosition -= localCenter;
+            }
         }
 
         private void AddInteractionComponents()
         {
-            var renderers = GetComponentsInChildren<Renderer>(true);
-            var bounds = renderers.Length > 0
-                ? renderers[0].bounds
-                : new Bounds(transform.position, Vector3.one * 0.4f);
-            foreach (var renderer in renderers.Skip(1))
-            {
-                bounds.Encapsulate(renderer.bounds);
-            }
+            AddInteractionComponentsForBounds(null);
+        }
+
+        private void AddInteractionComponentsForBounds(Bounds? importedBounds)
+        {
+            var bounds = importedBounds ?? new Bounds(Vector3.zero,
+                Vector3.one * 0.4f);
             var collider = gameObject.AddComponent<BoxCollider>();
-            collider.center = transform.InverseTransformPoint(bounds.center);
-            var scale = transform.lossyScale;
-            collider.size = new Vector3(
-                bounds.size.x / Mathf.Max(0.0001f, Mathf.Abs(scale.x)),
-                bounds.size.y / Mathf.Max(0.0001f, Mathf.Abs(scale.y)),
-                bounds.size.z / Mathf.Max(0.0001f, Mathf.Abs(scale.z)));
+            collider.center = Vector3.zero;
+            collider.size = bounds.size;
             var body = gameObject.AddComponent<Rigidbody>();
             body.useGravity = false;
             body.isKinematic = true;
@@ -123,7 +181,8 @@ namespace Meshup.Game
             if (held && Time.unscaledTime >= nextSendTime)
             {
                 nextSendTime = Time.unscaledTime + 0.05f;
-                coordinator?.SubmitObjectTransform(objectId, transform, false);
+                coordinator?.SubmitObjectTransform(objectId, transform.position,
+                    transform.rotation, RelativeScale, false);
             }
         }
 
@@ -144,8 +203,12 @@ namespace Meshup.Game
                 return;
             }
             held = false;
-            coordinator?.SubmitObjectTransform(objectId, transform, true);
+            coordinator?.SubmitObjectTransform(objectId, transform.position,
+                transform.rotation, RelativeScale, true);
         }
+
+        private Vector3 RelativeScale => normalizationScale > 0.0001f
+            ? transform.localScale / normalizationScale : transform.localScale;
 
         private void OnDestroy()
         {

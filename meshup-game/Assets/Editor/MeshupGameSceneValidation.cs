@@ -4,6 +4,7 @@ using Meshup.Game;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace Meshup.EditorTools
 {
@@ -38,7 +39,8 @@ namespace Meshup.EditorTools
             foreach (var field in new[]
             {
                 "gameStart", "localPlayer", "invisibleWall", "guesserMonitor",
-                "mimeTerminal", "generatorAnchor", "generatorButton", "generatorParticles"
+                "mimeTerminal", "generatorAnchor", "generatorButton", "generatorParticles",
+                "smallSizeButton", "mediumSizeButton", "extraLargeSizeButton"
             })
             {
                 var reference = serialized.FindProperty(field).objectReferenceValue;
@@ -48,6 +50,20 @@ namespace Meshup.EditorTools
                 {
                     throw new InvalidOperationException(
                         $"Assign the game coordinator's {field} to an object in this scene.");
+                }
+            }
+            foreach (var field in new[]
+            {
+                "smallSizeButton", "mediumSizeButton", "extraLargeSizeButton"
+            })
+            {
+                var target = (GameObject)serialized.FindProperty(field)
+                    .objectReferenceValue;
+                if (target.GetComponent<Collider>() == null
+                    || target.GetComponent<XRSimpleInteractable>() == null)
+                {
+                    throw new InvalidOperationException(
+                        $"The game coordinator's {field} needs a collider and XR interactable.");
                 }
             }
             Debug.Log("Authored game runtime validation passed.");

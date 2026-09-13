@@ -4,6 +4,38 @@ using System.Linq;
 
 namespace Meshup.Game
 {
+    public enum GeneratedObjectSize
+    {
+        Small = 0,
+        Medium = 1,
+        ExtraLarge = 2
+    }
+
+    public static class GeneratedObjectSizes
+    {
+        public const float SmallHeight = 0.35f;
+        public const float MediumHeight = 1.7f;
+        public const float ExtraLargeHeight = 5f;
+
+        public static GeneratedObjectSize Normalize(GeneratedObjectSize size)
+        {
+            return size is GeneratedObjectSize.Small
+                or GeneratedObjectSize.Medium
+                or GeneratedObjectSize.ExtraLarge
+                    ? size : GeneratedObjectSize.Medium;
+        }
+
+        public static float TargetHeight(GeneratedObjectSize size)
+        {
+            return Normalize(size) switch
+            {
+                GeneratedObjectSize.Small => SmallHeight,
+                GeneratedObjectSize.ExtraLarge => ExtraLargeHeight,
+                _ => MediumHeight
+            };
+        }
+    }
+
     public enum MeshupGamePhase
     {
         WaitingForArrival,
@@ -30,6 +62,7 @@ namespace Meshup.Game
     {
         public string objectId;
         public string url;
+        public GeneratedObjectSize size = GeneratedObjectSize.Medium;
         public UnityEngine.Vector3 position;
         public UnityEngine.Quaternion rotation;
         public UnityEngine.Vector3 scale = UnityEngine.Vector3.one;

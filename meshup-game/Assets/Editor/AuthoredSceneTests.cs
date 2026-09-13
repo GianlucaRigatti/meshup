@@ -36,7 +36,10 @@ namespace Meshup.Editor.Tests
                 ("mimeTerminal", "mime_terminal"),
                 ("generatorAnchor", "generator_particle_system"),
                 ("generatorButton", "geneartor_button"),
-                ("generatorParticles", "generator_particle_system")
+                ("generatorParticles", "generator_particle_system"),
+                ("smallSizeButton", "SmallButton"),
+                ("mediumSizeButton", "MediumButton"),
+                ("extraLargeSizeButton", "LargeButton")
             };
             foreach (var (field, objectName) in references)
             {

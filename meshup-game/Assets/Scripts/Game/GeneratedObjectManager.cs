@@ -44,7 +44,8 @@ namespace Meshup.Game
             this.reportError = reportError;
         }
 
-        public MeshupGeneratedObjectState Add(string url)
+        public MeshupGeneratedObjectState Add(string url,
+            GeneratedObjectSize size = GeneratedObjectSize.Medium)
         {
             if (disposed)
             {
@@ -54,6 +55,7 @@ namespace Meshup.Game
             {
                 objectId = Guid.NewGuid().ToString("N"),
                 url = url,
+                size = GeneratedObjectSizes.Normalize(size),
                 // The authored generator's local up points sideways. Lift in
                 // world space and keep every object on its center line.
                 position = anchor.position + Vector3.up * SpawnHeight,
