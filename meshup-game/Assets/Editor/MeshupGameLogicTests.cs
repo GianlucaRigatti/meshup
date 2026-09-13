@@ -286,6 +286,10 @@ namespace Meshup.Editor.Tests
                 Assert.That(grab.movementType, Is.EqualTo(
                     UnityEngine.XR.Interaction.Toolkit.Interactables
                         .XRBaseInteractable.MovementType.VelocityTracking));
+                Assert.That(grab.throwOnDetach, Is.False,
+                    "Kinematic generated objects must not receive throw velocity on release.");
+                Assert.That(body.isKinematic, Is.True,
+                    "Generated objects must remain fixed after being placed.");
                 Assert.That(body.collisionDetectionMode,
                     Is.EqualTo(CollisionDetectionMode.ContinuousDynamic));
                 Assert.That(body.interpolation,

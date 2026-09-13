@@ -104,6 +104,11 @@ namespace Meshup.Game
             // body dynamic while held, allowing floors and walls to resolve the
             // contact instead of letting the object pass through them.
             grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
+            // Velocity tracking temporarily makes the body dynamic while held,
+            // then restores this authored kinematic state before XR's detach
+            // step. Throw velocity cannot be applied to that kinematic body and
+            // would also move it after our final synchronized transform.
+            grab.throwOnDetach = false;
             grab.selectEntered.AddListener(HandleGrabbed);
             grab.selectExited.AddListener(HandleReleased);
         }
