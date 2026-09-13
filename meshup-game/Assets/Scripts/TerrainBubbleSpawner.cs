@@ -16,7 +16,7 @@ public class TerrainBubbleSpawner : MonoBehaviour
     [Header("Esclusione Struttura")]
     [Tooltip("Controller che descrive le impronte della sala d'attesa, del corridoio e dell'area di gioco.")]
     public FishSchoolController playerArea;
-    [Min(0f)] public float structureClearance = 0.5f;
+    [Min(0f)] public float structureClearance = 5f;
 
     [Header("Prefab")]
     public ParticleSystem bubblePrefab; // se assegnato, verrà instanziato; altrimenti verrà creato uno ps di default
