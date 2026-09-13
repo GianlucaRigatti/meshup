@@ -4,7 +4,6 @@ using Meshup.Game;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace Meshup.EditorTools
 {
@@ -52,19 +51,17 @@ namespace Meshup.EditorTools
                         $"Assign the game coordinator's {field} to an object in this scene.");
                 }
             }
-            foreach (var field in new[]
+            var sizeLabels = new[]
             {
                 "smallSizeButton", "mediumSizeButton", "extraLargeSizeButton"
-            })
+            }.Select(field => (GameObject)serialized.FindProperty(field)
+                .objectReferenceValue).ToArray();
+            if (sizeLabels.Any(label => label.GetComponent<TMPro.TMP_Text>() == null)
+                || GeneratedObjectSizeSelector.FindPhysicalButtons(sizeLabels)
+                    .Length != 3)
             {
-                var target = (GameObject)serialized.FindProperty(field)
-                    .objectReferenceValue;
-                if (target.GetComponent<Collider>() == null
-                    || target.GetComponent<XRSimpleInteractable>() == null)
-                {
-                    throw new InvalidOperationException(
-                        $"The game coordinator's {field} needs a collider and XR interactable.");
-                }
+                throw new InvalidOperationException(
+                    "The size labels must resolve to three physical selector buttons.");
             }
             Debug.Log("Authored game runtime validation passed.");
         }
