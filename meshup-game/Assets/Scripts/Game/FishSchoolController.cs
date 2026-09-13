@@ -422,6 +422,31 @@ public sealed class FishSchoolController : MonoBehaviour
             || playingRoomBounds.Contains(position);
     }
 
+    /// <summary>
+    /// Returns whether a world-space point lies below or above the player structure.
+    /// The vertical coordinate is deliberately ignored so terrain effects can avoid
+    /// the complete footprint of all three connected areas.
+    /// </summary>
+    public bool IsInsidePlayerAreaFootprint(Vector3 worldPosition, float padding = 0f)
+    {
+        Vector3 localPosition = transform.InverseTransformPoint(worldPosition);
+        float safePadding = Mathf.Max(0f, padding);
+        return IsInsideFootprint(localPosition, forbiddenVolumeCenter,
+                forbiddenVolumeSize, safePadding)
+            || IsInsideFootprint(localPosition, corridorForbiddenVolumeCenter,
+                corridorForbiddenVolumeSize, safePadding)
+            || IsInsideFootprint(localPosition, playingRoomForbiddenVolumeCenter,
+                playingRoomForbiddenVolumeSize, safePadding);
+    }
+
+    private static bool IsInsideFootprint(Vector3 position, Vector3 center,
+        Vector3 size, float padding)
+    {
+        Vector3 halfSize = PositiveSize(size) * 0.5f;
+        return Mathf.Abs(position.x - center.x) <= halfSize.x + padding
+            && Mathf.Abs(position.z - center.z) <= halfSize.z + padding;
+    }
+
     private Vector3 SteerTowards(Vector3 desiredDirection, Vector3 currentVelocity)
     {
         if (desiredDirection.sqrMagnitude < 0.0001f)

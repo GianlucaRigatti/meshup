@@ -3,7 +3,7 @@ using UnityEngine;
 public class TerrainBubbleSpawner : MonoBehaviour
 {
     [Header("Area")]
-    public Vector2 areaSize = new Vector2(20f, 20f); // larghezza (X) e profondit‡ (Z) area di spawn
+    public Vector2 areaSize = new Vector2(20f, 20f); // larghezza (X) e profondit√† (Z) area di spawn
     public int spawnCount = 20;
     public float minDistanceBetween = 0.5f; // distanza minima fra emettitori
 
@@ -13,8 +13,13 @@ public class TerrainBubbleSpawner : MonoBehaviour
     public float raycastHeight = 50f; // altezza di partenza per il raycast verso il basso
     public float verticalOffset = 0.05f; // offset sulla normale per evitare clipping nella superficie
 
+    [Header("Esclusione Struttura")]
+    [Tooltip("Controller che descrive le impronte della sala d'attesa, del corridoio e dell'area di gioco.")]
+    public FishSchoolController playerArea;
+    [Min(0f)] public float structureClearance = 0.5f;
+
     [Header("Prefab")]
-    public ParticleSystem bubblePrefab; // se assegnato, verr‡ instanziato; altrimenti verr‡ creato uno ps di default
+    public ParticleSystem bubblePrefab; // se assegnato, verr√† instanziato; altrimenti verr√† creato uno ps di default
 
     [Header("Randomizzazione (opzionale)")]
     public Vector2 randomEmitRate = new Vector2(8f, 18f);
@@ -29,6 +34,11 @@ public class TerrainBubbleSpawner : MonoBehaviour
 
     public void SpawnBubbles()
     {
+        if (playerArea == null)
+        {
+            playerArea = FindFirstObjectByType<FishSchoolController>();
+        }
+
         int attempts = 0;
         int spawned = 0;
 
@@ -64,6 +74,11 @@ public class TerrainBubbleSpawner : MonoBehaviour
             }
 
             if (!found) continue;
+            if (playerArea != null
+                && playerArea.IsInsidePlayerAreaFootprint(spawnPos, structureClearance))
+            {
+                continue;
+            }
 
             // verifica distanza minima dagli altri spawn
             bool ok = true;

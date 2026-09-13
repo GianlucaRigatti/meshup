@@ -127,6 +127,30 @@ namespace Meshup.Editor.Tests
             for (int i = 0; i < result.Length; i++) result[i].Expand(4.8f);
             return result;
         }
+
+        [Test] public void PlayerAreaFootprintCoversAllRoomsAtEveryHeightAndFollowsTransform()
+        {
+            root.transform.SetPositionAndRotation(new Vector3(4f, 7f, -9f),
+                Quaternion.Euler(0f, 31f, 0f));
+            var centers = new[]
+            {
+                new Vector3(58.1f, 1000f, 34.1f),
+                new Vector3(36.35f, -1000f, 27.91f),
+                new Vector3(17.35f, 500f, 24.01f)
+            };
+
+            foreach (Vector3 center in centers)
+            {
+                Vector3 worldCenter = root.transform.TransformPoint(center);
+                Assert.That(school.IsInsidePlayerAreaFootprint(worldCenter), Is.True);
+            }
+
+            Vector3 justOutsideWaitingRoom = root.transform.TransformPoint(
+                new Vector3(68.2f, -3.29f, 34.1f));
+            Assert.That(school.IsInsidePlayerAreaFootprint(justOutsideWaitingRoom), Is.False);
+            Assert.That(school.IsInsidePlayerAreaFootprint(justOutsideWaitingRoom, 0.2f), Is.True);
+        }
+
         [Test] public void ImportedFishUsesCulledAnimationAndBoundsContainSwimmingClip()
         {
             Cleanup();

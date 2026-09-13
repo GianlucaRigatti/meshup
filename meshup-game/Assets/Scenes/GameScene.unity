@@ -60881,6 +60881,8 @@ MonoBehaviour:
     m_Bits: 4294967295
   raycastHeight: 50
   verticalOffset: 0.05
+  playerArea: {fileID: 1601976249}
+  structureClearance: 0.5
   bubblePrefab: {fileID: 4866755625902391056, guid: 4841ca4b7d955ca46ae2344b9648d9d0, type: 3}
   randomEmitRate: {x: 8, y: 18}
   randomStartSize: {x: 0.06, y: 0.22}
