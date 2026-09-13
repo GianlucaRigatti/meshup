@@ -12,11 +12,11 @@ namespace Meshup.Game
         private const string RocketVelocityProperty = "Initial Rocket Velocity";
         private const float CelebrationSeconds = 12f;
         private const float SpawnHalfWidth = 7f;
-        private const float MinDistanceBehindScreen = 5f;
-        private const float MaxDistanceBehindScreen = 7f;
+        private const float MinDistanceBehindScreen = 7f;
+        private const float MaxDistanceBehindScreen = 9f;
         private const float LaunchHeight = 0.25f;
         private const float RocketSpeed = 24f;
-        private const float VolumeMultiplier = 0.7f;
+        private const float VolumeMultiplier = 0.3f;
         private const float FireworkLifetime = 10f;
 
         private Transform guesserScreen;
