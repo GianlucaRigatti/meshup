@@ -128,7 +128,7 @@ Material:
     - _Cull: 2
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
-    - _DetailNormalMapScale: 0.56
+    - _DetailNormalMapScale: 0.35
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
@@ -138,14 +138,14 @@ Material:
     - _FlappingY: 0
     - _FlappingYPosition: 0.1
     - _GlossMapScale: 1
-    - _Glossiness: 0.5
+    - _Glossiness: 0.35
     - _GlossyReflections: 1
     - _IndentCenterX: 0.3
     - _IndentCenterXZ: 20
-    - _IntensityNm: 3
+    - _IntensityNm: 1.25
     - _IntensityNmD: 0.2
     - _IntensityOc: 1
-    - _IntensityRef: 2
+    - _IntensityRef: 1
     - _MainTexDUV: 1
     - _Metallic: 0
     - _Mode: 0
@@ -159,10 +159,10 @@ Material:
     - _SaturationRef: 0
     - _ScriptControl: 0
     - _Shininess: 0.04
-    - _Smoothness: 0.5
+    - _Smoothness: 0.35
     - _SmoothnessTextureChannel: 1
     - _SpecMapDInts: 1
-    - _SpecMapInts: 1.5
+    - _SpecMapInts: 0.8
     - _SpecMapUV: 9
     - _SpecMapUVD: 1
     - _SpecularHighlights: 1

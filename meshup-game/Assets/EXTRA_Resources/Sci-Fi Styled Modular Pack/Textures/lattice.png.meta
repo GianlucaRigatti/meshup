@@ -12,6 +12,8 @@ TextureImporter:
     correctGamma: 0
     fadeOut: 0
     borderMipMap: 0
+    mipMapsPreserveCoverage: 1
+    alphaTestReferenceValue: 0.5
     mipMapFadeDistanceStart: 1
     mipMapFadeDistanceEnd: 3
   bumpmap:
@@ -29,9 +31,9 @@ TextureImporter:
   textureFormat: -1
   maxTextureSize: 2048
   textureSettings:
-    filterMode: -1
-    aniso: 16
-    mipBias: -1
+    filterMode: 2
+    aniso: 4
+    mipBias: 0
     wrapMode: 0
   nPOTScale: 1
   lightmap: 0

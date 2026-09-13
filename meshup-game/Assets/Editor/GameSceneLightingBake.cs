@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Meshup.EditorTools;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -11,17 +12,11 @@ namespace Meshup.Editor
     public static class GameSceneLightingBake
     {
         private const string ScenePath = "Assets/Scenes/GameScene.unity";
-        private static readonly HashSet<string> DynamicRootNames = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "Creature_back",
-            "Creature_front",
-            "Ubiq Demo Player"
-        };
-
         [MenuItem("Meshup/Lighting/Validate Game Scene Baked Lights")]
         public static void ValidateGameSceneBakedLights()
         {
-            Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            using var validation = new SceneValidationScope(ScenePath);
+            Scene scene = validation.Scene;
             if (!scene.IsValid())
             {
                 throw new InvalidOperationException($"Could not open {ScenePath}.");
@@ -63,60 +58,11 @@ namespace Meshup.Editor
             Debug.Log($"Validated {bakedLights} baked GameScene lights: soft shadows and ranges are correct.");
         }
 
-        [MenuItem("Meshup/Lighting/Configure Stationary Game Scene Receivers")]
-        public static void ConfigureStationaryGameSceneReceivers()
-        {
-            Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
-            if (!scene.IsValid())
-            {
-                throw new InvalidOperationException($"Could not open {ScenePath}.");
-            }
-
-            int configured = 0;
-            int excludedSkinned = 0;
-            foreach (GameObject root in scene.GetRootGameObjects())
-            {
-                foreach (SkinnedMeshRenderer renderer in root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
-                {
-                    StaticEditorFlags flags = GameObjectUtility.GetStaticEditorFlags(renderer.gameObject);
-                    if ((flags & StaticEditorFlags.ContributeGI) == 0)
-                    {
-                        continue;
-                    }
-
-                    GameObjectUtility.SetStaticEditorFlags(
-                        renderer.gameObject,
-                        flags & ~StaticEditorFlags.ContributeGI);
-                    excludedSkinned++;
-                }
-
-                if (DynamicRootNames.Contains(root.name))
-                {
-                    continue;
-                }
-
-                foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
-                {
-                    StaticEditorFlags flags = GameObjectUtility.GetStaticEditorFlags(renderer.gameObject);
-                    GameObjectUtility.SetStaticEditorFlags(renderer.gameObject, flags | StaticEditorFlags.ContributeGI);
-                    renderer.receiveGI = ReceiveGI.Lightmaps;
-                    EditorUtility.SetDirty(renderer);
-                    configured++;
-                }
-            }
-
-            EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene);
-            AssetDatabase.SaveAssets();
-            Debug.Log(
-                $"Configured {configured} stationary GameScene MeshRenderers for baked GI; " +
-                $"excluded {excludedSkinned} skinned renderers.");
-        }
-
         [MenuItem("Meshup/Lighting/Audit Game Scene Meshes")]
         public static void AuditGameSceneMeshes()
         {
-            Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            using var validation = new SceneValidationScope(ScenePath);
+            Scene scene = validation.Scene;
             if (!scene.IsValid())
             {
                 throw new InvalidOperationException($"Could not open {ScenePath}.");
@@ -195,7 +141,8 @@ namespace Meshup.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
-            Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            using var validation = new SceneValidationScope(ScenePath);
+            Scene scene = validation.Scene;
             if (!scene.IsValid())
             {
                 throw new InvalidOperationException($"Could not open {ScenePath}.");
