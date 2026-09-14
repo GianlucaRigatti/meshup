@@ -13,9 +13,9 @@ namespace Meshup.Game
 
     public static class GeneratedObjectSizes
     {
-        public const float SmallSize = 0.35f;
-        public const float MediumSize = 1.7f;
-        public const float ExtraLargeSize = 5f;
+        public const float SmallSize = 0.45f;
+        public const float MediumSize = 1.4f;
+        public const float ExtraLargeSize = 4f;
 
         public static GeneratedObjectSize Normalize(GeneratedObjectSize size)
         {
