@@ -8,6 +8,8 @@ namespace Meshup.Game
     {
         private static readonly int CharacterNearby =
             Animator.StringToHash("character_nearby");
+        private const string OpeningClipResourcePath = "DoorOpening";
+        private const float OpeningVolume = 0.65f;
 
         [SerializeField] private Animator doorAnimator;
         [SerializeField] private GameStartRoute route;
@@ -16,6 +18,7 @@ namespace Meshup.Game
         [SerializeField] private float openLeadDistance = 4f;
 
         private bool isOpen;
+        private AudioSource openingAudioSource;
 
         public float RouteDistance => routeDistance;
         public float PathOffset => pathOffset;
@@ -33,8 +36,30 @@ namespace Meshup.Game
         private void Awake()
         {
             doorAnimator ??= GetComponent<Animator>();
+            ConfigureOpeningAudio();
             RecalculateRoutePosition();
             SetOpen(false, true);
+        }
+
+        private void ConfigureOpeningAudio()
+        {
+            var openingClip = Resources.Load<AudioClip>(
+                OpeningClipResourcePath);
+            if (openingClip == null)
+            {
+                Debug.LogWarning($"[MeshUp] Door opening sound not found at "
+                    + $"Resources/{OpeningClipResourcePath}.", this);
+                return;
+            }
+
+            openingAudioSource = gameObject.AddComponent<AudioSource>();
+            openingAudioSource.clip = openingClip;
+            openingAudioSource.playOnAwake = false;
+            openingAudioSource.loop = false;
+            openingAudioSource.spatialBlend = 1f;
+            openingAudioSource.volume = OpeningVolume;
+            openingAudioSource.minDistance = 1.5f;
+            openingAudioSource.maxDistance = 14f;
         }
 
         public void SetFormationProgress(float leaderDistance)
@@ -80,10 +105,20 @@ namespace Meshup.Game
                 return;
             }
 
+            var wasOpen = isOpen;
             isOpen = open;
             if (doorAnimator != null && doorAnimator.enabled)
             {
                 doorAnimator.SetBool(CharacterNearby, open);
+            }
+
+            if (open && !wasOpen)
+            {
+                openingAudioSource?.Play();
+            }
+            else if (!open && wasOpen)
+            {
+                openingAudioSource?.Stop();
             }
         }
 
