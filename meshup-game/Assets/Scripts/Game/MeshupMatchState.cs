@@ -13,9 +13,12 @@ namespace Meshup.Game
 
     public static class GeneratedObjectSizes
     {
-        public const float SmallSize = 0.45f;
-        public const float MediumSize = 1.4f;
-        public const float ExtraLargeSize = 4f;
+        public const float SmallMaxWidth = 0.45f;
+        public const float SmallMaxHeight = 0.35f;
+        public const float MediumMaxWidth = 1.4f;
+        public const float MediumMaxHeight = 1.7f;
+        public const float ExtraLargeMaxWidth = 4f;
+        public const float ExtraLargeMaxHeight = 5f;
 
         public static GeneratedObjectSize Normalize(GeneratedObjectSize size)
         {
@@ -25,13 +28,23 @@ namespace Meshup.Game
                     ? size : GeneratedObjectSize.Medium;
         }
 
-        public static float TargetSize(GeneratedObjectSize size)
+        public static float TargetMaxWidth(GeneratedObjectSize size)
         {
             return Normalize(size) switch
             {
-                GeneratedObjectSize.Small => SmallSize,
-                GeneratedObjectSize.ExtraLarge => ExtraLargeSize,
-                _ => MediumSize
+                GeneratedObjectSize.Small => SmallMaxWidth,
+                GeneratedObjectSize.ExtraLarge => ExtraLargeMaxWidth,
+                _ => MediumMaxWidth
+            };
+        }
+
+        public static float TargetMaxHeight(GeneratedObjectSize size)
+        {
+            return Normalize(size) switch
+            {
+                GeneratedObjectSize.Small => SmallMaxHeight,
+                GeneratedObjectSize.ExtraLarge => ExtraLargeMaxHeight,
+                _ => MediumMaxHeight
             };
         }
     }

@@ -181,18 +181,26 @@ namespace Meshup.Editor.Tests
             Assert.That(imports, Is.Empty);
         }
 
-        [TestCase(GeneratedObjectSize.Small, GeneratedObjectSizes.SmallSize)]
-        [TestCase(GeneratedObjectSize.Medium, GeneratedObjectSizes.MediumSize)]
+        [TestCase(GeneratedObjectSize.Small,
+            GeneratedObjectSizes.SmallMaxWidth,
+            GeneratedObjectSizes.SmallMaxHeight)]
+        [TestCase(GeneratedObjectSize.Medium,
+            GeneratedObjectSizes.MediumMaxWidth,
+            GeneratedObjectSizes.MediumMaxHeight)]
         [TestCase(GeneratedObjectSize.ExtraLarge,
-            GeneratedObjectSizes.ExtraLargeSize)]
+            GeneratedObjectSizes.ExtraLargeMaxWidth,
+            GeneratedObjectSizes.ExtraLargeMaxHeight)]
         public void AddedObjectsRetainTheirRequestedSize(
-            GeneratedObjectSize size, float expectedSize)
+            GeneratedObjectSize size, float expectedMaxWidth,
+            float expectedMaxHeight)
         {
             var state = objects.Add("https://example.test/sized.glb", size);
 
             Assert.That(state.size, Is.EqualTo(size));
-            Assert.That(GeneratedObjectSizes.TargetSize(state.size),
-                Is.EqualTo(expectedSize));
+            Assert.That(GeneratedObjectSizes.TargetMaxWidth(state.size),
+                Is.EqualTo(expectedMaxWidth));
+            Assert.That(GeneratedObjectSizes.TargetMaxHeight(state.size),
+                Is.EqualTo(expectedMaxHeight));
         }
 
         [Test]
@@ -202,9 +210,12 @@ namespace Meshup.Editor.Tests
                 (GeneratedObjectSize)999);
 
             Assert.That(state.size, Is.EqualTo(GeneratedObjectSize.Medium));
-            Assert.That(GeneratedObjectSizes.TargetSize(
+            Assert.That(GeneratedObjectSizes.TargetMaxWidth(
                 (GeneratedObjectSize)(-5)),
-                Is.EqualTo(GeneratedObjectSizes.MediumSize));
+                Is.EqualTo(GeneratedObjectSizes.MediumMaxWidth));
+            Assert.That(GeneratedObjectSizes.TargetMaxHeight(
+                (GeneratedObjectSize)(-5)),
+                Is.EqualTo(GeneratedObjectSizes.MediumMaxHeight));
         }
 
         private static MeshupGeneratedObjectState State(string id, Vector3 position = default)
