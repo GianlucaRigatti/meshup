@@ -9,7 +9,8 @@ namespace Meshup.Game
         private static readonly int CharacterNearby =
             Animator.StringToHash("character_nearby");
         private const string OpeningClipResourcePath = "DoorOpening";
-        private const float OpeningVolume = 0.65f;
+        private const float OpeningVolume = 0.45f;
+        private const float OpeningDelaySeconds = 0.06f;
 
         [SerializeField] private Animator doorAnimator;
         [SerializeField] private GameStartRoute route;
@@ -114,7 +115,7 @@ namespace Meshup.Game
 
             if (open && !wasOpen)
             {
-                openingAudioSource?.Play();
+                openingAudioSource?.PlayDelayed(OpeningDelaySeconds);
             }
             else if (!open && wasOpen)
             {
