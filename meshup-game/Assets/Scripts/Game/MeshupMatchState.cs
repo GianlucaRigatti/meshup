@@ -15,8 +15,8 @@ namespace Meshup.Game
     {
         public const float SmallMaxWidth = 0.45f;
         public const float SmallMaxHeight = 0.35f;
-        public const float MediumMaxWidth = 1.4f;
-        public const float MediumMaxHeight = 1.7f;
+        public const float MediumMaxWidth = 1.7f;
+        public const float MediumMaxHeight = 1.4f;
         public const float ExtraLargeMaxWidth = 4f;
         public const float ExtraLargeMaxHeight = 5f;
 
