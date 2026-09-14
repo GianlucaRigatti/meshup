@@ -181,18 +181,18 @@ namespace Meshup.Editor.Tests
             Assert.That(imports, Is.Empty);
         }
 
-        [TestCase(GeneratedObjectSize.Small, GeneratedObjectSizes.SmallHeight)]
-        [TestCase(GeneratedObjectSize.Medium, GeneratedObjectSizes.MediumHeight)]
+        [TestCase(GeneratedObjectSize.Small, GeneratedObjectSizes.SmallSize)]
+        [TestCase(GeneratedObjectSize.Medium, GeneratedObjectSizes.MediumSize)]
         [TestCase(GeneratedObjectSize.ExtraLarge,
-            GeneratedObjectSizes.ExtraLargeHeight)]
+            GeneratedObjectSizes.ExtraLargeSize)]
         public void AddedObjectsRetainTheirRequestedSize(
-            GeneratedObjectSize size, float expectedHeight)
+            GeneratedObjectSize size, float expectedSize)
         {
             var state = objects.Add("https://example.test/sized.glb", size);
 
             Assert.That(state.size, Is.EqualTo(size));
-            Assert.That(GeneratedObjectSizes.TargetHeight(state.size),
-                Is.EqualTo(expectedHeight));
+            Assert.That(GeneratedObjectSizes.TargetSize(state.size),
+                Is.EqualTo(expectedSize));
         }
 
         [Test]
@@ -202,9 +202,9 @@ namespace Meshup.Editor.Tests
                 (GeneratedObjectSize)999);
 
             Assert.That(state.size, Is.EqualTo(GeneratedObjectSize.Medium));
-            Assert.That(GeneratedObjectSizes.TargetHeight(
+            Assert.That(GeneratedObjectSizes.TargetSize(
                 (GeneratedObjectSize)(-5)),
-                Is.EqualTo(GeneratedObjectSizes.MediumHeight));
+                Is.EqualTo(GeneratedObjectSizes.MediumSize));
         }
 
         private static MeshupGeneratedObjectState State(string id, Vector3 position = default)

@@ -237,24 +237,27 @@ namespace Meshup.Editor.Tests
             }
         }
 
-        [TestCase(GeneratedObjectSizes.SmallHeight, 2f, 0.175f)]
-        [TestCase(GeneratedObjectSizes.MediumHeight, 0.5f, 3.4f)]
-        [TestCase(GeneratedObjectSizes.ExtraLargeHeight, 10f, 0.5f)]
-        public void GeneratedObjectNormalizationTargetsRenderedHeight(
-            float targetHeight, float sourceHeight, float expectedScale)
+        [TestCase(GeneratedObjectSizes.SmallSize, 2f, 1f, 0.5f, 0.175f)]
+        [TestCase(GeneratedObjectSizes.MediumSize, 0.5f, 2f, 1f, 0.85f)]
+        [TestCase(GeneratedObjectSizes.ExtraLargeSize, 2f, 1f, 10f, 0.5f)]
+        public void GeneratedObjectNormalizationTargetsLongestRenderedSide(
+            float targetSize, float width, float height, float depth,
+            float expectedScale)
         {
             Assert.That(MeshupGeneratedObject.CalculateNormalizationScale(
-                targetHeight, sourceHeight), Is.EqualTo(expectedScale)
+                targetSize, new Vector3(width, height, depth)),
+                Is.EqualTo(expectedScale)
                 .Within(0.0001f));
         }
 
-        [TestCase(0f)]
-        [TestCase(-1f)]
+        [TestCase(0f, 0f, 0f)]
+        [TestCase(-1f, -2f, -3f)]
         public void GeneratedObjectNormalizationFallsBackForInvalidBounds(
-            float sourceHeight)
+            float width, float height, float depth)
         {
             Assert.That(MeshupGeneratedObject.CalculateNormalizationScale(
-                GeneratedObjectSizes.MediumHeight, sourceHeight), Is.EqualTo(1f));
+                GeneratedObjectSizes.MediumSize,
+                new Vector3(width, height, depth)), Is.EqualTo(1f));
         }
 
         [Test]

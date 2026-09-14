@@ -55,8 +55,8 @@ namespace Meshup.Game
                 {
                     CenterImportedContent(localBounds.Value.center);
                     normalizationScale = CalculateNormalizationScale(
-                        GeneratedObjectSizes.TargetHeight(state.size),
-                        localBounds.Value.size.y);
+                        GeneratedObjectSizes.TargetSize(state.size),
+                        localBounds.Value.size);
                 }
                 ApplyState(state, true);
                 AddInteractionComponentsForBounds(localBounds);
@@ -86,15 +86,20 @@ namespace Meshup.Game
             transform.localScale = relativeScale * normalizationScale;
         }
 
-        public static float CalculateNormalizationScale(float targetHeight,
-            float sourceHeight)
+        public static float CalculateNormalizationScale(float targetSize,
+            Vector3 sourceSize)
         {
-            if (!float.IsFinite(targetHeight) || targetHeight <= 0f
-                || !float.IsFinite(sourceHeight) || sourceHeight <= 0.0001f)
+            if (!float.IsFinite(targetSize) || targetSize <= 0f
+                || !float.IsFinite(sourceSize.x)
+                || !float.IsFinite(sourceSize.y)
+                || !float.IsFinite(sourceSize.z))
             {
                 return 1f;
             }
-            return targetHeight / sourceHeight;
+
+            var longestSide = Mathf.Max(sourceSize.x,
+                Mathf.Max(sourceSize.y, sourceSize.z));
+            return longestSide > 0.0001f ? targetSize / longestSide : 1f;
         }
 
         private Bounds? CalculateLocalRendererBounds()
