@@ -56,14 +56,14 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
-        public void HintsReachThirtyPercentAtNinetySecondsThenStop()
+        public void HintsReachFiftyPercentAtNinetySecondsThenStop()
         {
             var state = CreateState();
             BeginTimedRound(state, "high-five");
             state.Tick(89.9f);
-            Assert.That(state.MaskedWord.Count(char.IsLetter), Is.EqualTo(2));
-            state.Tick(0.1f);
             Assert.That(state.MaskedWord.Count(char.IsLetter), Is.EqualTo(3));
+            state.Tick(0.1f);
+            Assert.That(state.MaskedWord.Count(char.IsLetter), Is.EqualTo(4));
             var mask = state.MaskedWord;
             state.Tick(29.5f);
             Assert.That(state.MaskedWord, Is.EqualTo(mask));

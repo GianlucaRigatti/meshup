@@ -353,7 +353,7 @@ namespace Meshup.Game
 
         private void RevealHints(float timerElapsed)
         {
-            var target = (int)Math.Ceiling(revealOrder.Count * 0.30f);
+            var target = (int)Math.Ceiling(revealOrder.Count * 0.50f);
             if (target == 0)
             {
                 return;
