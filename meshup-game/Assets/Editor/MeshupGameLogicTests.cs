@@ -411,6 +411,8 @@ namespace Meshup.Editor.Tests
                     .Toolkit.Interactables.XRGrabInteractable>();
                 Assert.That(body, Is.Not.Null);
                 Assert.That(grab, Is.Not.Null);
+                Assert.That(grab.trackRotation, Is.False,
+                    "Generated objects must keep their current rotation when grabbed.");
                 Assert.That(grab.movementType, Is.EqualTo(
                     UnityEngine.XR.Interaction.Toolkit.Interactables
                         .XRBaseInteractable.MovementType.VelocityTracking));

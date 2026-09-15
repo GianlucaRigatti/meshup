@@ -168,6 +168,10 @@ namespace Meshup.Game
             body.interpolation = RigidbodyInterpolation.Interpolate;
             body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             grab = gameObject.AddComponent<XRGrabInteractable>();
+            // Preserve the object's world rotation while it is being moved.
+            // This lets players grab an object from any side without snapping
+            // that side into the controller's forward orientation.
+            grab.trackRotation = false;
             // Kinematic grab motion follows the controller even when a static
             // collider is in the way. Velocity tracking temporarily makes this
             // body dynamic while held, allowing floors and walls to resolve the

@@ -102,7 +102,7 @@ namespace Meshup.Editor.Tests
             EditorSceneManager.MarkSceneDirty(scene);
             try
             {
-                LobbyPortalTransitionValidation.Validate();
+                LobbyDualModePlayerValidation.Validate();
                 Assert.That(scene.isLoaded, Is.True);
                 Assert.That(scene.isDirty, Is.True);
                 Assert.That(marker != null, Is.True);
@@ -113,6 +113,22 @@ namespace Meshup.Editor.Tests
             {
                 Object.DestroyImmediate(marker);
             }
+        }
+
+        [Test]
+        public void LobbyHasNoPortalTransitionAndKeepsSpawnManagerInactive()
+        {
+            using var validation = new SceneValidationScope(LobbyScenePath);
+            var roots = validation.Scene.GetRootGameObjects();
+
+            Assert.That(roots.Any(root => root.name == "Lobby Portal Transition"),
+                Is.False);
+
+            var networkScene = roots.Single(root => root.name == "Ubiq Network Scene");
+            var spawnManager = networkScene.GetComponentsInChildren<Transform>(true)
+                .Single(item => item.name == "Spawn Manager");
+            Assert.That(spawnManager.gameObject.activeSelf, Is.False,
+                "An active duplicate is destroyed before Start and throws in Ubiq's OnDestroy.");
         }
 
         [Test]

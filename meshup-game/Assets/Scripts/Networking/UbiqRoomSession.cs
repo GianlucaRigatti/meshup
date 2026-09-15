@@ -144,15 +144,6 @@ namespace Meshup.Multiplayer
         public event Action<string> ErrorOccurred;
         public event Action ParticipantsChanged;
 
-        /// <summary>
-        /// Raised after room membership has been confirmed and the game scene
-        /// is ready to load. A listener delays loading by invoking the supplied
-        /// callback after its transition has fully covered the view. This keeps
-        /// scene integration stalls from interrupting a VR comfort fade. The
-        /// callback is safe to invoke more than once.
-        /// </summary>
-        public event Action<Action> GameSceneTransitionRequested;
-
         private void Reset()
         {
             roomClient = GetComponent<RoomClient>();
@@ -739,44 +730,6 @@ namespace Meshup.Multiplayer
             SetState(enteringGame
                 ? RoomSessionState.LoadingGame
                 : RoomSessionState.Leaving);
-
-            if (enteringGame && GameSceneTransitionRequested != null)
-            {
-                var transitionCompleted = false;
-                var completionReported = false;
-                void CompleteTransition()
-                {
-                    if (completionReported)
-                    {
-                        return;
-                    }
-
-                    completionReported = true;
-                    transitionCompleted = true;
-                }
-
-                try
-                {
-                    GameSceneTransitionRequested.Invoke(CompleteTransition);
-                }
-                catch (Exception exception)
-                {
-                    Debug.LogException(exception);
-                    CompleteTransition();
-                }
-
-                // Complete and present the comfort fade before asking Unity to load.
-                // GameScene integration can block the main/render thread, so starting
-                // it earlier freezes the portal coroutine and the headset on a bright
-                // intermediate frame.
-                while (!transitionCompleted)
-                {
-                    yield return null;
-                }
-
-                yield return new WaitForEndOfFrame();
-                yield return null;
-            }
 
             var operation = SceneManager.LoadSceneAsync(sceneName,
                 LoadSceneMode.Single);
