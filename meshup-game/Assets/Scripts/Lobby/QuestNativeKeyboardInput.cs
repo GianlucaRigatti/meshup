@@ -63,7 +63,7 @@ namespace Meshup.Lobby
 
             textBeforeEditing = input.text;
             keyboard = TouchScreenKeyboard.Open(input.text,
-                TouchScreenKeyboardType.Default, false, false,
+                input.keyboardType, false, false,
                 input.contentType == InputField.ContentType.Password
                     || input.contentType == InputField.ContentType.Pin,
                 false, "Player name", input.characterLimit);

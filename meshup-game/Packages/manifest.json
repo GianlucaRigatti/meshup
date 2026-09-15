@@ -1,15 +1,5 @@
 {
-  "scopedRegistries": [
-    {
-      "name": "Meta XR SDK",
-      "url": "https://npm.developer.oculus.com",
-      "scopes": [
-        "com.meta.xr"
-      ]
-    }
-  ],
   "dependencies": {
-    "com.meta.xr.sdk.core": "205.0.0",
     "com.ucl.ubiq": "https://github.com/UCL-VR/ubiq.git#upm-unity-v1.0.0-pre.16",
     "com.unity.ai.navigation": "2.0.12",
     "com.unity.cloud.gltfast": "6.19.0",
