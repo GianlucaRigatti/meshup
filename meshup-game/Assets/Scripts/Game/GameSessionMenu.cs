@@ -1,6 +1,8 @@
 using Meshup.Multiplayer;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit.UI;
@@ -9,6 +11,8 @@ namespace Meshup.Game
 {
     public sealed class GameSessionMenu : MonoBehaviour
     {
+        private const string VignettePreference = "meshup.graphics.vignette";
+
         [SerializeField] private GameObject panelRoot;
         [SerializeField] private Behaviour playerMovement;
         [SerializeField] private PlayerMovementAuthority movementAuthority;
@@ -20,17 +24,24 @@ namespace Meshup.Game
         private VoiceChatController voiceChat;
         private Button voiceButton;
         private Text voiceButtonLabel;
+        private Button vignetteButton;
+        private Text vignetteButtonLabel;
+        private readonly Dictionary<Vignette, bool> vignetteDefaults = new();
         private readonly List<InputDevice> xrControllers = new();
+        private bool vignetteEnabled;
         private bool xrMenuWasPressed;
         private bool xrCanvasConfigured;
 
         private void Start()
         {
             transform.localScale = Vector3.one;
-            BuildVoiceControls();
+            vignetteEnabled = PlayerPrefs.GetInt(VignettePreference, 1) != 0;
+            BuildMenuControls();
+            ApplyVignetteSetting();
             resumeButton.onClick.AddListener(Resume);
             leaveButton.onClick.AddListener(LeaveRoom);
             voiceButton?.onClick.AddListener(ToggleVoiceMute);
+            vignetteButton?.onClick.AddListener(ToggleVignette);
             session = UbiqRoomSession.Instance;
             voiceChat = VoiceChatController.Instance;
             if (session != null)
@@ -72,6 +83,7 @@ namespace Meshup.Game
 
         public void Open()
         {
+            ApplyVignetteSetting();
             ConfigureXrCanvas();
             PositionXrCanvas();
             panelRoot.SetActive(true);
@@ -214,7 +226,7 @@ namespace Meshup.Game
             statusText.text = message;
         }
 
-        private void BuildVoiceControls()
+        private void BuildMenuControls()
         {
             if (panelRoot == null || resumeButton == null || leaveButton == null)
             {
@@ -225,7 +237,7 @@ namespace Meshup.Game
             if (panelRect != null)
             {
                 panelRect.sizeDelta = new Vector2(panelRect.sizeDelta.x,
-                    Mathf.Max(380f, panelRect.sizeDelta.y));
+                    Mathf.Max(450f, panelRect.sizeDelta.y));
             }
 
             var resumeRect = resumeButton.GetComponent<RectTransform>();
@@ -233,12 +245,12 @@ namespace Meshup.Game
             if (resumeRect != null)
             {
                 resumeRect.anchoredPosition = new Vector2(
-                    resumeRect.anchoredPosition.x, 60f);
+                    resumeRect.anchoredPosition.x, 90f);
             }
             if (leaveRect != null)
             {
                 leaveRect.anchoredPosition = new Vector2(
-                    leaveRect.anchoredPosition.x, -60f);
+                    leaveRect.anchoredPosition.x, -90f);
             }
 
             var voiceObject = Instantiate(resumeButton.gameObject,
@@ -250,7 +262,62 @@ namespace Meshup.Game
             if (voiceRect != null)
             {
                 voiceRect.anchoredPosition = new Vector2(
-                    voiceRect.anchoredPosition.x, 0f);
+                    voiceRect.anchoredPosition.x, -30f);
+            }
+
+            var vignetteObject = Instantiate(resumeButton.gameObject,
+                resumeButton.transform.parent, false);
+            vignetteObject.name = "Vignette Toggle";
+            vignetteButton = vignetteObject.GetComponent<Button>();
+            vignetteButtonLabel = vignetteObject.GetComponentInChildren<Text>(true);
+            var vignetteRect = vignetteObject.GetComponent<RectTransform>();
+            if (vignetteRect != null)
+            {
+                vignetteRect.anchoredPosition = new Vector2(
+                    vignetteRect.anchoredPosition.x, 30f);
+            }
+            UpdateVignetteControl();
+        }
+
+        private void ToggleVignette()
+        {
+            vignetteEnabled = !vignetteEnabled;
+            PlayerPrefs.SetInt(VignettePreference, vignetteEnabled ? 1 : 0);
+            PlayerPrefs.Save();
+            ApplyVignetteSetting();
+        }
+
+        private void ApplyVignetteSetting()
+        {
+            var volumes = FindObjectsByType<Volume>(FindObjectsInactive.Include);
+            foreach (var volume in volumes)
+            {
+                if (volume.sharedProfile == null
+                    || !volume.sharedProfile.TryGet<Vignette>(out _))
+                {
+                    continue;
+                }
+
+                if (!volume.profile.TryGet<Vignette>(out var vignette))
+                {
+                    continue;
+                }
+
+                if (!vignetteDefaults.ContainsKey(vignette))
+                {
+                    vignetteDefaults.Add(vignette, vignette.active);
+                }
+                vignette.active = vignetteEnabled && vignetteDefaults[vignette];
+            }
+            UpdateVignetteControl();
+        }
+
+        private void UpdateVignetteControl()
+        {
+            if (vignetteButtonLabel != null)
+            {
+                vignetteButtonLabel.text = vignetteEnabled
+                    ? "Vignette: On" : "Vignette: Off";
             }
         }
 
@@ -311,6 +378,7 @@ namespace Meshup.Game
             resumeButton?.onClick.RemoveListener(Resume);
             leaveButton?.onClick.RemoveListener(LeaveRoom);
             voiceButton?.onClick.RemoveListener(ToggleVoiceMute);
+            vignetteButton?.onClick.RemoveListener(ToggleVignette);
             if (session != null)
             {
                 session.StateChanged -= HandleStateChanged;

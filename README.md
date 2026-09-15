@@ -55,7 +55,7 @@ configured `asset_generator_server`; production consent and privacy text must
 describe these distinct microphone uses.
 
 On Quest, point at the lobby player-name field and pull the trigger to open the
-in-world keyboard. During a game, press the left controller's menu button to
+native Meta keyboard. During a game, press the left controller's menu button to
 open or close the pause menu; its controller-ray buttons can mute voice, resume,
 or leave the room. On desktop, `Escape` opens the same menu.
 
