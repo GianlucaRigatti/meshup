@@ -11,6 +11,10 @@ namespace Meshup.Game
     [DisallowMultipleComponent]
     public sealed class GameStartCoordinator : MonoBehaviour
     {
+        // Temporary solo shortcut for testing the full opening sequence.
+        private const KeyCode SoloTestKey = KeyCode.F6;
+        private const string PoseidonClipResourcePath = "PoseidonGreeting";
+
         private enum SequencePhase
         {
             Idle,
@@ -48,6 +52,13 @@ namespace Meshup.Game
         [SerializeField] private GameStartDoorController[] doors =
             Array.Empty<GameStartDoorController>();
 
+        [Header("Poseidon Audio")]
+        [SerializeField] private Transform poseidon;
+        [SerializeField] private Transform poseidonVisual;
+        [SerializeField, Range(0f, 1f)] private float poseidonVolume = 0.65f;
+        [SerializeField, Min(0f)] private float poseidonTriggerDistance = 5.6f;
+        [SerializeField, Min(0f)] private float poseidonLightIntensity = 3.5f;
+
         [Header("Motion")]
         [SerializeField] private float walkSpeed = 1.5f;
         [SerializeField] private float walkAcceleration = 2.5f;
@@ -73,6 +84,10 @@ namespace Meshup.Game
         private int localSlot = -1;
         private Coroutine motion;
         private bool contextRegistered;
+        private AudioSource poseidonAudioSource;
+        private Light poseidonSpeakingLight;
+        private Coroutine poseidonLightPulse;
+        private bool poseidonCuePlayed;
 
         public bool IsIdle => phase == SequencePhase.Idle;
         public bool IsComplete => phase == SequencePhase.Complete;
@@ -109,6 +124,74 @@ namespace Meshup.Game
             context = NetworkScene.Register(this);
             contextRegistered = true;
             session.ParticipantsChanged += HandleParticipantsChanged;
+            ConfigurePoseidonAudio();
+        }
+
+        private void Update()
+        {
+            if (Input.GetKeyDown(SoloTestKey))
+            {
+                TryStartSoloTest();
+            }
+        }
+
+        private void ConfigurePoseidonAudio()
+        {
+            if (poseidon == null)
+            {
+                Debug.LogWarning("[GameStart] Poseidon is not assigned; "
+                    + "the walk-by greeting will not play.", this);
+                return;
+            }
+
+            var clip = Resources.Load<AudioClip>(PoseidonClipResourcePath);
+            if (clip == null)
+            {
+                Debug.LogWarning($"[GameStart] Poseidon sound not found at "
+                    + $"Resources/{PoseidonClipResourcePath}.", this);
+                return;
+            }
+
+            var anchor = new GameObject("Poseidon Voice Anchor").transform;
+            anchor.SetParent(poseidon, false);
+            anchor.position = GetPoseidonHeadPosition();
+
+            poseidonAudioSource = anchor.gameObject.AddComponent<AudioSource>();
+            poseidonAudioSource.clip = clip;
+            poseidonAudioSource.playOnAwake = false;
+            poseidonAudioSource.loop = false;
+            poseidonAudioSource.volume = poseidonVolume;
+            poseidonAudioSource.spatialBlend = 1f;
+            poseidonAudioSource.spread = 0f;
+            poseidonAudioSource.minDistance = 6f;
+            poseidonAudioSource.maxDistance = 22f;
+
+            poseidonSpeakingLight = anchor.gameObject.AddComponent<Light>();
+            poseidonSpeakingLight.type = LightType.Point;
+            poseidonSpeakingLight.color = new Color(0.08f, 0.58f, 1f);
+            poseidonSpeakingLight.range = 7f;
+            poseidonSpeakingLight.intensity = 0f;
+            poseidonSpeakingLight.shadows = LightShadows.None;
+        }
+
+        private Vector3 GetPoseidonHeadPosition()
+        {
+            var visual = poseidonVisual != null ? poseidonVisual : poseidon;
+            var renderers = visual.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0)
+            {
+                return poseidon.position + Vector3.up * 1.5f;
+            }
+
+            var bounds = renderers[0].bounds;
+            for (var i = 1; i < renderers.Length; i++)
+            {
+                bounds.Encapsulate(renderers[i].bounds);
+            }
+
+            var head = bounds.center;
+            head.y = bounds.max.y - bounds.size.y * 0.14f;
+            return head;
         }
 
         public bool TryStartSequence()
@@ -139,6 +222,40 @@ namespace Meshup.Game
             phase = SequencePhase.Preparing;
             StatusMessage = "Locking the room…";
             StartCoroutine(BeginAfterRoomLock());
+            return true;
+        }
+
+        public bool TryStartSoloTest()
+        {
+            if (!IsIdle || session == null
+                || session.State != RoomSessionState.InGame)
+            {
+                return false;
+            }
+            if (!session.IsRoomCreator)
+            {
+                StatusMessage = "Only the room creator can start the game.";
+                return false;
+            }
+            if (session.ParticipantCount != 1)
+            {
+                StatusMessage = "F6 solo start requires an empty room.";
+                return false;
+            }
+            if (!session.TrySetGameStarted(true))
+            {
+                StatusMessage = "The room could not be locked for game start.";
+                return false;
+            }
+
+            var message = new SequenceMessage
+            {
+                kind = (int)MessageKind.Prepare,
+                sequenceId = Guid.NewGuid().ToString("N"),
+                creatorId = session.LocalPeerId,
+                roster = new[] { session.LocalPeerId }
+            };
+            BeginPreparation(message, true);
             return true;
         }
 
@@ -269,9 +386,11 @@ namespace Meshup.Game
             }
         }
 
-        private void BeginPreparation(SequenceMessage message)
+        private void BeginPreparation(SequenceMessage message,
+            bool allowSolo = false)
         {
-            if (message.roster == null || message.roster.Length < 2
+            if (message.roster == null
+                || message.roster.Length < (allowSolo ? 1 : 2)
                 || route.WaypointCount < 2)
             {
                 return;
@@ -289,6 +408,8 @@ namespace Meshup.Game
             readyPeers.Clear();
             alignedPeers.Clear();
             arrivedPeers.Clear();
+            poseidonCuePlayed = false;
+            StopPoseidonCue();
             CloseDoors();
             phase = SequencePhase.Preparing;
             StatusMessage = "Preparing players…";
@@ -463,6 +584,7 @@ namespace Meshup.Game
                 var target = route.GetSlotPosition(leaderDistance,
                     localSlot, roster.Length);
                 player.MoveTowards(target, speed * Time.deltaTime * 1.35f);
+                TryPlayPoseidonCue();
                 TrackBlocked(previous, target, ref blockedFor);
                 previous = player.transform.position;
                 if (blockedFor >= blockedTimeout)
@@ -496,6 +618,58 @@ namespace Meshup.Game
             phase = SequencePhase.WaitingForGroup;
             StatusMessage = "Waiting for the group…";
             TryReleaseGroup();
+        }
+
+        private void TryPlayPoseidonCue()
+        {
+            if (poseidonCuePlayed || poseidonAudioSource == null
+                || PlanarDistance(player.transform.position,
+                    poseidon.position) > poseidonTriggerDistance)
+            {
+                return;
+            }
+
+            poseidonCuePlayed = true;
+            poseidonAudioSource.Play();
+            poseidonLightPulse = StartCoroutine(PulsePoseidonLight());
+        }
+
+        private IEnumerator PulsePoseidonLight()
+        {
+            if (poseidonSpeakingLight == null || poseidonAudioSource == null)
+            {
+                yield break;
+            }
+
+            var duration = poseidonAudioSource.clip.length;
+            var elapsed = 0f;
+            while (elapsed < duration && poseidonAudioSource.isPlaying)
+            {
+                elapsed += Time.deltaTime;
+                var fadeIn = Mathf.Clamp01(elapsed / 0.18f);
+                var fadeOut = Mathf.Clamp01((duration - elapsed) / 0.35f);
+                var pulse = 0.82f + Mathf.Sin(elapsed * 13f) * 0.18f;
+                poseidonSpeakingLight.intensity = poseidonLightIntensity
+                    * fadeIn * fadeOut * pulse;
+                yield return null;
+            }
+
+            poseidonSpeakingLight.intensity = 0f;
+            poseidonLightPulse = null;
+        }
+
+        private void StopPoseidonCue()
+        {
+            poseidonAudioSource?.Stop();
+            if (poseidonLightPulse != null)
+            {
+                StopCoroutine(poseidonLightPulse);
+                poseidonLightPulse = null;
+            }
+            if (poseidonSpeakingLight != null)
+            {
+                poseidonSpeakingLight.intensity = 0f;
+            }
         }
 
         public static float GetResynchronizedLeaderDistance(
@@ -699,12 +873,14 @@ namespace Meshup.Game
             readyPeers.Clear();
             alignedPeers.Clear();
             arrivedPeers.Clear();
+            StopPoseidonCue();
         }
 
         private void OnDisable()
         {
             player?.SetLock(MovementLockReason.GameStartSequence, false);
             CloseDoors();
+            StopPoseidonCue();
         }
 
         private void OnDestroy()

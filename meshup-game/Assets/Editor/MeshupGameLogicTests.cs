@@ -150,6 +150,36 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void GeneratorButtonLoadsSpatialPressAndReleaseSounds()
+        {
+            var button = new GameObject("Generator audio test");
+            try
+            {
+                var client = button.AddComponent<MeshupAssetGeneratorClient>();
+                client.Configure(null);
+                var source = button.GetComponent<AudioSource>();
+                Assert.That(source, Is.Not.Null);
+                Assert.That(source.playOnAwake, Is.False);
+                Assert.That(source.spatialBlend, Is.EqualTo(1f));
+
+                var flags = System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.NonPublic;
+                Assert.That(typeof(MeshupAssetGeneratorClient)
+                    .GetField("pressClip", flags)?.GetValue(client),
+                    Is.EqualTo(Resources.Load<AudioClip>(
+                        "GenerateButtonPress")));
+                Assert.That(typeof(MeshupAssetGeneratorClient)
+                    .GetField("releaseClip", flags)?.GetValue(client),
+                    Is.EqualTo(Resources.Load<AudioClip>(
+                        "GenerateButtonRelease")));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(button);
+            }
+        }
+
+        [Test]
         public void DisconnectRetainsScoreAndSkipsFutureMimeTurn()
         {
             var state = CreateState();
@@ -295,6 +325,12 @@ namespace Meshup.Editor.Tests
                     Is.Not.Null);
                 Assert.That(extraLargePhysical.GetComponent<XRSimpleInteractable>(),
                     Is.Not.Null);
+                var sizeButtonAudio = smallPhysical.GetComponent<AudioSource>();
+                Assert.That(sizeButtonAudio, Is.Not.Null);
+                Assert.That(sizeButtonAudio.playOnAwake, Is.False);
+                Assert.That(sizeButtonAudio.spatialBlend, Is.EqualTo(1f));
+                Assert.That(sizeButtonAudio.clip, Is.EqualTo(
+                    Resources.Load<AudioClip>("SizeButtonPress")));
                 selector.SetInteractable(true);
                 Assert.That(selector.SelectedSize,
                     Is.EqualTo(GeneratedObjectSize.Medium));

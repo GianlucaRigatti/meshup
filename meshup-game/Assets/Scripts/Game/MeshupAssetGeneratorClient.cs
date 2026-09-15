@@ -16,6 +16,9 @@ namespace Meshup.Game
         private const float MaximumRecordingSeconds = 60f;
         private const float MinimumRecordingSeconds = 0.1f;
         private const int UploadSampleRate = 16000;
+        private const string PressClipResourcePath = "GenerateButtonPress";
+        private const string ReleaseClipResourcePath = "GenerateButtonRelease";
+        private const float ButtonSoundVolume = 0.45f;
 
         [Serializable]
         private sealed class GenerateResponse
@@ -26,6 +29,9 @@ namespace Meshup.Game
 
         private MeshupGameCoordinator coordinator;
         private XRSimpleInteractable interactable;
+        private AudioSource buttonAudioSource;
+        private AudioClip pressClip;
+        private AudioClip releaseClip;
         private Coroutine recordingTimeout;
         private bool recordingActive;
         private GeneratedObjectSize recordingSize = GeneratedObjectSize.Medium;
@@ -33,8 +39,28 @@ namespace Meshup.Game
         public void Configure(MeshupGameCoordinator owner)
         {
             coordinator = owner;
-            interactable = GetComponent<XRSimpleInteractable>()
-                ?? gameObject.AddComponent<XRSimpleInteractable>();
+            interactable = GetComponent<XRSimpleInteractable>();
+            if (interactable == null)
+            {
+                interactable = gameObject.AddComponent<XRSimpleInteractable>();
+            }
+            buttonAudioSource = GetComponent<AudioSource>();
+            if (buttonAudioSource == null)
+            {
+                buttonAudioSource = gameObject.AddComponent<AudioSource>();
+            }
+            buttonAudioSource.playOnAwake = false;
+            buttonAudioSource.loop = false;
+            buttonAudioSource.spatialBlend = 1f;
+            buttonAudioSource.volume = ButtonSoundVolume;
+            buttonAudioSource.maxDistance = 8f;
+            pressClip = Resources.Load<AudioClip>(PressClipResourcePath);
+            releaseClip = Resources.Load<AudioClip>(ReleaseClipResourcePath);
+            if (pressClip == null || releaseClip == null)
+            {
+                Debug.LogWarning("[MeshUp] Generate button press/release "
+                    + "sounds could not be loaded from Resources.");
+            }
             interactable.selectEntered.AddListener(HandlePressed);
             interactable.selectExited.AddListener(HandleReleased);
         }
@@ -47,6 +73,7 @@ namespace Meshup.Game
 
         private void HandlePressed(SelectEnterEventArgs args)
         {
+            PlayButtonSound(pressClip);
             if (recordingActive || coordinator == null
                 || !coordinator.CanRecordGeneratorLocally)
             {
@@ -71,11 +98,20 @@ namespace Meshup.Game
 
         private void HandleReleased(SelectExitEventArgs args)
         {
+            PlayButtonSound(releaseClip);
             if (!recordingActive)
             {
                 return;
             }
             FinishRecording();
+        }
+
+        private void PlayButtonSound(AudioClip clip)
+        {
+            if (buttonAudioSource != null && clip != null)
+            {
+                buttonAudioSource.PlayOneShot(clip);
+            }
         }
 
         private IEnumerator StopAtMaximumDuration()

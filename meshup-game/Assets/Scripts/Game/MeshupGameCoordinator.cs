@@ -12,6 +12,8 @@ namespace Meshup.Game
     {
         // TODO: Remove this temporary binding after the fireworks are approved.
         private const KeyCode FireworksTestKey = KeyCode.F8;
+        private const KeyCode GeneratorAudioTestKey = KeyCode.F7;
+        private const KeyCode GeneratorFailureAudioTestKey = KeyCode.F9;
 
         private enum MessageKind
         {
@@ -82,6 +84,7 @@ namespace Meshup.Game
         private VoskGuessTranscriber transcriber;
         private MeshupAssetGeneratorClient generatorClient;
         private GeneratedObjectSizeSelector sizeSelector;
+        private GeneratorActivityAudio generatorActivityAudio;
         private string[] privateWordOptions = Array.Empty<string>();
         private string privateSelectedWord = string.Empty;
         private string activeGenerationRequest = string.Empty;
@@ -97,6 +100,7 @@ namespace Meshup.Game
         private int crossingSentVersion = -1;
         private bool originalWallEnabled;
         private bool wallStateCaptured;
+        private bool generatorAudioPreview;
 
         public MeshupMatchSnapshot CurrentSnapshot => snapshot;
         public bool CanRecordGeneratorLocally => IsLocalMime
@@ -158,6 +162,10 @@ namespace Meshup.Game
                 MeshupAssetGeneratorClient>()
                 ?? generatorButton.AddComponent<MeshupAssetGeneratorClient>();
             generatorClient.Configure(this);
+            generatorActivityAudio = generatorAnchor.GetComponent<
+                GeneratorActivityAudio>()
+                ?? generatorAnchor.gameObject.AddComponent<
+                    GeneratorActivityAudio>();
             sizeSelector = gameObject.AddComponent<GeneratedObjectSizeSelector>();
             sizeSelector.Configure(smallSizeButton, mediumSizeButton,
                 extraLargeSizeButton, () => CanRecordGeneratorLocally);
@@ -180,6 +188,14 @@ namespace Meshup.Game
 
         private void Update()
         {
+            if (Input.GetKeyDown(GeneratorAudioTestKey))
+            {
+                ToggleGeneratorAudioPreview();
+            }
+            if (Input.GetKeyDown(GeneratorFailureAudioTestKey))
+            {
+                PreviewGeneratorFailure();
+            }
             if (session == null)
             {
                 return;
@@ -253,6 +269,9 @@ namespace Meshup.Game
                     if (message.snapshot != null
                         && message.snapshot.version >= snapshot.version)
                     {
+                        var generationWasPending = snapshot.generationPending;
+                        var previousObjectCount = snapshot.generatedObjects?.Length
+                            ?? 0;
                         var nextPhase =
                             (MeshupGamePhase)message.snapshot.phase;
                         var enteredFinishedPhase = hasAppliedSnapshot
@@ -267,6 +286,22 @@ namespace Meshup.Game
                         lastAppliedPhase = nextPhase;
                         hasAppliedSnapshot = true;
                         SetParticleState(snapshot.generationPending);
+                        generatorActivityAudio?.SetGenerating(
+                            snapshot.generationPending);
+                        if (generationWasPending
+                            && !snapshot.generationPending)
+                        {
+                            var generatedObjectCount =
+                                snapshot.generatedObjects?.Length ?? 0;
+                            if (generatedObjectCount > previousObjectCount)
+                            {
+                                generatorActivityAudio?.PlayCompletion();
+                            }
+                            else
+                            {
+                                generatorActivityAudio?.PlayFailure();
+                            }
+                        }
                         generatedObjects.Reconcile(snapshot.generatedObjects);
                         if (enteredMimePreparation)
                         {
@@ -688,6 +723,48 @@ namespace Meshup.Game
             {
                 generatorParticles.Stop(true,
                     ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
+        }
+
+        private void ToggleGeneratorAudioPreview()
+        {
+            if (generatorActivityAudio == null)
+            {
+                return;
+            }
+
+            generatorAudioPreview = !generatorAudioPreview;
+            if (generatorAudioPreview)
+            {
+                SetParticleState(true);
+                generatorActivityAudio.SetGenerating(true);
+            }
+            else
+            {
+                var generationPending = snapshot?.generationPending == true;
+                SetParticleState(generationPending);
+                generatorActivityAudio.SetGenerating(generationPending);
+                if (!generationPending)
+                {
+                    generatorActivityAudio.PlayCompletion();
+                }
+            }
+        }
+
+        private void PreviewGeneratorFailure()
+        {
+            if (generatorActivityAudio == null)
+            {
+                return;
+            }
+
+            generatorAudioPreview = false;
+            var generationPending = snapshot?.generationPending == true;
+            SetParticleState(generationPending);
+            generatorActivityAudio.SetGenerating(generationPending);
+            if (!generationPending)
+            {
+                generatorActivityAudio.PlayFailure();
             }
         }
 

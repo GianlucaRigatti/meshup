@@ -10930,6 +10930,11 @@ MonoBehaviour:
   player: {fileID: 656482935}
   doors:
   - {fileID: 394233058}
+  poseidon: {fileID: 1421561123}
+  poseidonVisual: {fileID: 1886541190}
+  poseidonVolume: 0.65
+  poseidonTriggerDistance: 5.6
+  poseidonLightIntensity: 3.5
   walkSpeed: 1.5
   walkAcceleration: 2.5
   doorOpeningDelay: 4

@@ -30,3 +30,15 @@ f0efe483a8207e11a70fc16eaa7d767a1f6d22bfe6b967ca5278e2bc7cc60e9c  Windows/libvos
 5b60907df42009f1ba437e7f2a6278651be97f4993869105d8a31086138e4570  Windows/libwinpthread-1.dll
 85c4654de3acdeb99abab86eeb2a6e603927d37089597c0fcc33d8638dc2ccaf  Linux/libvosk.so
 ```
+
+## Holy Aura Resonance – Magical Energy Loop
+
+“Holy Aura Resonance – Magical Energy Loop” by Tommaso Motteran
+(Coghezzi), sourced from Freesound:
+https://freesound.org/people/TommasoMotteran/sounds/853628/
+
+Licensed under Creative Commons Attribution 4.0:
+https://creativecommons.org/licenses/by/4.0/
+
+The bundled `Assets/Resources/HolyAuraResonance.ogg` was converted to mono and
+time-stretched to 90% speed for use as positional generator ambience.

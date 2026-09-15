@@ -12,6 +12,9 @@ namespace Meshup.Game
     [DisallowMultipleComponent]
     public sealed class GeneratedObjectSizeSelector : MonoBehaviour
     {
+        private const string ButtonPressClipResourcePath = "SizeButtonPress";
+        private const float ButtonPressVolume = 0.45f;
+
         private sealed class Binding
         {
             public GeneratedObjectSize Size;
@@ -21,6 +24,7 @@ namespace Meshup.Game
             public Material[] OriginalMaterials;
             public Material[] ButtonMaterials;
             public Light Glow;
+            public AudioSource AudioSource;
             public XRSimpleInteractable Interactable;
             public UnityAction<SelectEnterEventArgs> Listener;
         }
@@ -28,6 +32,7 @@ namespace Meshup.Game
         private readonly List<Binding> bindings = new();
         private Func<bool> canSelect;
         private bool interactable;
+        private AudioClip buttonPressClip;
 
         public GeneratedObjectSize SelectedSize { get; private set; } =
             GeneratedObjectSize.Medium;
@@ -37,6 +42,13 @@ namespace Meshup.Game
         {
             ClearBindings();
             canSelect = selectionAllowed;
+            buttonPressClip = Resources.Load<AudioClip>(
+                ButtonPressClipResourcePath);
+            if (buttonPressClip == null)
+            {
+                Debug.LogWarning($"[MeshUp] Size button sound not found at "
+                    + $"Resources/{ButtonPressClipResourcePath}.");
+            }
             DisableLabelHitTarget(small);
             DisableLabelHitTarget(medium);
             DisableLabelHitTarget(extraLarge);
@@ -151,7 +163,15 @@ namespace Meshup.Game
             glow.range = Mathf.Max(0.25f, buttonRenderer.bounds.extents.magnitude
                 * 1.5f);
             glow.intensity = size == GeneratedObjectSize.Small ? 0.65f : 2f;
-            UnityAction<SelectEnterEventArgs> listener = _ => TrySelect(size);
+            var audioSource = target.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
+            audioSource.loop = false;
+            audioSource.spatialBlend = 1f;
+            audioSource.volume = ButtonPressVolume;
+            audioSource.maxDistance = 8f;
+            audioSource.clip = buttonPressClip;
+            UnityAction<SelectEnterEventArgs> listener = _ =>
+                SelectFromButton(size, audioSource);
             xr.selectEntered.AddListener(listener);
             bindings.Add(new Binding
             {
@@ -162,9 +182,20 @@ namespace Meshup.Game
                 OriginalMaterials = originalMaterials,
                 ButtonMaterials = materials,
                 Glow = glow,
+                AudioSource = audioSource,
                 Interactable = xr,
                 Listener = listener
             });
+        }
+
+        private void SelectFromButton(GeneratedObjectSize size,
+            AudioSource audioSource)
+        {
+            if (TrySelect(size) && buttonPressClip != null
+                && audioSource != null)
+            {
+                audioSource.PlayOneShot(buttonPressClip);
+            }
         }
 
         private void RefreshLabels()
@@ -276,6 +307,17 @@ namespace Meshup.Game
                     else
                     {
                         DestroyImmediate(binding.Glow.gameObject);
+                    }
+                }
+                if (binding.AudioSource != null)
+                {
+                    if (Application.isPlaying)
+                    {
+                        Destroy(binding.AudioSource);
+                    }
+                    else
+                    {
+                        DestroyImmediate(binding.AudioSource);
                     }
                 }
                 foreach (var material in binding.ButtonMaterials)
