@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit.Locomotion;
+using UnityEngine.XR.Interaction.Toolkit.Locomotion.Turning;
 
 namespace Meshup.Game
 {
@@ -21,14 +23,21 @@ namespace Meshup.Game
 
         private readonly Dictionary<Behaviour, bool> providerStates = new();
         private CharacterController characterController;
+        private XRBodyTransformer bodyTransformer;
+        private readonly XROriginMovement forcedMovement = new();
         private MovementLockReason locks;
 
         public MovementLockReason ActiveLocks => locks;
         public bool ManualMovementBlocked => locks != MovementLockReason.None;
+        public Vector3 BodyPosition => GetBodyPosition(transform,
+            bodyTransformer != null && bodyTransformer.xrOrigin != null
+                ? bodyTransformer.xrOrigin.Camera?.transform
+                : null);
 
         private void Awake()
         {
             characterController = GetComponent<CharacterController>();
+            bodyTransformer = GetComponentInChildren<XRBodyTransformer>(true);
         }
 
         public void Configure(Behaviour[] providers)
@@ -54,24 +63,17 @@ namespace Meshup.Game
 
         public float MoveTowards(Vector3 target, float maxDistanceDelta)
         {
-            var current = transform.position;
+            var current = BodyPosition;
             var next = Vector3.MoveTowards(current, target,
                 Mathf.Max(0f, maxDistanceDelta));
-            if (characterController != null && characterController.enabled)
-            {
-                characterController.Move(next - current);
-            }
-            else
-            {
-                transform.position = next;
-            }
-            return Vector3.Distance(transform.position, target);
+            ApplyMotion(next - current);
+            return Vector3.Distance(next, target);
         }
 
         public float MoveTowardsAvoidingObstacles(Vector3 target,
             float maxDistanceDelta, ref int preferredSide)
         {
-            var current = transform.position;
+            var current = BodyPosition;
             var flatTarget = target - current;
             flatTarget.y = 0f;
             if (flatTarget.sqrMagnitude < 0.0001f)
@@ -113,15 +115,51 @@ namespace Meshup.Game
             var horizontal = direction * Mathf.Max(0f, maxDistanceDelta);
             horizontal.y = Mathf.MoveTowards(0f, target.y - current.y,
                 Mathf.Max(0f, maxDistanceDelta));
-            if (characterController != null && characterController.enabled)
+            ApplyMotion(horizontal);
+            return Vector3.Distance(current + horizontal, target);
+        }
+
+        public static Vector3 GetBodyPosition(Transform origin,
+            Transform viewpoint)
+        {
+            if (origin == null)
             {
-                characterController.Move(horizontal);
+                return Vector3.zero;
+            }
+            if (viewpoint == null || !viewpoint.IsChildOf(origin))
+            {
+                return origin.position;
+            }
+
+            // Room-scale tracking moves the camera within the XR Origin. The
+            // player's grounded body position is therefore the camera's
+            // position projected onto the origin's floor plane, matching the
+            // default body evaluator used by XR Interaction Toolkit.
+            var localBody = origin.InverseTransformPoint(viewpoint.position);
+            localBody.y = 0f;
+            return origin.TransformPoint(localBody);
+        }
+
+        private void ApplyMotion(Vector3 motion)
+        {
+            if (bodyTransformer != null && bodyTransformer.isActiveAndEnabled
+                && bodyTransformer.xrOrigin != null)
+            {
+                // Queue through XRI so its body evaluator keeps the collision
+                // capsule under the tracked headset on Quest. Directly moving
+                // the CharacterController bypasses that synchronization.
+                forcedMovement.motion = motion;
+                bodyTransformer.QueueTransformation(forcedMovement);
+            }
+            else if (characterController != null
+                && characterController.enabled)
+            {
+                characterController.Move(motion);
             }
             else
             {
-                transform.position += horizontal;
+                transform.position += motion;
             }
-            return Vector3.Distance(transform.position, target);
         }
 
         private int ChooseAvoidanceSide(Vector3 forward, Vector3 right,
@@ -224,15 +262,35 @@ namespace Meshup.Game
         private void DisableTranslation()
         {
             providerStates.Clear();
+            // The serialized list also contains the non-XR desktop provider.
+            // Discover XRI providers at runtime so newly added translation,
+            // teleport, or climb modes cannot fight scripted motion.
+            foreach (var provider in GetComponentsInChildren<
+                LocomotionProvider>(true))
+            {
+                // Looking and stick turning remain available during the
+                // guided walk. They rotate around XRI's tracked body point
+                // without contributing manual translation.
+                if (provider is not ContinuousTurnProvider
+                    && provider is not SnapTurnProvider)
+                {
+                    DisableProvider(provider);
+                }
+            }
             foreach (var provider in translationProviders)
             {
-                if (provider == null || providerStates.ContainsKey(provider))
-                {
-                    continue;
-                }
-                providerStates.Add(provider, provider.enabled);
-                provider.enabled = false;
+                DisableProvider(provider);
             }
+        }
+
+        private void DisableProvider(Behaviour provider)
+        {
+            if (provider == null || providerStates.ContainsKey(provider))
+            {
+                return;
+            }
+            providerStates.Add(provider, provider.enabled);
+            provider.enabled = false;
         }
 
         private void RestoreTranslation()

@@ -426,20 +426,20 @@ namespace Meshup.Game
             var formationTarget = route.GetSlotPosition(0f, localSlot,
                 roster.Length);
             var joinDistance = regroupRing.GetClosestDistance(
-                player.transform.position, out var target);
+                player.BodyPosition, out var target);
             var ringDirection = regroupRing.GetShortestDirectionToExit(
                 joinDistance);
-            var previous = player.transform.position;
+            var previous = player.BodyPosition;
             var blockedFor = 0f;
             StatusMessage = "Moving to the waiting-room ring…";
-            while (PlanarDistance(player.transform.position, target)
+            while (PlanarDistance(player.BodyPosition, target)
                 > arrivalTolerance)
             {
                 speed = Mathf.MoveTowards(speed, regroupSpeed,
                     regroupAcceleration * Time.deltaTime);
                 player.MoveTowards(target, speed * Time.deltaTime);
                 TrackBlocked(previous, target, ref blockedFor);
-                previous = player.transform.position;
+                previous = player.BodyPosition;
                 if (blockedFor >= blockedTimeout)
                 {
                     BroadcastCancel(
@@ -454,10 +454,10 @@ namespace Meshup.Game
             var ringTravelled = 0f;
             speed = 0f;
             blockedFor = 0f;
-            previous = player.transform.position;
+            previous = player.BodyPosition;
             StatusMessage = "Following the waiting-room ring…";
             while (ringTravelled < ringDistance
-                && !IsReadyForFinalApproach(player.transform.position,
+                && !IsReadyForFinalApproach(player.BodyPosition,
                     formationTarget, 2.25f, 3f, 0.65f))
             {
                 speed = Mathf.MoveTowards(speed, regroupSpeed,
@@ -468,12 +468,12 @@ namespace Meshup.Game
                     + ringDirection * ringTravelled);
                 player.MoveTowards(target, speed * Time.deltaTime * 1.35f);
                 var moved = PlanarDistance(previous,
-                    player.transform.position);
+                    player.BodyPosition);
                 blockedFor = ringDistance - ringTravelled > arrivalTolerance
                     && moved < 0.002f
                         ? blockedFor + Time.deltaTime
                         : 0f;
-                previous = player.transform.position;
+                previous = player.BodyPosition;
                 if (blockedFor >= blockedTimeout)
                 {
                     BroadcastCancel("The waiting-room ring was blocked.");
@@ -485,20 +485,20 @@ namespace Meshup.Game
             target = formationTarget;
             speed = 0f;
             blockedFor = 0f;
-            previous = player.transform.position;
+            previous = player.BodyPosition;
             StatusMessage = "Moving to assigned place…";
             // CharacterController ground contact may keep the rig root a skin
             // width above or below the authored marker. Formation readiness is
             // therefore based on the floor plane; movement itself remains 3D
             // so the controller still follows stairs and collisions.
-            while (PlanarDistance(player.transform.position, target)
+            while (PlanarDistance(player.BodyPosition, target)
                 > arrivalTolerance)
             {
                 speed = Mathf.MoveTowards(speed, regroupSpeed,
                     regroupAcceleration * Time.deltaTime);
                 player.MoveTowards(target, speed * Time.deltaTime);
                 TrackBlocked(previous, target, ref blockedFor);
-                previous = player.transform.position;
+                previous = player.BodyPosition;
                 if (blockedFor >= blockedTimeout)
                 {
                     BroadcastCancel("A player could not reach the lineup.");
@@ -572,7 +572,7 @@ namespace Meshup.Game
         {
             var leaderDistance = 0f;
             var speed = 0f;
-            var previous = player.transform.position;
+            var previous = player.BodyPosition;
             var blockedFor = 0f;
             while (leaderDistance < route.Length)
             {
@@ -586,7 +586,7 @@ namespace Meshup.Game
                 player.MoveTowards(target, speed * Time.deltaTime * 1.35f);
                 TryPlayPoseidonCue();
                 TrackBlocked(previous, target, ref blockedFor);
-                previous = player.transform.position;
+                previous = player.BodyPosition;
                 if (blockedFor >= blockedTimeout)
                 {
                     // CharacterController contact on a stair edge can make
@@ -595,19 +595,19 @@ namespace Meshup.Game
                     // from the player's real progress instead of cancelling
                     // the synchronized start for everybody.
                     var projected = route.GetClosestDistance(
-                        player.transform.position, out _);
+                        player.BodyPosition, out _);
                     leaderDistance = GetResynchronizedLeaderDistance(
                         projected, localSlot, route.RowSpacing, route.Length);
                     speed = 0f;
                     blockedFor = 0f;
-                    previous = player.transform.position;
+                    previous = player.BodyPosition;
                 }
                 yield return null;
             }
 
             var destination = route.GetSlotPosition(route.Length,
                 localSlot, roster.Length);
-            while (PlanarDistance(player.transform.position, destination)
+            while (PlanarDistance(player.BodyPosition, destination)
                 > arrivalTolerance)
             {
                 player.MoveTowards(destination, walkSpeed * Time.deltaTime);
@@ -623,7 +623,7 @@ namespace Meshup.Game
         private void TryPlayPoseidonCue()
         {
             if (poseidonCuePlayed || poseidonAudioSource == null
-                || PlanarDistance(player.transform.position,
+                || PlanarDistance(player.BodyPosition,
                     poseidon.position) > poseidonTriggerDistance)
             {
                 return;
@@ -730,9 +730,9 @@ namespace Meshup.Game
         private void TrackBlocked(Vector3 previous, Vector3 target,
             ref float blockedFor)
         {
-            var needsMovement = PlanarDistance(player.transform.position,
+            var needsMovement = PlanarDistance(player.BodyPosition,
                 target) > arrivalTolerance * 2f;
-            var moved = PlanarDistance(previous, player.transform.position);
+            var moved = PlanarDistance(previous, player.BodyPosition);
             blockedFor = needsMovement && moved < 0.002f
                 ? blockedFor + Time.deltaTime
                 : 0f;

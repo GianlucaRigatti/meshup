@@ -4,6 +4,8 @@ using Meshup.Game;
 using Meshup.Multiplayer;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit.Locomotion;
+using UnityEngine.XR.Interaction.Toolkit.Locomotion.Turning;
 
 namespace Meshup.Editor.Tests
 {
@@ -11,6 +13,20 @@ namespace Meshup.Editor.Tests
     {
         private sealed class FakeMovementProvider : MonoBehaviour
         {
+        }
+
+        private sealed class FakeXrLocomotionProvider : LocomotionProvider
+        {
+            protected override void Awake()
+            {
+            }
+        }
+
+        private sealed class FakeTurnProvider : ContinuousTurnProvider
+        {
+            protected override void Awake()
+            {
+            }
         }
 
         [TestCase(2)]
@@ -251,6 +267,77 @@ namespace Meshup.Editor.Tests
             finally
             {
                 UnityEngine.Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [Test]
+        public void MovementLockDiscoversAndRestoresXrProviders()
+        {
+            var player = new GameObject("Movement Authority Test");
+            var locomotion = new GameObject("Locomotion");
+            try
+            {
+                player.AddComponent<CharacterController>();
+                locomotion.transform.SetParent(player.transform);
+                var provider = locomotion.AddComponent<
+                    FakeXrLocomotionProvider>();
+                var authority = player.AddComponent<PlayerMovementAuthority>();
+
+                authority.SetLock(MovementLockReason.GameStartSequence, true);
+                Assert.That(provider.enabled, Is.False);
+
+                authority.SetLock(MovementLockReason.GameStartSequence, false);
+                Assert.That(provider.enabled, Is.True);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(player);
+            }
+        }
+
+        [Test]
+        public void MovementLockLeavesStickTurningEnabled()
+        {
+            var player = new GameObject("Movement Authority Test");
+            var locomotion = new GameObject("Locomotion");
+            try
+            {
+                player.AddComponent<CharacterController>();
+                locomotion.transform.SetParent(player.transform);
+                var turn = locomotion.AddComponent<FakeTurnProvider>();
+                var authority = player.AddComponent<PlayerMovementAuthority>();
+
+                authority.SetLock(MovementLockReason.GameStartSequence, true);
+
+                Assert.That(turn.enabled, Is.True);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(player);
+            }
+        }
+
+        [Test]
+        public void BodyPositionUsesTrackedViewpointOnOriginFloor()
+        {
+            var origin = new GameObject("Origin");
+            var viewpoint = new GameObject("Viewpoint");
+            try
+            {
+                origin.transform.SetPositionAndRotation(
+                    new Vector3(10f, 2f, 20f), Quaternion.Euler(0f, 90f, 0f));
+                viewpoint.transform.SetParent(origin.transform, false);
+                viewpoint.transform.localPosition = new Vector3(0.6f, 1.7f, -0.4f);
+
+                var body = PlayerMovementAuthority.GetBodyPosition(
+                    origin.transform, viewpoint.transform);
+
+                Assert.That(body, Is.EqualTo(origin.transform.TransformPoint(
+                    new Vector3(0.6f, 0f, -0.4f))));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(origin);
             }
         }
 
