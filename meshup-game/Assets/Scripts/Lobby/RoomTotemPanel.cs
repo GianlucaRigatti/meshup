@@ -53,6 +53,11 @@ namespace Meshup.Lobby
             createButton.onClick.AddListener(CreateRoom);
             refreshButton.onClick.AddListener(RefreshRooms);
             usernameInput.onEndEdit.AddListener(ApplyUsername);
+            var nativeKeyboard = usernameInput.gameObject.GetComponent<
+                QuestNativeKeyboardInput>()
+                ?? usernameInput.gameObject.AddComponent<
+                    QuestNativeKeyboardInput>();
+            nativeKeyboard.Initialize(ApplyUsername);
             roomNameText.text = GenerateRoomName();
             closeButton.gameObject.SetActive(allowClose);
             if (allowClose)
