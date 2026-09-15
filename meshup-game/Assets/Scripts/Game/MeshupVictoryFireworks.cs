@@ -108,6 +108,12 @@ namespace Meshup.Game
                     effect.SetVector3(RocketVelocityProperty,
                         Vector3.up * RocketSpeed);
                 }
+
+                // Enabling the instantiated prefab sends its default event before
+                // the Quest-specific property overrides above are applied. Restart
+                // it explicitly so the GPU simulation and its audio output event
+                // reliably begin with the final values on device.
+                effect.Reinit();
             }
             Destroy(firework, FireworkLifetime);
         }
