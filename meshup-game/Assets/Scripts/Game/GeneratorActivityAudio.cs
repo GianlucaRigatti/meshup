@@ -11,7 +11,7 @@ namespace Meshup.Game
     {
         private const string ActivityClipResourcePath = "HolyAuraResonance";
         private const int SampleRate = 24000;
-        private const float ActivityVolume = 0.17f;
+        private const float ActivityVolume = 0.22f;
         private const float CueVolume = 0.45f;
         private const float FadeDuration = 1.25f;
 

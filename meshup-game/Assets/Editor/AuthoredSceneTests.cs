@@ -6,6 +6,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 namespace Meshup.Editor.Tests
@@ -79,6 +80,16 @@ namespace Meshup.Editor.Tests
             Assert.That(fireworks.All(firework => !firework.activeSelf), Is.True,
                 "Authored firework prefabs must remain inactive; victory "
                 + "fireworks are spawned by MeshupVictoryFireworks.");
+        }
+
+        [Test]
+        public void QuestBuildUsesVulkanRequiredByVictoryVfx()
+        {
+            var graphicsApis = PlayerSettings.GetGraphicsAPIs(BuildTarget.Android);
+
+            Assert.That(graphicsApis, Is.EqualTo(new[] { GraphicsDeviceType.Vulkan }),
+                "The authored VFX Graph fireworks require Vulkan on Quest. "
+                + "OpenGL ES does not provide the compute/SSBO path they use.");
         }
 
         [Test]
