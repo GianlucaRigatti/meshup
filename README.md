@@ -54,6 +54,11 @@ uploaded. Asset descriptions are a separate feature and are uploaded to the
 configured `asset_generator_server`; production consent and privacy text must
 describe these distinct microphone uses.
 
+On Quest, point at the lobby player-name field and pull the trigger to open the
+in-world keyboard. During a game, press the left controller's menu button to
+open or close the pause menu; its controller-ray buttons can mute voice, resume,
+or leave the room. On desktop, `Escape` opens the same menu.
+
 The bundled model, native libraries, source pins, licenses, and checksums are
 documented in `meshup-game/THIRD_PARTY_NOTICES.md`. Binary assets use Git LFS,
 so contributors must install Git LFS before cloning or committing updates.

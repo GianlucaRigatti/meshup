@@ -1,6 +1,9 @@
 using Meshup.Multiplayer;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.XR;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Meshup.Game
 {
@@ -17,6 +20,9 @@ namespace Meshup.Game
         private VoiceChatController voiceChat;
         private Button voiceButton;
         private Text voiceButtonLabel;
+        private readonly List<InputDevice> xrControllers = new();
+        private bool xrMenuWasPressed;
+        private bool xrCanvasConfigured;
 
         private void Start()
         {
@@ -42,7 +48,11 @@ namespace Meshup.Game
 
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.Escape)
+            var xrMenuPressed = ReadXrMenuButton();
+            var toggleMenu = Input.GetKeyDown(KeyCode.Escape)
+                || (xrMenuPressed && !xrMenuWasPressed);
+            xrMenuWasPressed = xrMenuPressed;
+            if (toggleMenu
                 && (session == null || session.State == RoomSessionState.InGame))
             {
                 if (panelRoot.activeSelf)
@@ -62,6 +72,8 @@ namespace Meshup.Game
 
         public void Open()
         {
+            ConfigureXrCanvas();
+            PositionXrCanvas();
             panelRoot.SetActive(true);
             movementAuthority?.SetLock(MovementLockReason.PauseMenu, true);
             if (playerMovement != null)
@@ -74,6 +86,85 @@ namespace Meshup.Game
             statusText.text = "";
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+        }
+
+        private bool ReadXrMenuButton()
+        {
+            xrControllers.Clear();
+            InputDevices.GetDevicesWithCharacteristics(
+                InputDeviceCharacteristics.Controller, xrControllers);
+            foreach (var controller in xrControllers)
+            {
+                if (controller.TryGetFeatureValue(CommonUsages.menuButton,
+                        out var pressed) && pressed)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void ConfigureXrCanvas()
+        {
+            if (xrCanvasConfigured || !IsXrRunning())
+            {
+                return;
+            }
+
+            var canvas = GetComponent<Canvas>();
+            if (canvas == null)
+            {
+                return;
+            }
+
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.worldCamera = Camera.main;
+            var rect = canvas.GetComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(1024f, 768f);
+            rect.localScale = Vector3.one * 0.0015f;
+            if (GetComponent<TrackedDeviceGraphicRaycaster>() == null)
+            {
+                gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+            }
+            xrCanvasConfigured = true;
+        }
+
+        private void PositionXrCanvas()
+        {
+            if (!xrCanvasConfigured)
+            {
+                return;
+            }
+
+            var camera = Camera.main;
+            if (camera == null)
+            {
+                return;
+            }
+
+            var forward = Vector3.ProjectOnPlane(camera.transform.forward,
+                Vector3.up).normalized;
+            if (forward.sqrMagnitude < 0.01f)
+            {
+                forward = camera.transform.forward;
+            }
+            transform.position = camera.transform.position + forward * 1.25f;
+            // A world-space Canvas renders its front toward local -Z.
+            transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
+        }
+
+        private static bool IsXrRunning()
+        {
+            var displays = new List<XRDisplaySubsystem>();
+            SubsystemManager.GetSubsystems(displays);
+            foreach (var display in displays)
+            {
+                if (display.running)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         public void Resume()
@@ -186,6 +277,7 @@ namespace Meshup.Game
             }
 
             voiceButton.interactable = !voiceChat.IsCapturing;
+            var desktopShortcut = IsXrRunning() ? string.Empty : " (M)";
             if ((voiceChat.MuteReasons & VoiceMuteReason.GuessRecording) != 0)
             {
                 voiceButtonLabel.text = "Muted while recording guess";
@@ -197,7 +289,7 @@ namespace Meshup.Game
             }
             else if (voiceChat.IsManuallyMuted)
             {
-                voiceButtonLabel.text = "Unmute Voice (M)";
+                voiceButtonLabel.text = "Unmute Voice" + desktopShortcut;
             }
             else if (!voiceChat.IsAvailable)
             {
@@ -210,7 +302,7 @@ namespace Meshup.Game
             }
             else
             {
-                voiceButtonLabel.text = "Mute Voice (M)";
+                voiceButtonLabel.text = "Mute Voice" + desktopShortcut;
             }
         }
 

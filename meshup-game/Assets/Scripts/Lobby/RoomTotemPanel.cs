@@ -38,6 +38,7 @@ namespace Meshup.Lobby
         private readonly List<RoomListItemView> spawnedItems = new();
         private UbiqRoomSession session;
         private LobbyFirstPersonController player;
+        private VrUsernameKeyboard usernameKeyboard;
         private float nextRefreshTime;
 
         public bool IsOpen => panelRoot != null && panelRoot.activeSelf;
@@ -53,6 +54,9 @@ namespace Meshup.Lobby
             createButton.onClick.AddListener(CreateRoom);
             refreshButton.onClick.AddListener(RefreshRooms);
             usernameInput.onEndEdit.AddListener(ApplyUsername);
+            usernameKeyboard = gameObject.AddComponent<VrUsernameKeyboard>();
+            usernameKeyboard.Initialize(usernameInput, refreshButton,
+                panelRoot.transform, ApplyUsername);
             roomNameText.text = GenerateRoomName();
             closeButton.gameObject.SetActive(allowClose);
             if (allowClose)
@@ -123,6 +127,7 @@ namespace Meshup.Lobby
             }
 
             UnbindSession();
+            usernameKeyboard?.CloseWithoutCommit();
             panelRoot.SetActive(false);
             if (lockPlayerInputWhenOpen)
             {
