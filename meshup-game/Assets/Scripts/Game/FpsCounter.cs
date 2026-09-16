@@ -12,6 +12,8 @@ namespace Meshup.Game
         private float refreshInterval = DefaultRefreshInterval;
 
         private Text label;
+        private Canvas canvas;
+        private Camera displayCamera;
         private float elapsedTime;
         private int elapsedFrames;
 
@@ -25,6 +27,15 @@ namespace Meshup.Game
         private void Update()
         {
             RecordFrame(Time.unscaledDeltaTime);
+        }
+
+        private void LateUpdate()
+        {
+            var mainCamera = Camera.main;
+            if (mainCamera != displayCamera)
+            {
+                ConfigureDisplayCamera(mainCamera);
+            }
         }
 
         private void RecordFrame(float frameTime)
@@ -53,9 +64,10 @@ namespace Meshup.Game
                 typeof(Canvas), typeof(CanvasScaler));
             overlay.transform.SetParent(transform, false);
 
-            var canvas = overlay.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas = overlay.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
             canvas.sortingOrder = short.MaxValue;
+            ConfigureDisplayCamera(Camera.main);
 
             var scaler = overlay.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -92,6 +104,17 @@ namespace Meshup.Game
             labelRect.anchorMax = Vector2.one;
             labelRect.offsetMin = Vector2.zero;
             labelRect.offsetMax = Vector2.zero;
+        }
+
+        private void ConfigureDisplayCamera(Camera camera)
+        {
+            displayCamera = camera;
+            canvas.worldCamera = camera;
+            if (camera != null)
+            {
+                canvas.planeDistance = Mathf.Max(0.1f,
+                    camera.nearClipPlane + 0.01f);
+            }
         }
     }
 }

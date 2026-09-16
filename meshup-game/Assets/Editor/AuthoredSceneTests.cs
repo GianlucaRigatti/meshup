@@ -82,6 +82,19 @@ namespace Meshup.Editor.Tests
                 + "fireworks are spawned by MeshupVictoryFireworks.");
         }
 
+        [TestCase(GameScenePath)]
+        [TestCase(LobbyScenePath)]
+        public void AuthoredScenesIncludeAnFpsCounter(string scenePath)
+        {
+            using var validation = new SceneValidationScope(scenePath);
+            var counters = validation.Scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<FpsCounter>(true))
+                .ToArray();
+
+            Assert.That(counters, Has.Length.EqualTo(1));
+            Assert.That(counters[0].isActiveAndEnabled, Is.True);
+        }
+
         [Test]
         public void QuestBuildUsesVulkanRequiredByVictoryVfx()
         {
