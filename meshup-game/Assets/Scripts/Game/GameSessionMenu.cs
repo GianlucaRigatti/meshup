@@ -1,4 +1,5 @@
 using Meshup.Multiplayer;
+using Meshup;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -37,6 +38,8 @@ namespace Meshup.Game
             transform.localScale = Vector3.one;
             vignetteEnabled = PlayerPrefs.GetInt(VignettePreference, 1) != 0;
             BuildMenuControls();
+            UbiqUiTheme.ApplyTo(panelRoot, true);
+            ConfigureUbiqLayout();
             ApplyVignetteSetting();
             resumeButton.onClick.AddListener(Resume);
             leaveButton.onClick.AddListener(LeaveRoom);
@@ -277,6 +280,58 @@ namespace Meshup.Game
                     vignetteRect.anchoredPosition.x, 30f);
             }
             UpdateVignetteControl();
+        }
+
+        private void ConfigureUbiqLayout()
+        {
+            var panelRect = panelRoot.GetComponent<RectTransform>();
+            if (panelRect != null)
+            {
+                panelRect.sizeDelta = new Vector2(440f, 380f);
+            }
+
+            PositionControl(resumeButton, new Vector2(0f, 70f));
+            PositionControl(vignetteButton, new Vector2(0f, 10f));
+            PositionControl(voiceButton, new Vector2(0f, -50f));
+            PositionControl(leaveButton, new Vector2(0f, -110f));
+
+            var title = panelRoot.transform.Find("Title")?.GetComponent<Text>();
+            if (title != null)
+            {
+                title.fontSize = 28;
+                title.fontStyle = FontStyle.Normal;
+                title.color = Color.white;
+                title.rectTransform.anchoredPosition = new Vector2(0f, -38f);
+                title.rectTransform.sizeDelta = new Vector2(400f, 52f);
+            }
+            if (statusText != null)
+            {
+                statusText.fontSize = 18;
+                statusText.rectTransform.anchoredPosition = new Vector2(0f, 28f);
+            }
+        }
+
+        private static void PositionControl(Button button, Vector2 position)
+        {
+            if (button == null)
+            {
+                return;
+            }
+            var rect = button.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = position;
+            rect.sizeDelta = new Vector2(320f, 52f);
+            var label = button.GetComponentInChildren<Text>(true);
+            if (label != null)
+            {
+                label.rectTransform.anchorMin = Vector2.zero;
+                label.rectTransform.anchorMax = Vector2.one;
+                label.rectTransform.offsetMin = new Vector2(8f, 4f);
+                label.rectTransform.offsetMax = new Vector2(-8f, -4f);
+                label.fontSize = 20;
+                label.alignment = TextAnchor.MiddleCenter;
+            }
         }
 
         private void ToggleVignette()

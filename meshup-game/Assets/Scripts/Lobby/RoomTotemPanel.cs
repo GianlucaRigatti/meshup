@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Meshup.Multiplayer;
+using Meshup;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -31,6 +32,7 @@ namespace Meshup.Lobby
         [SerializeField] private RoomListItemView roomListItemTemplate;
         [SerializeField] private Text statusText;
         [SerializeField] private GameObject noRoomsMessage;
+        [SerializeField] private GameObject ubiqKeyboardPrefab;
         [SerializeField] private float refreshInterval = 2f;
         [SerializeField] private bool allowClose = true;
         [SerializeField] private bool lockPlayerInputWhenOpen = true;
@@ -57,7 +59,9 @@ namespace Meshup.Lobby
                 QuestNativeKeyboardInput>()
                 ?? usernameInput.gameObject.AddComponent<
                     QuestNativeKeyboardInput>();
-            nativeKeyboard.Initialize(ApplyUsername);
+            nativeKeyboard.Initialize(ApplyUsername, ubiqKeyboardPrefab,
+                panelRoot.transform as RectTransform);
+            UbiqUiTheme.ApplyTo(panelRoot, true);
             roomNameText.text = GenerateRoomName();
             closeButton.gameObject.SetActive(allowClose);
             if (allowClose)
@@ -145,6 +149,8 @@ namespace Meshup.Lobby
             }
 
             ApplyUsername(usernameInput.text);
+            usernameInput.GetComponent<QuestNativeKeyboardInput>()
+                ?.HideKeyboard();
             session.CreateRoom(roomNameText.text);
         }
 

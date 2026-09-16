@@ -2,6 +2,8 @@ using System.Linq;
 using System.Reflection;
 using Meshup.EditorTools;
 using Meshup.Game;
+using Meshup.Lobby;
+using Meshup.Multiplayer;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -142,6 +144,17 @@ namespace Meshup.Editor.Tests
                 .Single(item => item.name == "Spawn Manager");
             Assert.That(spawnManager.gameObject.activeSelf, Is.False,
                 "An active duplicate is destroyed before Start and throws in Ubiq's OnDestroy.");
+        }
+
+        [Test]
+        public void LobbyUsesBlackFadeWithoutRestoringPortalVisuals()
+        {
+            Assert.That(typeof(UbiqRoomSession).GetEvent(
+                "GameSceneTransitionRequested", BindingFlags.Public
+                | BindingFlags.Instance), Is.Not.Null);
+            Assert.That(typeof(LobbyFadeTransition), Is.Not.Null);
+            Assert.That(System.Enum.GetNames(typeof(RoomSessionState)),
+                Does.Not.Contain("EnteringPortal"));
         }
 
         [Test]

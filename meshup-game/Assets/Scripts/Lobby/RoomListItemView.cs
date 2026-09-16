@@ -1,5 +1,6 @@
 using System;
 using Meshup.Multiplayer;
+using Meshup;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -31,6 +32,7 @@ namespace Meshup.Lobby
             joinCodeText.text = $"Code: {room.JoinCode}";
             joinButton.onClick.RemoveListener(Join);
             joinButton.onClick.AddListener(Join);
+            UbiqUiTheme.ApplyTo(joinButton);
             joinButton.interactable = true;
         }
 
