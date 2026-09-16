@@ -12,7 +12,6 @@ namespace Meshup.Lobby
         [SerializeField] private float flightDuration = 1.45f;
         [SerializeField] private float impactDuration = 0.28f;
         [SerializeField] private float openingDuration = 0.9f;
-        [SerializeField] private float hologramDuration = 0.65f;
         [SerializeField] private Vector3 shelfPosition;
         [SerializeField] private Vector3 landingPosition;
         [SerializeField] private Vector3 shelfEuler = new(90f, 90f, 0f);
@@ -71,10 +70,10 @@ namespace Meshup.Lobby
 
             projectorEffects.SetActive(true);
             projectorLight.enabled = true;
-            hologramCanvas.SetActive(true);
-            yield return AnimateHologram();
-
             IsRevealed = true;
+            hologramCanvasGroup.alpha = 1f;
+            projectorLight.intensity = 0.34f;
+            hologramCanvas.SetActive(true);
             panel.Open(lobbyPlayer);
         }
 
@@ -138,19 +137,5 @@ namespace Meshup.Lobby
             rightPagesPivot.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(77f, 4f, smooth));
         }
 
-        private IEnumerator AnimateHologram()
-        {
-            var elapsed = 0f;
-            while (elapsed < hologramDuration)
-            {
-                elapsed += Time.deltaTime;
-                var t = Mathf.Clamp01(elapsed / hologramDuration);
-                var eased = 1f - Mathf.Pow(1f - t, 3f);
-                hologramCanvasGroup.alpha = eased;
-                projectorLight.intensity = Mathf.Lerp(0f, 0.34f, eased);
-                yield return null;
-            }
-            hologramCanvasGroup.alpha = 1f;
-        }
     }
 }

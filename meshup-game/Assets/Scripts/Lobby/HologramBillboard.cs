@@ -30,6 +30,7 @@ namespace Meshup.Lobby
                 worldCanvas.worldCamera = playerCamera;
             }
             wasOpen = false;
+            idleRoot.SetActive(false);
         }
 
         private void LateUpdate()
@@ -56,7 +57,6 @@ namespace Meshup.Lobby
             }
 
             var isOpen = panel.IsOpen;
-            idleRoot.SetActive(!isOpen);
             if (isOpen && !wasOpen)
             {
                 if (panelAnimation != null)

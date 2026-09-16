@@ -1,17 +1,14 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using UnityEngine.XR;
+using Ubiq.Samples;
 
 namespace Meshup.Lobby
 {
     /// <summary>
-    /// Explicitly opens Android's system keyboard when an XR pointer clicks a
-    /// legacy InputField. XRUIInputModule does not always give InputField the
-    /// focus transition that normally opens TouchScreenKeyboard on Quest.
+    /// Connects a legacy InputField to the same configured spatial keyboard
+    /// prefab used by Ubiq's sample menu.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(InputField))]
@@ -19,113 +16,147 @@ namespace Meshup.Lobby
         IPointerClickHandler
     {
         private InputField input;
-        private TouchScreenKeyboard keyboard;
+        private GameObject keyboardPrefab;
+        private RectTransform keyboardParent;
+        private GameObject keyboardOverlay;
+        private Keyboard keyboard;
         private Action<string> commit;
-        private string textBeforeEditing;
-        private Coroutine openRoutine;
 
-        public void Initialize(Action<string> onCommit)
+        public void Initialize(Action<string> onCommit, GameObject prefab,
+            RectTransform parent)
         {
             input = GetComponent<InputField>();
             commit = onCommit;
+            keyboardPrefab = prefab;
+            keyboardParent = parent;
         }
 
         public void OnPointerClick(PointerEventData eventData)
         {
-            if (Application.platform != RuntimePlatform.Android
-                || !IsXrRunning() || input == null || !input.interactable)
+            if (input == null || !input.interactable || keyboardPrefab == null)
             {
                 return;
             }
 
-            if (openRoutine != null)
+            if (keyboardOverlay == null)
             {
-                StopCoroutine(openRoutine);
+                CreateKeyboard();
             }
-            openRoutine = StartCoroutine(OpenAfterInputField());
-        }
-
-        private IEnumerator OpenAfterInputField()
-        {
-            // Let InputField try its normal mobile-keyboard path first. If it
-            // succeeded, reuse that keyboard rather than opening another one.
-            input.ActivateInputField();
-            yield return null;
-            openRoutine = null;
-
-            if (input.touchScreenKeyboard != null
-                && input.touchScreenKeyboard.status
-                    == TouchScreenKeyboard.Status.Visible)
+            else
             {
-                keyboard = null;
-                yield break;
-            }
-
-            textBeforeEditing = input.text;
-            keyboard = TouchScreenKeyboard.Open(input.text,
-                input.keyboardType, false, false,
-                input.contentType == InputField.ContentType.Password
-                    || input.contentType == InputField.ContentType.Pin,
-                false, "Player name", input.characterLimit);
-        }
-
-        private void Update()
-        {
-            if (keyboard == null || input == null)
-            {
-                return;
-            }
-
-            if (input.text != keyboard.text)
-            {
-                input.text = keyboard.text;
-            }
-
-            switch (keyboard.status)
-            {
-                case TouchScreenKeyboard.Status.Done:
-                    commit?.Invoke(input.text);
-                    keyboard = null;
-                    input.DeactivateInputField();
-                    break;
-                case TouchScreenKeyboard.Status.Canceled:
-                    input.SetTextWithoutNotify(textBeforeEditing);
-                    keyboard = null;
-                    input.DeactivateInputField();
-                    break;
-                case TouchScreenKeyboard.Status.LostFocus:
-                    commit?.Invoke(input.text);
-                    keyboard = null;
-                    input.DeactivateInputField();
-                    break;
+                keyboardOverlay.SetActive(!keyboardOverlay.activeSelf);
             }
         }
 
-        private static bool IsXrRunning()
+        public void HideKeyboard()
         {
-            var displays = new List<XRDisplaySubsystem>();
-            SubsystemManager.GetSubsystems(displays);
-            foreach (var display in displays)
+            if (keyboardOverlay != null)
             {
-                if (display.running)
+                keyboardOverlay.SetActive(false);
+            }
+            commit?.Invoke(input.text);
+            input.DeactivateInputField();
+        }
+
+        private void CreateKeyboard()
+        {
+            var parent = keyboardParent != null
+                ? keyboardParent
+                : transform.parent as RectTransform;
+            keyboardOverlay = new GameObject("Ubiq Keyboard Overlay",
+                typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            keyboardOverlay.transform.SetParent(parent, false);
+            var overlayRect = keyboardOverlay.GetComponent<RectTransform>();
+            overlayRect.anchorMin = new Vector2(0.5f, 0.5f);
+            overlayRect.anchorMax = new Vector2(0.5f, 0.5f);
+            overlayRect.anchoredPosition = new Vector2(0f, -82f);
+            overlayRect.sizeDelta = new Vector2(790f, 420f);
+            keyboardOverlay.GetComponent<Image>().color =
+                new Color(0.08f, 0.08f, 0.08f, 0.96f);
+
+            var instance = Instantiate(keyboardPrefab, overlayRect, false);
+            instance.name = "Ubiq Keyboard";
+            var keyboardRect = instance.GetComponent<RectTransform>();
+            keyboardRect.anchorMin = new Vector2(0.5f, 0.5f);
+            keyboardRect.anchorMax = new Vector2(0.5f, 0.5f);
+            keyboardRect.anchoredPosition = new Vector2(0f, 25f);
+            keyboardRect.sizeDelta = new Vector2(240f, 135f);
+            keyboardRect.localScale = Vector3.one * 3f;
+
+            keyboard = instance.GetComponent<Keyboard>();
+            keyboard.OnInput.AddListener(HandleKey);
+
+            var doneObject = new GameObject("Done", typeof(RectTransform),
+                typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            doneObject.transform.SetParent(overlayRect, false);
+            var doneRect = doneObject.GetComponent<RectTransform>();
+            doneRect.anchorMin = new Vector2(1f, 0f);
+            doneRect.anchorMax = new Vector2(1f, 0f);
+            doneRect.pivot = new Vector2(1f, 0f);
+            doneRect.anchoredPosition = new Vector2(-16f, 14f);
+            doneRect.sizeDelta = new Vector2(120f, 44f);
+            var doneButton = doneObject.GetComponent<Button>();
+            doneButton.onClick.AddListener(HideKeyboard);
+
+            var labelObject = new GameObject("Text", typeof(RectTransform),
+                typeof(CanvasRenderer), typeof(Text));
+            labelObject.transform.SetParent(doneRect, false);
+            var labelRect = labelObject.GetComponent<RectTransform>();
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.sizeDelta = Vector2.zero;
+            var label = labelObject.GetComponent<Text>();
+            label.text = "Done";
+            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            label.fontSize = 22;
+            label.alignment = TextAnchor.MiddleCenter;
+            Meshup.UbiqUiTheme.ApplyTo(doneButton);
+        }
+
+        private void HandleKey(KeyCode keyCode)
+        {
+            var value = input.text;
+            var code = (int)keyCode;
+            if (keyCode == KeyCode.Backspace)
+            {
+                if (value.Length > 0)
                 {
-                    return true;
+                    value = value[..^1];
                 }
             }
-            return false;
+            else if (code is >= 97 and <= 122)
+            {
+                if (keyboard.currentKeyCase == Keyboard.KeyCase.Upper)
+                {
+                    code -= 32;
+                }
+                value += (char)code;
+            }
+            else if (code is >= 48 and <= 57 || code == 32)
+            {
+                value += (char)code;
+            }
+
+            if (input.characterLimit > 0 && value.Length > input.characterLimit)
+            {
+                value = value[..input.characterLimit];
+            }
+            input.text = value;
         }
 
         private void OnDisable()
         {
+            if (keyboardOverlay != null)
+            {
+                keyboardOverlay.SetActive(false);
+            }
+        }
+
+        private void OnDestroy()
+        {
             if (keyboard != null)
             {
-                keyboard.active = false;
-            }
-            keyboard = null;
-            if (openRoutine != null)
-            {
-                StopCoroutine(openRoutine);
-                openRoutine = null;
+                keyboard.OnInput.RemoveListener(HandleKey);
             }
         }
     }

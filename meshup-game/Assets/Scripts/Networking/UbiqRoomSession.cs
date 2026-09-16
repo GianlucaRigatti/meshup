@@ -144,6 +144,12 @@ namespace Meshup.Multiplayer
         public event Action<string> ErrorOccurred;
         public event Action ParticipantsChanged;
 
+        /// <summary>
+        /// Lets a comfort transition cover the view before the game scene loads.
+        /// The supplied callback must be invoked when loading may continue.
+        /// </summary>
+        public event Action<Action> GameSceneTransitionRequested;
+
         private void Reset()
         {
             roomClient = GetComponent<RoomClient>();
@@ -730,6 +736,39 @@ namespace Meshup.Multiplayer
             SetState(enteringGame
                 ? RoomSessionState.LoadingGame
                 : RoomSessionState.Leaving);
+
+            if (enteringGame && GameSceneTransitionRequested != null)
+            {
+                var transitionCompleted = false;
+                var completionReported = false;
+                void CompleteTransition()
+                {
+                    if (completionReported)
+                    {
+                        return;
+                    }
+
+                    completionReported = true;
+                    transitionCompleted = true;
+                }
+
+                try
+                {
+                    GameSceneTransitionRequested.Invoke(CompleteTransition);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception);
+                    CompleteTransition();
+                }
+
+                while (!transitionCompleted)
+                {
+                    yield return null;
+                }
+
+                yield return new WaitForEndOfFrame();
+            }
 
             var operation = SceneManager.LoadSceneAsync(sceneName,
                 LoadSceneMode.Single);
