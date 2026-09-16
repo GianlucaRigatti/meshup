@@ -42,3 +42,15 @@ https://creativecommons.org/licenses/by/4.0/
 
 The bundled `Assets/Resources/HolyAuraResonance.ogg` was converted to mono and
 time-stretched to 90% speed for use as positional generator ambience.
+
+## Success Notification
+
+“Success Notification” by Universfield, sourced from Pixabay:
+https://pixabay.com/sound-effects/film-special-effects-success-notification-132473/
+
+Licensed under the Pixabay Content License:
+https://pixabay.com/service/license-summary/
+
+The bundled `Assets/Resources/SuccessNotification.wav` was converted to mono
+PCM for reliable Unity playback and is used as the positional cue when a
+player guesses the mime word correctly.

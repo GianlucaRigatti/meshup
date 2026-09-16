@@ -624,7 +624,7 @@ namespace Meshup.Editor.Tests
             Assert.That(UnityEngine.Object.FindAnyObjectByType<
                 PlayerMovementAuthority>(), Is.Not.Null);
             var desktopMove = UnityEngine.Object.FindObjectsByType<
-                    ContinuousMoveProvider>(FindObjectsSortMode.None)
+                    ContinuousMoveProvider>()
                 .Single(item => item.name == "Traditional Locomotion Provider");
             Assert.That(desktopMove.moveSpeed, Is.EqualTo(2.75f));
         }

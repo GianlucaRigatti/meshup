@@ -36,7 +36,7 @@ public class TerrainBubbleSpawner : MonoBehaviour
     {
         if (playerArea == null)
         {
-            playerArea = FindFirstObjectByType<FishSchoolController>();
+            playerArea = FindAnyObjectByType<FishSchoolController>();
         }
 
         int attempts = 0;

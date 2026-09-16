@@ -81,6 +81,7 @@ namespace Meshup.Game
         private bool contextRegistered;
         private MeshupGameView view;
         private MeshupVictoryFireworks victoryFireworks;
+        private CorrectGuessAudio correctGuessAudio;
         private VoskGuessTranscriber transcriber;
         private MeshupAssetGeneratorClient generatorClient;
         private GeneratedObjectSizeSelector sizeSelector;
@@ -153,6 +154,9 @@ namespace Meshup.Game
                 ChooseWord, StartRound);
             victoryFireworks = gameObject.AddComponent<MeshupVictoryFireworks>();
             victoryFireworks.Configure(guesserMonitor);
+            correctGuessAudio = guesserMonitor.GetComponent<CorrectGuessAudio>()
+                ?? guesserMonitor.gameObject.AddComponent<CorrectGuessAudio>();
+            correctGuessAudio.Configure();
             transcriber = gameObject.AddComponent<VoskGuessTranscriber>();
             transcriber.Configure(() => CanGuessLocally, wordService.Verbs);
             transcriber.TranscriptionReceived += SubmitGuess;
@@ -277,6 +281,10 @@ namespace Meshup.Game
                         var enteredFinishedPhase = hasAppliedSnapshot
                             && lastAppliedPhase != MeshupGamePhase.Finished
                             && nextPhase == MeshupGamePhase.Finished;
+                        var enteredCorrectGuessResult =
+                            CorrectGuessAudio.ShouldPlayForTransition(
+                                hasAppliedSnapshot, lastAppliedPhase,
+                                message.snapshot);
                         var enteredMimePreparation = nextPhase ==
                                 MeshupGamePhase.Preparation
                             && (!hasAppliedSnapshot
@@ -308,6 +316,10 @@ namespace Meshup.Game
                             sizeSelector?.ResetToMedium();
                         }
                         Render();
+                        if (enteredCorrectGuessResult)
+                        {
+                            correctGuessAudio?.Play();
+                        }
                         if (enteredFinishedPhase)
                         {
                             victoryFireworks?.Play();

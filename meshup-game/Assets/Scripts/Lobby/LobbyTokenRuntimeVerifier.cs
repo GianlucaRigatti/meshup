@@ -25,11 +25,11 @@ namespace Meshup.Lobby
             yield return new WaitForSecondsRealtime(7.2f);
             try
             {
-                var reveal = FindFirstObjectByType<FallingBookReveal>();
-                var panel = FindFirstObjectByType<RoomTotemPanel>();
-                var interaction = FindFirstObjectByType<RoomTotemInteraction>();
-                var canvas = FindFirstObjectByType<HologramBillboard>();
-                var player = FindFirstObjectByType<LobbyFirstPersonController>(
+                var reveal = FindAnyObjectByType<FallingBookReveal>();
+                var panel = FindAnyObjectByType<RoomTotemPanel>();
+                var interaction = FindAnyObjectByType<RoomTotemInteraction>();
+                var canvas = FindAnyObjectByType<HologramBillboard>();
+                var player = FindAnyObjectByType<LobbyFirstPersonController>(
                     FindObjectsInactive.Include);
                 var camera = Camera.main;
                 var dualModeRig = GameObject.Find("Lobby Dual Mode Controls");

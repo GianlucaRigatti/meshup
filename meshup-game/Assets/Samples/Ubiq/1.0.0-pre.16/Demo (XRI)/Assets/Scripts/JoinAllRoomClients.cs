@@ -13,7 +13,7 @@ namespace Ubiq.Samples
         private void Start()
         {
             var guid = Guid.NewGuid();
-            foreach (var roomClient in FindObjectsByType<RoomClient>(FindObjectsSortMode.None))
+            foreach (var roomClient in FindObjectsByType<RoomClient>())
             {
                 roomClient.Join(guid);
             }
