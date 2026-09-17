@@ -27,6 +27,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--log-level", default=None)
+    parser.add_argument(
+        "--mesh-simplification",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="simplify generated meshes toward the triangle budget (default: enabled)",
+    )
     return parser
 
 
@@ -43,6 +49,8 @@ def main(argv: list[str] | None = None) -> None:
         parser.error(str(exc))
     if args.log_level:
         settings = replace(settings, log_level=args.log_level)
+    if args.mesh_simplification is not None:
+        settings = replace(settings, mesh_simplification=args.mesh_simplification)
 
     print(
         f"Starting speech={SPEECH_TO_TEXT_MODEL} "

@@ -28,6 +28,7 @@ def test_settings_keep_only_operational_environment_values(tmp_path: Path) -> No
             "IMAGE_TIMEOUT_SECONDS": "45",
             "TRELLIS_TIMEOUT_SECONDS": "90",
             "ASR_TIMEOUT_SECONDS": "12",
+            "MESH_SIMPLIFICATION": "false",
         },
         env_file=env_file,
     )
@@ -37,6 +38,7 @@ def test_settings_keep_only_operational_environment_values(tmp_path: Path) -> No
     assert settings.trellis_timeout_seconds == 90
     assert settings.audio_max_bytes == 2048
     assert settings.asr_timeout_seconds == 12
+    assert settings.mesh_simplification is False
     assert not hasattr(settings, "image_generator")
 
 
@@ -298,6 +300,7 @@ def test_cli_has_no_model_selection_and_rejects_non_wsl(monkeypatch) -> None:
     assert "--image-generator" not in help_text
     assert "--model-3d" not in help_text
     assert "--list-models" not in help_text
+    assert "--no-mesh-simplification" in help_text
     monkeypatch.setattr(cli, "is_wsl", lambda: False)
     with pytest.raises(SystemExit):
         cli.main([])

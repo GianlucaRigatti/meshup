@@ -90,6 +90,49 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
     assert "no specular highlights" in PROMPT_SUFFIX
 
 
+def test_mesh_simplification_can_be_disabled(settings: Settings) -> None:
+    disabled_settings = Settings(
+        asset_output_dir=settings.asset_output_dir,
+        model_cache_dir=settings.model_cache_dir,
+        mesh_simplification=False,
+    )
+    runner = FakeRunner()
+    service = AssetGenerator(
+        disabled_settings,
+        runner=runner,
+        capture_runner=lambda command, timeout, label: "{}",
+        background_remover=FakeBackgroundRemover(),
+    )
+    service.ready = True
+
+    asset_id, cached, _ = service.generate("unsimplified object")
+
+    assert cached is False
+    command = runner.calls[2][0]
+    assert "--skip-simplification" in command
+    metadata = json.loads(
+        (settings.asset_output_dir / f"{asset_id}.json").read_text(encoding="utf-8")
+    )
+    assert metadata["output_settings"]["mesh_simplification"] is False
+    assert metadata["geometry"]["source_triangles"] == 120_000
+    assert metadata["geometry"]["triangles"] == 120_000
+    assert metadata["geometry"]["simplified"] is False
+    assert metadata["pipeline_version"].endswith("-no-mesh-simplification")
+
+
+def test_mesh_simplification_setting_changes_cache_identity(settings: Settings) -> None:
+    enabled = AssetGenerator(settings)
+    disabled = AssetGenerator(
+        Settings(
+            asset_output_dir=settings.asset_output_dir,
+            model_cache_dir=settings.model_cache_dir,
+            mesh_simplification=False,
+        )
+    )
+
+    assert enabled.asset_id("same object") != disabled.asset_id("same object")
+
+
 def test_audio_pipeline_is_sequential_and_private(
     tmp_path: Path,
     settings: Settings,

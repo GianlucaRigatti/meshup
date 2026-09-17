@@ -225,6 +225,8 @@ Only operational settings remain:
 - `IMAGE_TIMEOUT_SECONDS`: FLUX subprocess timeout; default 600.
 - `TRELLIS_TIMEOUT_SECONDS`: TRELLIS subprocess timeout; default 1800.
 - `GLTF_TRANSFORM_TIMEOUT_SECONDS`: mesh simplification timeout; default 300.
+- `MESH_SIMPLIFICATION`: whether meshes above the triangle budget are simplified;
+  default `true`. Texture resizing still runs when this is disabled.
 - `AUDIO_MAX_BYTES`: maximum audio upload size; default 10485760.
 - `AUDIO_MAX_DURATION_SECONDS`: maximum decoded duration; default 60.
 - `AUDIO_DECODE_TIMEOUT_SECONDS`: `ffprobe`/`ffmpeg` timeout; default 30.
@@ -234,6 +236,13 @@ Only operational settings remain:
 
 Values can be exported in the environment or written to `.env`. There are no
 model selectors or pipeline profiles.
+
+The command-line equivalent is `--mesh-simplification` or
+`--no-mesh-simplification`. For example:
+
+```bash
+uv run asset-generator-server --no-mesh-simplification
+```
 
 ## Troubleshooting
 

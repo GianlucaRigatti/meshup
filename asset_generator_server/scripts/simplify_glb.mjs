@@ -15,6 +15,7 @@ const { values } = parseArgs({
     'max-texture-size': { type: 'string' },
     error: { type: 'string' },
     'lock-border': { type: 'boolean' },
+    'skip-simplification': { type: 'boolean' },
     help: { type: 'boolean', short: 'h' },
   },
 });
@@ -23,7 +24,7 @@ if (values.help) {
   console.log(
     'Usage: simplify_glb.mjs --input INPUT --output OUTPUT --stats STATS ' +
       '--max-triangles COUNT --max-texture-size PIXELS --error FRACTION ' +
-      '[--lock-border]',
+      '[--lock-border] [--skip-simplification]',
   );
   process.exit(0);
 }
@@ -64,7 +65,7 @@ const texturesResized = document
 let outputTriangles = sourceTriangles;
 let wasSimplified = false;
 
-if (sourceTriangles > maxTriangles) {
+if (!values['skip-simplification'] && sourceTriangles > maxTriangles) {
   await MeshoptSimplifier.ready;
   await document.transform(
     weld(),

@@ -114,7 +114,7 @@ class AssetGenerator:
     ) -> None:
         self.settings = settings
         self.output_dir = settings.asset_output_dir
-        self.pipeline_version = pipeline_version
+        self.pipeline_version = self._configured_pipeline_version(pipeline_version)
         self._runner = runner or _run_native
         self._capture_runner = capture_runner or _run_capture
         self._background_remover = background_remover
@@ -231,8 +231,11 @@ class AssetGenerator:
                 )
                 timings["prompt_enhancement_ms"] = _elapsed_ms(stage)
 
+                audio_pipeline_version = self._configured_pipeline_version(
+                    AUDIO_PIPELINE_VERSION
+                )
                 asset_id = self.asset_id(
-                    enhanced_prompt, pipeline_version=AUDIO_PIPELINE_VERSION
+                    enhanced_prompt, pipeline_version=audio_pipeline_version
                 )
                 metadata_extra = {
                     "input_type": "audio",
@@ -268,7 +271,7 @@ class AssetGenerator:
                     generated = self._generate_locked(
                         enhanced_prompt,
                         asset_id=asset_id,
-                        pipeline_version=AUDIO_PIPELINE_VERSION,
+                        pipeline_version=audio_pipeline_version,
                         schema_version=AUDIO_PIPELINE_SCHEMA_VERSION,
                         started=started,
                         timings=timings,
@@ -360,9 +363,7 @@ class AssetGenerator:
                 self.settings.gltf_transform_timeout_seconds,
                 "glTF-Transform simplification",
             )
-            _require_signature(
-                simplified_glb, b"glTF", "glTF-Transform simplified GLB"
-            )
+            _require_signature(simplified_glb, b"glTF", "glTF-Transform simplified GLB")
             mesh_stats = _read_simplification_stats(simplification_stats)
             timings["simplification_ms"] = _elapsed_ms(stage)
             timings["total_ms"] = _elapsed_ms(started)
@@ -402,6 +403,11 @@ class AssetGenerator:
         return hashlib.sha256(
             f"{pipeline_version or self.pipeline_version}\0{normalized}".encode()
         ).hexdigest()[:32]
+
+    def _configured_pipeline_version(self, pipeline_version: str) -> str:
+        if self.settings.mesh_simplification:
+            return pipeline_version
+        return f"{pipeline_version}-no-mesh-simplification"
 
     @staticmethod
     def generation_seed(prompt: str) -> int:
@@ -637,7 +643,7 @@ class AssetGenerator:
     def _simplification_command(
         self, source: Path, output: Path, stats: Path
     ) -> list[str]:
-        return [
+        command = [
             "node",
             str((PROJECT_ROOT / "scripts" / "simplify_glb.mjs").resolve()),
             "--input",
@@ -654,6 +660,9 @@ class AssetGenerator:
             str(SIMPLIFICATION_ERROR),
             "--lock-border",
         ]
+        if not self.settings.mesh_simplification:
+            command.append("--skip-simplification")
+        return command
 
     def _cache_exists(self, asset_id: str) -> bool:
         return all(
@@ -746,6 +755,7 @@ class AssetGenerator:
                 "texture_format": "png",
                 "box_uv": False,
                 "max_triangles": MAX_ASSET_TRIANGLES,
+                "mesh_simplification": self.settings.mesh_simplification,
                 "simplification_error": SIMPLIFICATION_ERROR,
                 "simplification_lock_border": SIMPLIFICATION_LOCK_BORDER,
             },

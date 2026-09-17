@@ -192,6 +192,7 @@ class Settings:
     image_timeout_seconds: int = 600
     trellis_timeout_seconds: int = 1800
     gltf_transform_timeout_seconds: int = 300
+    mesh_simplification: bool = True
     audio_max_bytes: int = 10 * 1024 * 1024
     audio_max_duration_seconds: int = 60
     audio_decode_timeout_seconds: int = 30
@@ -222,6 +223,10 @@ class Settings:
             gltf_transform_timeout_seconds=_positive_int(
                 values.get("GLTF_TRANSFORM_TIMEOUT_SECONDS", "300"),
                 "GLTF_TRANSFORM_TIMEOUT_SECONDS",
+            ),
+            mesh_simplification=_boolean(
+                values.get("MESH_SIMPLIFICATION", "true"),
+                "MESH_SIMPLIFICATION",
             ),
             audio_max_bytes=_positive_int(
                 values.get("AUDIO_MAX_BYTES", str(10 * 1024 * 1024)),
@@ -370,3 +375,12 @@ def _positive_int(value: str, name: str) -> int:
     if parsed <= 0:
         raise ValueError(f"{name} must be a positive integer.")
     return parsed
+
+
+def _boolean(value: str, name: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be true or false.")
