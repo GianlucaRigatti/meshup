@@ -241,7 +241,7 @@ The command-line equivalent is `--mesh-simplification` or
 `--no-mesh-simplification`. For example:
 
 ```bash
-uv run asset-generator-server --no-mesh-simplification
+uv run python -m app.cli --no-mesh-simplification
 ```
 
 ## Troubleshooting

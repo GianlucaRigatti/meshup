@@ -35,6 +35,20 @@ Before testing on headsets, edit
 `PUBLIC_BASE_URL`; URLs containing `127.0.0.1` are only suitable for a local
 Editor client.
 
+The server simplifies generated meshes toward a 30,000-triangle target by
+default. To preserve the reconstructed triangle count, start it with
+`--no-mesh-simplification`:
+
+```bash
+cd asset_generator_server
+uv run python -m app.cli --no-mesh-simplification
+```
+
+The same setting can be persisted as `MESH_SIMPLIFICATION=false` in the server's
+environment or `.env` file. Texture resizing still runs in this mode. See
+[`asset_generator_server/README.md`](asset_generator_server/README.md) for the
+full server configuration.
+
 Guess transcription uses the bundled Vosk US-English model with a grammar
 restricted to the game's verb list. Recognition runs entirely on the local
 Quest or desktop computer: hold either controller's primary button, or `G` on
