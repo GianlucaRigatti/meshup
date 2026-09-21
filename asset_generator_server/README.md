@@ -12,8 +12,9 @@ their original behavior and skip both stages.
   512-resolution, 1024px xatlas-UV textured mesh.
 - glTF-Transform welds and simplifies meshes as far as a configurable geometric-
   error limit allows, with a conservative 0.01% default and locked topology
-  borders, then resizes embedded textures to at most 512×512 PNG. There is no
-  triangle-count target; geometric error and topology determine the result.
+  borders, then resizes embedded textures to a configurable limit (512×512 by
+  default) and encodes them as PNG. There is no triangle-count target;
+  geometric error and topology determine the result.
 
 The former cross-platform/model-comparison implementation is preserved in
 [`../model_experiments`](../model_experiments). It is not part of this server.
@@ -196,7 +197,8 @@ Each successful uncached request atomically creates:
 
 - `generated_assets/<asset-id>.glb`: textured binary glTF, simplified as far as
   the configured geometric-error limit and border-preservation constraints
-  allow, with embedded textures resized to at most 512×512 PNG.
+  allow, with embedded textures resized to the configured limit and encoded as
+  PNG.
 - `generated_assets/<asset-id>.original.glb`: untouched 1024px TRELLIS output
   before geometry simplification or texture resizing.
 - `generated_assets/<asset-id>.png`: the full-resolution BiRefNet RGBA cutout,
@@ -225,8 +227,11 @@ Only operational settings remain:
 - `GLTF_TRANSFORM_TIMEOUT_SECONDS`: mesh simplification timeout; default 300.
 - `MESH_SIMPLIFICATION`: whether meshes are simplified; default `true`. Texture
   processing is controlled independently.
-- `TEXTURE_SIMPLIFICATION`: whether embedded textures are resized to at most
-  512×512 and re-encoded as PNG; default `true`.
+- `TEXTURE_SIMPLIFICATION`: whether embedded textures are resized to the
+  configured limit and re-encoded as PNG; default `true`.
+- `MAX_TEXTURE_SIZE`: maximum width and height for processed embedded textures;
+  default `512`. Aspect ratio is preserved. This setting has no effect when
+  `TEXTURE_SIMPLIFICATION=false`.
 - `SIMPLIFICATION_ERROR`: maximum geometric error as a fraction of the mesh
   radius, from `0` to `1`; default `0.0001` (0.01%). The simplifier attempts
   maximum reduction without exceeding this limit.

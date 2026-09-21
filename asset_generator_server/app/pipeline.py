@@ -36,7 +36,7 @@ from app.config import (
     GLTF_TRANSFORM_VERSION,
     IMAGE_GENERATOR,
     MODEL_3D,
-    MAX_ASSET_TEXTURE_SIZE,
+    DEFAULT_MAX_TEXTURE_SIZE,
     OUTPUT_MODE,
     PIPELINE_SCHEMA_VERSION,
     PIPELINE_VERSION,
@@ -367,6 +367,7 @@ class AssetGenerator:
                 simplification_stats,
                 simplification_error=self.settings.simplification_error,
                 texture_simplification=self.settings.texture_simplification,
+                max_texture_size=self.settings.max_texture_size,
             )
             timings["simplification_ms"] = _elapsed_ms(stage)
             timings["total_ms"] = _elapsed_ms(started)
@@ -416,6 +417,8 @@ class AssetGenerator:
             suffixes.append(f"simplification-error-{error}")
         if not self.settings.texture_simplification:
             suffixes.append("no-texture-simplification")
+        elif self.settings.max_texture_size != DEFAULT_MAX_TEXTURE_SIZE:
+            suffixes.append(f"max-texture-size-{self.settings.max_texture_size}")
         if not suffixes:
             return pipeline_version
         return f"{pipeline_version}-{'-'.join(suffixes)}"
@@ -664,7 +667,7 @@ class AssetGenerator:
             "--stats",
             str(stats.resolve()),
             "--max-texture-size",
-            str(MAX_ASSET_TEXTURE_SIZE),
+            str(self.settings.max_texture_size),
             "--error",
             str(self.settings.simplification_error),
             "--lock-border",
@@ -763,7 +766,7 @@ class AssetGenerator:
                 "geometry_resolution": 512,
                 "reconstruction_texture_resolution": 1024,
                 "texture_resolution": (
-                    MAX_ASSET_TEXTURE_SIZE
+                    self.settings.max_texture_size
                     if self.settings.texture_simplification
                     else None
                 ),
@@ -925,6 +928,7 @@ def _read_simplification_stats(
     *,
     simplification_error: float,
     texture_simplification: bool,
+    max_texture_size: int,
 ) -> dict:
     try:
         stats = json.loads(path.read_text(encoding="utf-8"))
@@ -959,7 +963,7 @@ def _read_simplification_stats(
         "texture_bytes": output_texture_bytes,
         "textures_resized": textures_resized,
         "max_texture_size": (
-            MAX_ASSET_TEXTURE_SIZE if texture_simplification else None
+            max_texture_size if texture_simplification else None
         ),
         "texture_format": "png" if texture_simplification else "source",
     }

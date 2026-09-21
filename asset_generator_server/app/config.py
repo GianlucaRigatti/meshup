@@ -59,7 +59,7 @@ PROMPT_ENHANCER_MODEL_ID = "Qwen/Qwen3.5-4B"
 PROMPT_ENHANCER_MODEL_REVISION = "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
 PROMPT_ENHANCER_TRANSFORMERS_VERSION = "5.16.0"
 GLTF_TRANSFORM_VERSION = "4.4.2"
-MAX_ASSET_TEXTURE_SIZE = 512
+DEFAULT_MAX_TEXTURE_SIZE = 512
 DEFAULT_SIMPLIFICATION_ERROR = 0.0001
 SIMPLIFICATION_LOCK_BORDER = True
 PROMPT_ENHANCER_MODEL_FILES = (
@@ -139,7 +139,7 @@ _PIPELINE_IDENTITY = {
         "box_uv": False,
         "background_removal": "external-birefnet-general-fp16-1024",
         "foreground_ratio": 435 / 512,
-        "max_texture_size": MAX_ASSET_TEXTURE_SIZE,
+        "default_max_texture_size": DEFAULT_MAX_TEXTURE_SIZE,
         "texture_format": "png",
         "texture_simplification": True,
         "simplification_strategy": "maximum-reduction-with-error-limit",
@@ -195,6 +195,7 @@ class Settings:
     mesh_simplification: bool = True
     texture_simplification: bool = True
     simplification_error: float = DEFAULT_SIMPLIFICATION_ERROR
+    max_texture_size: int = DEFAULT_MAX_TEXTURE_SIZE
     audio_max_bytes: int = 10 * 1024 * 1024
     audio_max_duration_seconds: int = 60
     audio_decode_timeout_seconds: int = 30
@@ -239,6 +240,10 @@ class Settings:
                     "SIMPLIFICATION_ERROR", str(DEFAULT_SIMPLIFICATION_ERROR)
                 ),
                 "SIMPLIFICATION_ERROR",
+            ),
+            max_texture_size=_positive_int(
+                values.get("MAX_TEXTURE_SIZE", str(DEFAULT_MAX_TEXTURE_SIZE)),
+                "MAX_TEXTURE_SIZE",
             ),
             audio_max_bytes=_positive_int(
                 values.get("AUDIO_MAX_BYTES", str(10 * 1024 * 1024)),

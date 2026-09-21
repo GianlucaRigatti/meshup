@@ -47,7 +47,8 @@ uv run python -m app.cli --no-mesh-simplification
 
 The same setting can be persisted as `MESH_SIMPLIFICATION=false` in the server's
 environment or `.env` file. Texture processing is controlled independently by
-`TEXTURE_SIMPLIFICATION` or `--no-texture-simplification`. See
+`TEXTURE_SIMPLIFICATION` or `--no-texture-simplification`, and its size limit
+can be set with `MAX_TEXTURE_SIZE`. See
 [`asset_generator_server/README.md`](asset_generator_server/README.md) for the
 full server configuration.
 

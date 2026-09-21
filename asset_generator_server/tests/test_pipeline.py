@@ -200,6 +200,50 @@ def test_simplification_error_changes_command_and_cache_identity(
     assert metadata["geometry"]["simplification_error"] == 0.0025
 
 
+def test_max_texture_size_changes_command_metadata_and_cache_identity(
+    settings: Settings,
+) -> None:
+    configured_settings = Settings(
+        asset_output_dir=settings.asset_output_dir,
+        model_cache_dir=settings.model_cache_dir,
+        max_texture_size=1024,
+    )
+    runner = FakeRunner()
+    configured = AssetGenerator(
+        configured_settings,
+        runner=runner,
+        capture_runner=lambda command, timeout, label: "{}",
+        background_remover=FakeBackgroundRemover(),
+    )
+    configured.ready = True
+
+    asset_id, _, _ = configured.generate("configurable texture size")
+
+    command = runner.calls[2][0]
+    assert command[command.index("--max-texture-size") + 1] == "1024"
+    assert configured.asset_id("same object") != AssetGenerator(settings).asset_id(
+        "same object"
+    )
+    metadata = json.loads(
+        (settings.asset_output_dir / f"{asset_id}.json").read_text(encoding="utf-8")
+    )
+    assert metadata["output_settings"]["texture_resolution"] == 1024
+    assert metadata["geometry"]["max_texture_size"] == 1024
+
+
+def test_max_texture_size_does_not_change_cache_when_textures_are_untouched(
+    settings: Settings,
+) -> None:
+    first = AssetGenerator(
+        Settings(texture_simplification=False, max_texture_size=512)
+    )
+    second = AssetGenerator(
+        Settings(texture_simplification=False, max_texture_size=1024)
+    )
+
+    assert first.asset_id("same object") == second.asset_id("same object")
+
+
 def test_audio_pipeline_is_sequential_and_private(
     tmp_path: Path,
     settings: Settings,

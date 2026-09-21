@@ -31,6 +31,7 @@ def test_settings_keep_only_operational_environment_values(tmp_path: Path) -> No
             "MESH_SIMPLIFICATION": "false",
             "TEXTURE_SIMPLIFICATION": "false",
             "SIMPLIFICATION_ERROR": "0.0025",
+            "MAX_TEXTURE_SIZE": "1024",
         },
         env_file=env_file,
     )
@@ -43,6 +44,7 @@ def test_settings_keep_only_operational_environment_values(tmp_path: Path) -> No
     assert settings.mesh_simplification is False
     assert settings.texture_simplification is False
     assert settings.simplification_error == 0.0025
+    assert settings.max_texture_size == 1024
     assert not hasattr(settings, "image_generator")
 
 
@@ -53,6 +55,14 @@ def test_simplification_error_must_be_between_zero_and_one(value: str) -> None:
         match="SIMPLIFICATION_ERROR must be a number between 0 and 1",
     ):
         Settings.from_env({"SIMPLIFICATION_ERROR": value})
+
+
+@pytest.mark.parametrize("value", ["invalid", "0", "-1"])
+def test_max_texture_size_must_be_positive(value: str) -> None:
+    with pytest.raises(
+        ValueError, match="MAX_TEXTURE_SIZE must be a positive integer"
+    ):
+        Settings.from_env({"MAX_TEXTURE_SIZE": value})
 
 
 def test_health_and_ready(client) -> None:
