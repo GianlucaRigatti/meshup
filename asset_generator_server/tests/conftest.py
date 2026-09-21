@@ -67,15 +67,21 @@ class FakeRunner:
             stats = Path(command[command.index("--stats") + 1])
             shutil.copyfile(source, output)
             skip_simplification = "--skip-simplification" in command
+            skip_texture_simplification = (
+                "--skip-texture-simplification" in command
+            )
+            output_triangles = 120_000 if skip_simplification else 18_750
             stats.write_text(
                 json.dumps(
                     {
                         "source_triangles": 120_000,
-                        "output_triangles": 120_000 if skip_simplification else 30_000,
+                        "output_triangles": output_triangles,
                         "simplified": not skip_simplification,
                         "source_texture_bytes": 4_672_122,
-                        "output_texture_bytes": 437_615,
-                        "textures_resized": True,
+                        "output_texture_bytes": (
+                            4_672_122 if skip_texture_simplification else 437_615
+                        ),
+                        "textures_resized": not skip_texture_simplification,
                     }
                 ),
                 encoding="utf-8",

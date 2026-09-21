@@ -59,9 +59,8 @@ PROMPT_ENHANCER_MODEL_ID = "Qwen/Qwen3.5-4B"
 PROMPT_ENHANCER_MODEL_REVISION = "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
 PROMPT_ENHANCER_TRANSFORMERS_VERSION = "5.16.0"
 GLTF_TRANSFORM_VERSION = "4.4.2"
-MAX_ASSET_TRIANGLES = 30_000
 MAX_ASSET_TEXTURE_SIZE = 512
-SIMPLIFICATION_ERROR = 0.0001
+DEFAULT_SIMPLIFICATION_ERROR = 0.0001
 SIMPLIFICATION_LOCK_BORDER = True
 PROMPT_ENHANCER_MODEL_FILES = (
     "chat_template.jinja",
@@ -89,8 +88,8 @@ TRELLIS_MODEL_FILENAMES = (
     "tex_dec.gguf",
 )
 
-PIPELINE_SCHEMA_VERSION = 4
-AUDIO_PIPELINE_SCHEMA_VERSION = 4
+PIPELINE_SCHEMA_VERSION = 5
+AUDIO_PIPELINE_SCHEMA_VERSION = 5
 PROMPT_SANITIZER_VERSION = 2
 PROMPT_SUFFIX = ", one isolated subject, complete subject fully visible, centered, three-quarter front view, camera near subject height, faithful subject-specific anatomy, characteristic colors and materials, natural coherent shape, strong clean silhouette, limbs and appendages clearly visible and separated where applicable, balanced proportions, soft even diffuse studio lighting, minimal shading gradients, no cast shadows, no reflections, no glare, no specular highlights, sharp focus, weak-perspective product view, solid white background, no floor, no pedestal, no environment, no text, no extra objects, no cropping, no occlusion"
 PROMPT_ENHANCEMENT_INSTRUCTION = (
@@ -140,10 +139,11 @@ _PIPELINE_IDENTITY = {
         "box_uv": False,
         "background_removal": "external-birefnet-general-fp16-1024",
         "foreground_ratio": 435 / 512,
-        "max_triangles": MAX_ASSET_TRIANGLES,
         "max_texture_size": MAX_ASSET_TEXTURE_SIZE,
         "texture_format": "png",
-        "simplification_error": SIMPLIFICATION_ERROR,
+        "texture_simplification": True,
+        "simplification_strategy": "maximum-reduction-with-error-limit",
+        "default_simplification_error": DEFAULT_SIMPLIFICATION_ERROR,
         "simplification_lock_border": SIMPLIFICATION_LOCK_BORDER,
         "gltf_transform": GLTF_TRANSFORM_VERSION,
     },
@@ -193,6 +193,8 @@ class Settings:
     trellis_timeout_seconds: int = 1800
     gltf_transform_timeout_seconds: int = 300
     mesh_simplification: bool = True
+    texture_simplification: bool = True
+    simplification_error: float = DEFAULT_SIMPLIFICATION_ERROR
     audio_max_bytes: int = 10 * 1024 * 1024
     audio_max_duration_seconds: int = 60
     audio_decode_timeout_seconds: int = 30
@@ -227,6 +229,16 @@ class Settings:
             mesh_simplification=_boolean(
                 values.get("MESH_SIMPLIFICATION", "true"),
                 "MESH_SIMPLIFICATION",
+            ),
+            texture_simplification=_boolean(
+                values.get("TEXTURE_SIMPLIFICATION", "true"),
+                "TEXTURE_SIMPLIFICATION",
+            ),
+            simplification_error=_unit_interval_float(
+                values.get(
+                    "SIMPLIFICATION_ERROR", str(DEFAULT_SIMPLIFICATION_ERROR)
+                ),
+                "SIMPLIFICATION_ERROR",
             ),
             audio_max_bytes=_positive_int(
                 values.get("AUDIO_MAX_BYTES", str(10 * 1024 * 1024)),
@@ -374,6 +386,16 @@ def _positive_int(value: str, name: str) -> int:
         raise ValueError(f"{name} must be a positive integer.") from exc
     if parsed <= 0:
         raise ValueError(f"{name} must be a positive integer.")
+    return parsed
+
+
+def _unit_interval_float(value: str, name: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a number between 0 and 1.") from exc
+    if not 0 <= parsed <= 1:
+        raise ValueError(f"{name} must be a number between 0 and 1.")
     return parsed
 
 

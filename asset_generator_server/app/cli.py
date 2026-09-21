@@ -31,7 +31,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--mesh-simplification",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="simplify generated meshes toward the triangle budget (default: enabled)",
+        help="simplify generated meshes within the geometric-error limit (default: enabled)",
+    )
+    parser.add_argument(
+        "--texture-simplification",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="resize and re-encode generated textures (default: enabled)",
     )
     return parser
 
@@ -51,6 +57,10 @@ def main(argv: list[str] | None = None) -> None:
         settings = replace(settings, log_level=args.log_level)
     if args.mesh_simplification is not None:
         settings = replace(settings, mesh_simplification=args.mesh_simplification)
+    if args.texture_simplification is not None:
+        settings = replace(
+            settings, texture_simplification=args.texture_simplification
+        )
 
     print(
         f"Starting speech={SPEECH_TO_TEXT_MODEL} "

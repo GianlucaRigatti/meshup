@@ -80,7 +80,7 @@ def test_fixed_commands_are_sequential_and_prompt_is_private(
         service.generation_seed("private test object")
     )
     assert runner.trellis_input_modes == ["RGBA"]
-    assert simplifier[simplifier.index("--max-triangles") + 1] == "30000"
+    assert "--max-triangles" not in simplifier
     assert simplifier[simplifier.index("--max-texture-size") + 1] == "512"
     assert simplifier[simplifier.index("--error") + 1] == "0.0001"
     assert "--lock-border" in simplifier
@@ -131,6 +131,73 @@ def test_mesh_simplification_setting_changes_cache_identity(settings: Settings) 
     )
 
     assert enabled.asset_id("same object") != disabled.asset_id("same object")
+
+
+def test_texture_simplification_can_be_disabled(settings: Settings) -> None:
+    configured_settings = Settings(
+        asset_output_dir=settings.asset_output_dir,
+        model_cache_dir=settings.model_cache_dir,
+        texture_simplification=False,
+    )
+    runner = FakeRunner()
+    service = AssetGenerator(
+        configured_settings,
+        runner=runner,
+        capture_runner=lambda command, timeout, label: "{}",
+        background_remover=FakeBackgroundRemover(),
+    )
+    service.ready = True
+
+    asset_id, _, _ = service.generate("full resolution textures")
+
+    command = runner.calls[2][0]
+    assert "--skip-texture-simplification" in command
+    assert service.asset_id("same object") != AssetGenerator(settings).asset_id(
+        "same object"
+    )
+    metadata = json.loads(
+        (settings.asset_output_dir / f"{asset_id}.json").read_text(encoding="utf-8")
+    )
+    assert metadata["output_settings"]["texture_simplification"] is False
+    assert metadata["geometry"]["source_texture_bytes"] == 4_672_122
+    assert metadata["geometry"]["texture_bytes"] == 4_672_122
+    assert metadata["geometry"]["textures_resized"] is False
+    assert metadata["geometry"]["max_texture_size"] is None
+    assert metadata["geometry"]["texture_format"] == "source"
+    assert metadata["output_settings"]["texture_resolution"] is None
+    assert metadata["output_settings"]["texture_format"] == "source"
+
+
+def test_simplification_error_changes_command_and_cache_identity(
+    settings: Settings,
+) -> None:
+    configured_settings = Settings(
+        asset_output_dir=settings.asset_output_dir,
+        model_cache_dir=settings.model_cache_dir,
+        simplification_error=0.0025,
+    )
+    runner = FakeRunner()
+    configured = AssetGenerator(
+        configured_settings,
+        runner=runner,
+        capture_runner=lambda command, timeout, label: "{}",
+        background_remover=FakeBackgroundRemover(),
+    )
+    configured.ready = True
+
+    asset_id, _, _ = configured.generate("configurable error")
+
+    command = runner.calls[2][0]
+    assert command[command.index("--error") + 1] == "0.0025"
+    assert "--max-triangles" not in command
+    assert configured.asset_id("same object") != AssetGenerator(settings).asset_id(
+        "same object"
+    )
+    metadata = json.loads(
+        (settings.asset_output_dir / f"{asset_id}.json").read_text(encoding="utf-8")
+    )
+    assert metadata["output_settings"]["simplification_error"] == 0.0025
+    assert metadata["geometry"]["simplification_error"] == 0.0025
 
 
 def test_audio_pipeline_is_sequential_and_private(
@@ -404,13 +471,14 @@ def test_success_creates_original_and_network_artifacts_without_storing_prompt(
     assert metadata["models"]["background_removal"]["id"] == "ZhengPeng7/BiRefNet"
     assert metadata["output_settings"]["background_removal_resolution"] == 1024
     assert metadata["output_settings"]["box_uv"] is False
-    assert metadata["output_settings"]["max_triangles"] == 30_000
+    assert metadata["output_settings"]["texture_simplification"] is True
+    assert "max_triangles" not in metadata["output_settings"]
     assert metadata["output_settings"]["texture_resolution"] == 512
     assert metadata["geometry"] == {
         "source_triangles": 120_000,
-        "triangles": 30_000,
+        "triangles": 18_750,
         "simplified": True,
-        "max_triangles": 30_000,
+        "simplification_error": 0.0001,
         "simplifier": "glTF-Transform",
         "simplifier_version": "4.4.2",
         "lock_border": True,

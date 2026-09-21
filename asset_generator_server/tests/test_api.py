@@ -29,6 +29,8 @@ def test_settings_keep_only_operational_environment_values(tmp_path: Path) -> No
             "TRELLIS_TIMEOUT_SECONDS": "90",
             "ASR_TIMEOUT_SECONDS": "12",
             "MESH_SIMPLIFICATION": "false",
+            "TEXTURE_SIMPLIFICATION": "false",
+            "SIMPLIFICATION_ERROR": "0.0025",
         },
         env_file=env_file,
     )
@@ -39,7 +41,18 @@ def test_settings_keep_only_operational_environment_values(tmp_path: Path) -> No
     assert settings.audio_max_bytes == 2048
     assert settings.asr_timeout_seconds == 12
     assert settings.mesh_simplification is False
+    assert settings.texture_simplification is False
+    assert settings.simplification_error == 0.0025
     assert not hasattr(settings, "image_generator")
+
+
+@pytest.mark.parametrize("value", ["invalid", "-0.1", "1.1", "nan"])
+def test_simplification_error_must_be_between_zero_and_one(value: str) -> None:
+    with pytest.raises(
+        ValueError,
+        match="SIMPLIFICATION_ERROR must be a number between 0 and 1",
+    ):
+        Settings.from_env({"SIMPLIFICATION_ERROR": value})
 
 
 def test_health_and_ready(client) -> None:
@@ -301,6 +314,7 @@ def test_cli_has_no_model_selection_and_rejects_non_wsl(monkeypatch) -> None:
     assert "--model-3d" not in help_text
     assert "--list-models" not in help_text
     assert "--no-mesh-simplification" in help_text
+    assert "--no-texture-simplification" in help_text
     monkeypatch.setattr(cli, "is_wsl", lambda: False)
     with pytest.raises(SystemExit):
         cli.main([])

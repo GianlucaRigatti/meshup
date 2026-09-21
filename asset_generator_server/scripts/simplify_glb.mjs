@@ -11,11 +11,11 @@ const { values } = parseArgs({
     input: { type: 'string' },
     output: { type: 'string' },
     stats: { type: 'string' },
-    'max-triangles': { type: 'string' },
     'max-texture-size': { type: 'string' },
     error: { type: 'string' },
     'lock-border': { type: 'boolean' },
     'skip-simplification': { type: 'boolean' },
+    'skip-texture-simplification': { type: 'boolean' },
     help: { type: 'boolean', short: 'h' },
   },
 });
@@ -23,8 +23,8 @@ const { values } = parseArgs({
 if (values.help) {
   console.log(
     'Usage: simplify_glb.mjs --input INPUT --output OUTPUT --stats STATS ' +
-      '--max-triangles COUNT --max-texture-size PIXELS --error FRACTION ' +
-      '[--lock-border] [--skip-simplification]',
+      '--max-texture-size PIXELS --error FRACTION ' +
+      '[--lock-border] [--skip-simplification] [--skip-texture-simplification]',
   );
   process.exit(0);
 }
@@ -33,19 +33,14 @@ for (const name of [
   'input',
   'output',
   'stats',
-  'max-triangles',
   'max-texture-size',
   'error',
 ]) {
   if (values[name] === undefined) throw new Error(`Missing --${name}.`);
 }
 
-const maxTriangles = Number.parseInt(values['max-triangles'], 10);
 const maxTextureSize = Number.parseInt(values['max-texture-size'], 10);
 const maxError = Number.parseFloat(values.error);
-if (!Number.isSafeInteger(maxTriangles) || maxTriangles <= 0) {
-  throw new Error('--max-triangles must be a positive integer.');
-}
 if (!Number.isSafeInteger(maxTextureSize) || maxTextureSize <= 0) {
   throw new Error('--max-texture-size must be a positive integer.');
 }
@@ -58,20 +53,17 @@ const document = await io.read(values.input);
 document.setLogger(new Logger(Logger.Verbosity.SILENT));
 const sourceTriangles = countTriangles(document);
 const sourceTextureBytes = countTextureBytes(document);
-const texturesResized = document
-  .getRoot()
-  .listTextures()
-  .some((texture) => texture.getSize()?.some((size) => size > maxTextureSize));
+let texturesResized = false;
 let outputTriangles = sourceTriangles;
 let wasSimplified = false;
 
-if (!values['skip-simplification'] && sourceTriangles > maxTriangles) {
+if (!values['skip-simplification']) {
   await MeshoptSimplifier.ready;
   await document.transform(
     weld(),
     simplify({
       simplifier: MeshoptSimplifier,
-      ratio: maxTriangles / sourceTriangles,
+      ratio: 0,
       error: maxError,
       lockBorder: values['lock-border'] ?? false,
     }),
@@ -80,14 +72,20 @@ if (!values['skip-simplification'] && sourceTriangles > maxTriangles) {
   wasSimplified = outputTriangles < sourceTriangles;
 }
 
-await document.transform(
-  textureCompress({
-    encoder: sharp,
-    resize: [maxTextureSize, maxTextureSize],
-    targetFormat: 'png',
-    effort: 80,
-  }),
-);
+if (!values['skip-texture-simplification']) {
+  texturesResized = document
+    .getRoot()
+    .listTextures()
+    .some((texture) => texture.getSize()?.some((size) => size > maxTextureSize));
+  await document.transform(
+    textureCompress({
+      encoder: sharp,
+      resize: [maxTextureSize, maxTextureSize],
+      targetFormat: 'png',
+      effort: 80,
+    }),
+  );
+}
 const outputTextureBytes = countTextureBytes(document);
 await io.write(values.output, document);
 

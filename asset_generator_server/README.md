@@ -10,11 +10,10 @@ their original behavior and skip both stages.
   then crops and recenters the subject on a transparent 768px canvas.
 - `trellis2-fast` receives that prematted RGBA image and reconstructs a
   512-resolution, 1024px xatlas-UV textured mesh.
-- glTF-Transform welds and simplifies oversized meshes toward a 30,000-triangle
-  network-delivery target with a conservative 0.01% geometric-error limit and
-  locked topology borders, then resizes embedded textures to at most 512×512
-  PNG. The error limit may stop simplification above the target when needed to
-  preserve detailed geometry.
+- glTF-Transform welds and simplifies meshes as far as a configurable geometric-
+  error limit allows, with a conservative 0.01% default and locked topology
+  borders, then resizes embedded textures to at most 512×512 PNG. There is no
+  triangle-count target; geometric error and topology determine the result.
 
 The former cross-platform/model-comparison implementation is preserved in
 [`../model_experiments`](../model_experiments). It is not part of this server.
@@ -195,10 +194,9 @@ generation report zero milliseconds.
 
 Each successful uncached request atomically creates:
 
-- `generated_assets/<asset-id>.glb`: textured binary glTF, simplified toward a
-  target of 30,000 triangles when reconstruction exceeds that budget, with
-  conservative error and border-preservation constraints and embedded textures
-  resized to at most 512×512 PNG.
+- `generated_assets/<asset-id>.glb`: textured binary glTF, simplified as far as
+  the configured geometric-error limit and border-preservation constraints
+  allow, with embedded textures resized to at most 512×512 PNG.
 - `generated_assets/<asset-id>.original.glb`: untouched 1024px TRELLIS output
   before geometry simplification or texture resizing.
 - `generated_assets/<asset-id>.png`: the full-resolution BiRefNet RGBA cutout,
@@ -225,8 +223,13 @@ Only operational settings remain:
 - `IMAGE_TIMEOUT_SECONDS`: FLUX subprocess timeout; default 600.
 - `TRELLIS_TIMEOUT_SECONDS`: TRELLIS subprocess timeout; default 1800.
 - `GLTF_TRANSFORM_TIMEOUT_SECONDS`: mesh simplification timeout; default 300.
-- `MESH_SIMPLIFICATION`: whether meshes above the triangle budget are simplified;
-  default `true`. Texture resizing still runs when this is disabled.
+- `MESH_SIMPLIFICATION`: whether meshes are simplified; default `true`. Texture
+  processing is controlled independently.
+- `TEXTURE_SIMPLIFICATION`: whether embedded textures are resized to at most
+  512×512 and re-encoded as PNG; default `true`.
+- `SIMPLIFICATION_ERROR`: maximum geometric error as a fraction of the mesh
+  radius, from `0` to `1`; default `0.0001` (0.01%). The simplifier attempts
+  maximum reduction without exceeding this limit.
 - `AUDIO_MAX_BYTES`: maximum audio upload size; default 10485760.
 - `AUDIO_MAX_DURATION_SECONDS`: maximum decoded duration; default 60.
 - `AUDIO_DECODE_TIMEOUT_SECONDS`: `ffprobe`/`ffmpeg` timeout; default 30.
@@ -237,11 +240,13 @@ Only operational settings remain:
 Values can be exported in the environment or written to `.env`. There are no
 model selectors or pipeline profiles.
 
-The command-line equivalent is `--mesh-simplification` or
-`--no-mesh-simplification`. For example:
+The command-line equivalents are `--mesh-simplification` /
+`--no-mesh-simplification` and `--texture-simplification` /
+`--no-texture-simplification`. For example:
 
 ```bash
 uv run python -m app.cli --no-mesh-simplification
+uv run python -m app.cli --no-texture-simplification
 ```
 
 ## Troubleshooting

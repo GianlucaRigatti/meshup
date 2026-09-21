@@ -27,6 +27,7 @@ from app.config import (
     BIREFNET_MODEL_ID,
     BIREFNET_MODEL_REVISION,
     DEVICE,
+    DEFAULT_SIMPLIFICATION_ERROR,
     FLUX_MODEL_ID,
     FLUX_MODEL_REVISION,
     FLUX_VAE_MODEL_ID,
@@ -35,7 +36,6 @@ from app.config import (
     GLTF_TRANSFORM_VERSION,
     IMAGE_GENERATOR,
     MODEL_3D,
-    MAX_ASSET_TRIANGLES,
     MAX_ASSET_TEXTURE_SIZE,
     OUTPUT_MODE,
     PIPELINE_SCHEMA_VERSION,
@@ -46,7 +46,6 @@ from app.config import (
     PROMPT_SUFFIX,
     QWEN_MODEL_ID,
     QWEN_MODEL_REVISION,
-    SIMPLIFICATION_ERROR,
     SIMPLIFICATION_LOCK_BORDER,
     STABLE_DIFFUSION_CPP_REVISION,
     TRELLIS_CPP_REVISION,
@@ -364,7 +363,11 @@ class AssetGenerator:
                 "glTF-Transform simplification",
             )
             _require_signature(simplified_glb, b"glTF", "glTF-Transform simplified GLB")
-            mesh_stats = _read_simplification_stats(simplification_stats)
+            mesh_stats = _read_simplification_stats(
+                simplification_stats,
+                simplification_error=self.settings.simplification_error,
+                texture_simplification=self.settings.texture_simplification,
+            )
             timings["simplification_ms"] = _elapsed_ms(stage)
             timings["total_ms"] = _elapsed_ms(started)
 
@@ -405,9 +408,17 @@ class AssetGenerator:
         ).hexdigest()[:32]
 
     def _configured_pipeline_version(self, pipeline_version: str) -> str:
-        if self.settings.mesh_simplification:
+        suffixes: list[str] = []
+        if not self.settings.mesh_simplification:
+            suffixes.append("no-mesh-simplification")
+        elif self.settings.simplification_error != DEFAULT_SIMPLIFICATION_ERROR:
+            error = format(self.settings.simplification_error, ".17g")
+            suffixes.append(f"simplification-error-{error}")
+        if not self.settings.texture_simplification:
+            suffixes.append("no-texture-simplification")
+        if not suffixes:
             return pipeline_version
-        return f"{pipeline_version}-no-mesh-simplification"
+        return f"{pipeline_version}-{'-'.join(suffixes)}"
 
     @staticmethod
     def generation_seed(prompt: str) -> int:
@@ -652,16 +663,16 @@ class AssetGenerator:
             str(output.resolve()),
             "--stats",
             str(stats.resolve()),
-            "--max-triangles",
-            str(MAX_ASSET_TRIANGLES),
             "--max-texture-size",
             str(MAX_ASSET_TEXTURE_SIZE),
             "--error",
-            str(SIMPLIFICATION_ERROR),
+            str(self.settings.simplification_error),
             "--lock-border",
         ]
         if not self.settings.mesh_simplification:
             command.append("--skip-simplification")
+        if not self.settings.texture_simplification:
+            command.append("--skip-texture-simplification")
         return command
 
     def _cache_exists(self, asset_id: str) -> bool:
@@ -751,12 +762,18 @@ class AssetGenerator:
                 "foreground_ratio": 435 / 512,
                 "geometry_resolution": 512,
                 "reconstruction_texture_resolution": 1024,
-                "texture_resolution": MAX_ASSET_TEXTURE_SIZE,
-                "texture_format": "png",
+                "texture_resolution": (
+                    MAX_ASSET_TEXTURE_SIZE
+                    if self.settings.texture_simplification
+                    else None
+                ),
+                "texture_format": (
+                    "png" if self.settings.texture_simplification else "source"
+                ),
                 "box_uv": False,
-                "max_triangles": MAX_ASSET_TRIANGLES,
                 "mesh_simplification": self.settings.mesh_simplification,
-                "simplification_error": SIMPLIFICATION_ERROR,
+                "texture_simplification": self.settings.texture_simplification,
+                "simplification_error": self.settings.simplification_error,
                 "simplification_lock_border": SIMPLIFICATION_LOCK_BORDER,
             },
             "geometry": mesh_stats,
@@ -903,7 +920,12 @@ def _cached_downstream_timings() -> dict[str, int]:
     }
 
 
-def _read_simplification_stats(path: Path) -> dict:
+def _read_simplification_stats(
+    path: Path,
+    *,
+    simplification_error: float,
+    texture_simplification: bool,
+) -> dict:
     try:
         stats = json.loads(path.read_text(encoding="utf-8"))
         source = int(stats["source_triangles"])
@@ -929,15 +951,17 @@ def _read_simplification_stats(path: Path) -> dict:
         "source_triangles": source,
         "triangles": output,
         "simplified": simplified,
-        "max_triangles": MAX_ASSET_TRIANGLES,
+        "simplification_error": simplification_error,
         "simplifier": "glTF-Transform",
         "simplifier_version": GLTF_TRANSFORM_VERSION,
         "lock_border": SIMPLIFICATION_LOCK_BORDER,
         "source_texture_bytes": source_texture_bytes,
         "texture_bytes": output_texture_bytes,
         "textures_resized": textures_resized,
-        "max_texture_size": MAX_ASSET_TEXTURE_SIZE,
-        "texture_format": "png",
+        "max_texture_size": (
+            MAX_ASSET_TEXTURE_SIZE if texture_simplification else None
+        ),
+        "texture_format": "png" if texture_simplification else "source",
     }
 
 

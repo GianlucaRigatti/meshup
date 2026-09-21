@@ -35,9 +35,10 @@ Before testing on headsets, edit
 `PUBLIC_BASE_URL`; URLs containing `127.0.0.1` are only suitable for a local
 Editor client.
 
-The server simplifies generated meshes toward a 30,000-triangle target by
-default. To preserve the reconstructed triangle count, start it with
-`--no-mesh-simplification`:
+The server simplifies generated meshes as far as its geometric-error limit
+allows. The default `SIMPLIFICATION_ERROR=0.0001` permits up to 0.01% error
+relative to the mesh radius. To preserve the reconstructed triangle count,
+start it with `--no-mesh-simplification`:
 
 ```bash
 cd asset_generator_server
@@ -45,7 +46,8 @@ uv run python -m app.cli --no-mesh-simplification
 ```
 
 The same setting can be persisted as `MESH_SIMPLIFICATION=false` in the server's
-environment or `.env` file. Texture resizing still runs in this mode. See
+environment or `.env` file. Texture processing is controlled independently by
+`TEXTURE_SIMPLIFICATION` or `--no-texture-simplification`. See
 [`asset_generator_server/README.md`](asset_generator_server/README.md) for the
 full server configuration.
 
