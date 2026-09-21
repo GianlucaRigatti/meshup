@@ -660,7 +660,18 @@ namespace Meshup.Game
 
         private void StopPoseidonCue()
         {
-            poseidonAudioSource?.Stop();
+            // Unity objects can retain a managed reference after their native
+            // object has been destroyed. The null-conditional operator does not
+            // use Unity's overloaded null check, so it can still call Stop() on
+            // a destroyed AudioSource while the scene is being torn down.
+            if (poseidonAudioSource != null)
+            {
+                poseidonAudioSource.Stop();
+            }
+            else
+            {
+                poseidonAudioSource = null;
+            }
             if (poseidonLightPulse != null)
             {
                 StopCoroutine(poseidonLightPulse);
