@@ -61,13 +61,30 @@ namespace Meshup.EditorTools
             foreach (var field in new[]
                      {
                          "panelRoot", "usernameInput", "roomNameText", "createButton", "refreshButton", "closeButton",
-                         "roomListContent", "roomListItemTemplate", "statusText", "noRoomsMessage"
+                         "roomListContent", "roomListItemTemplate", "statusText", "noRoomsMessage", "ubiqMenuPrefab"
                      })
             {
                 if (panelData.FindProperty(field).objectReferenceValue == null)
                 {
                     throw new InvalidOperationException($"The hologram panel field is missing: {field}");
                 }
+            }
+            var menuPrefab = panelData.FindProperty("ubiqMenuPrefab")
+                .objectReferenceValue as GameObject;
+            var menuPath = AssetDatabase.GetAssetPath(menuPrefab);
+            if (!menuPath.StartsWith("Assets/Prefabs/Ubiq Sample UI/",
+                    StringComparison.Ordinal)
+                || menuPrefab.transform.Find("Canvas/Main Panel/Browse Panel")
+                    == null
+                || menuPrefab.transform.Find(
+                    "Canvas/Main Panel/New Room Panel") == null
+                || menuPrefab.transform.Find(
+                    "Canvas/Main Panel/Join Room Panel") == null
+                || menuPrefab.transform.Find(
+                    "Canvas/Main Panel/Set Name Panel") == null)
+            {
+                throw new InvalidOperationException(
+                    "The lobby must use the copied Ubiq sample menu prefab.");
             }
             if (panelData.FindProperty("allowClose").boolValue
                 || panelData.FindProperty("lockPlayerInputWhenOpen").boolValue

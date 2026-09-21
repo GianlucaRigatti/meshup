@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Meshup.Lobby
 {
@@ -48,6 +49,29 @@ namespace Meshup.Lobby
                     throw new InvalidOperationException(
                         "The lobby did not provide a read-only generated room name.");
                 }
+                var sampleMenu = panel.transform.Find("Ubiq Sample Menu")
+                    as RectTransform;
+                var nameEntry = sampleMenu?.Find(
+                    "Main Panel/Set Name Panel/Content/Text Input Area/Text")
+                    ?.GetComponent<Ubiq.Samples.TextEntry>();
+                var visibleLabels = sampleMenu?.GetComponentsInChildren<Text>(false)
+                    .Count(text => !string.IsNullOrWhiteSpace(text.text)) ?? 0;
+                if (sampleMenu == null || visibleLabels < 4
+                    || Vector2.Distance(sampleMenu.sizeDelta,
+                        new Vector2(220f, 190f)) > 0.1f
+                    || Mathf.Abs(sampleMenu.lossyScale.x - 0.003f) > 0.0001f)
+                {
+                    throw new InvalidOperationException(
+                        "The copied Ubiq menu is collapsed, hidden or incorrectly scaled.");
+                }
+                if (nameEntry == null || nameEntry.defaultText != "Name"
+                    || nameEntry.text.text != "Name")
+                {
+                    throw new InvalidOperationException(
+                        "The name entry does not use the expected Name "
+                        + $"placeholder (default='{nameEntry?.defaultText}', "
+                        + $"text='{nameEntry?.text?.text}').");
+                }
                 if (interaction.InteractionAvailable)
                 {
                     throw new InvalidOperationException("The legacy E interaction was unexpectedly enabled.");
@@ -68,7 +92,15 @@ namespace Meshup.Lobby
                     throw new InvalidOperationException("The VR hologram is not facing the player correctly.");
                 }
 
-                Capture(camera, "/tmp/meshup-token-runtime.png");
+                // Camera.Render can crash Unity's Metal renderer when this
+                // verifier runs with -nographics. Interactive verification
+                // still captures the visual artifact.
+                if (!Application.isBatchMode
+                    || Environment.GetCommandLineArgs().Contains(
+                        "-captureLobbyToken"))
+                {
+                    Capture(camera, "/tmp/meshup-token-runtime.png");
+                }
                 Debug.Log("Lobby token runtime verification passed: fall, impact, opening, projection, automatic persistent UI.");
                 EditorApplication.Exit(0);
             }

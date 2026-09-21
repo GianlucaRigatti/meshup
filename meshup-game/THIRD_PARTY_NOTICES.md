@@ -1,5 +1,14 @@
 # Third-party notices
 
+## Ubiq sample UI
+
+The menu, room-browser, keyboard, and key prefabs under
+`Assets/Prefabs/Ubiq Sample UI` are copied from Ubiq 1.0.0-pre.16 by the UCL
+Immersive Virtual Environments Laboratory. Ubiq is Copyright 2021 the Virtual
+Environments and Computer Graphics Group, University College London, and is
+licensed under the Apache License 2.0. The complete license text is stored at
+`Assets/Prefabs/Ubiq Sample UI/LICENSE-Ubiq.txt`.
+
 ## Vosk API and Unity bindings
 
 Vosk is Copyright 2019 Alpha Cephei Inc. and is distributed under the Apache

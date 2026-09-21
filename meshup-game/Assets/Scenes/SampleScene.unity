@@ -4396,6 +4396,7 @@ MonoBehaviour:
   statusText: {fileID: 1414626040}
   noRoomsMessage: {fileID: 1576812499}
   ubiqKeyboardPrefab: {fileID: 3025226923557411734, guid: 6b26cd8ab48f81e44a784d4c02ba92cc, type: 3}
+  ubiqMenuPrefab: {fileID: 5514386084912180036, guid: 3cbff9353da3541aab46f8b7d9eb61e1, type: 3}
   refreshInterval: 2
   allowClose: 0
   lockPlayerInputWhenOpen: 0

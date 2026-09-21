@@ -365,6 +365,19 @@ namespace Meshup.Multiplayer
             return true;
         }
 
+        public bool JoinRoom(string joinCode)
+        {
+            var normalized = joinCode?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(normalized))
+            {
+                ReportError("Enter a room join code first.");
+                return false;
+            }
+
+            return JoinRoom(new RoomListing(string.Empty, string.Empty,
+                normalized));
+        }
+
         public bool LeaveRoom()
         {
             if (State != RoomSessionState.InGame)
