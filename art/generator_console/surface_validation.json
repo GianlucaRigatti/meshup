@@ -1,0 +1,13 @@
+{
+  "housing_shell": {
+    "boundary_edges": 0,
+    "non_manifold_edges": 0
+  },
+  "triangles": 1376,
+  "materials": [
+    "Console_Ceramic",
+    "Console_Original_512",
+    "Console_Trim",
+    "Console_Graphite"
+  ]
+}

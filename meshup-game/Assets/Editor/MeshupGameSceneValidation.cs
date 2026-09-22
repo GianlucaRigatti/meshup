@@ -56,13 +56,17 @@ namespace Meshup.EditorTools
                 "smallSizeButton", "mediumSizeButton", "extraLargeSizeButton"
             }.Select(field => (GameObject)serialized.FindProperty(field)
                 .objectReferenceValue).ToArray();
-            if (sizeLabels.Any(label => label.GetComponent<TMPro.TMP_Text>() == null)
-                || GeneratedObjectSizeSelector.FindPhysicalButtons(sizeLabels)
-                    .Length != 3)
+            if (sizeLabels.Any(label => label.GetComponent<ConsoleButtonFeedback>() == null
+                    || label.GetComponent<Collider>() == null)
+                || GeneratedObjectSizeSelector.FindPhysicalButtons(sizeLabels).Length != 3)
             {
                 throw new InvalidOperationException(
-                    "The size labels must resolve to three physical selector buttons.");
+                    "The size references must resolve to three integrated physical selector buttons.");
             }
+            var generate = (GameObject)serialized.FindProperty("generatorButton").objectReferenceValue;
+            if (generate.GetComponent<ConsoleButtonFeedback>() == null
+                || generate.GetComponent<Collider>() == null)
+                throw new InvalidOperationException("Generate must reference the physical console button.");
             Debug.Log("Authored game runtime validation passed.");
         }
     }

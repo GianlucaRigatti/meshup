@@ -94,6 +94,8 @@ namespace Meshup.Game
         public int remainingSeconds;
         public int generationTokens;
         public bool generationPending;
+        public GeneratedObjectSize selectedSize = GeneratedObjectSize.Medium;
+        public int sizeSelectionRevision;
         public MeshupPlayerScore[] scores = Array.Empty<MeshupPlayerScore>();
         public MeshupGeneratedObjectState[] generatedObjects =
             Array.Empty<MeshupGeneratedObjectState>();
@@ -122,6 +124,8 @@ namespace Meshup.Game
         public int RemainingSeconds { get; private set; }
         public int GenerationTokens { get; private set; }
         public bool GenerationPending { get; private set; }
+        public GeneratedObjectSize SelectedSize { get; private set; } = GeneratedObjectSize.Medium;
+        public int SizeSelectionRevision { get; private set; }
         public int Version => version;
         public string SelectedWord => selectedWord;
         public IEnumerable<MeshupPlayerScore> Players => players.Values;
@@ -265,6 +269,20 @@ namespace Meshup.Game
             return true;
         }
 
+        public bool TrySelectSize(string peerId, GeneratedObjectSize size)
+        {
+            if (Phase != MeshupGamePhase.Preparation || !IsCurrentMime(peerId)
+                || GenerationTokens <= 0 || GenerationPending
+                || size != GeneratedObjectSizes.Normalize(size))
+            {
+                return false;
+            }
+            SelectedSize = size;
+            SizeSelectionRevision++;
+            Touch();
+            return true;
+        }
+
         public bool TryBeginGeneration(string peerId)
         {
             if (Phase != MeshupGamePhase.Preparation
@@ -324,6 +342,8 @@ namespace Meshup.Game
                 remainingSeconds = RemainingSeconds,
                 generationTokens = GenerationTokens,
                 generationPending = GenerationPending,
+                selectedSize = SelectedSize,
+                sizeSelectionRevision = SizeSelectionRevision,
                 scores = players.Values
                     .OrderByDescending(item => item.points)
                     .ThenBy(item => item.displayName, StringComparer.Ordinal)
@@ -394,6 +414,7 @@ namespace Meshup.Game
             MaskedWord = string.Empty;
             ResultWord = string.Empty;
             ResultMessage = string.Empty;
+            SelectedSize = GeneratedObjectSize.Medium;
             GenerationTokens = 0;
             GenerationPending = false;
             RemainingSeconds = 0;

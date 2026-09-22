@@ -1,0 +1,7 @@
+{
+  "cap_boundary_edges": 0,
+  "cap_non_manifold_edges": 0,
+  "socket_radial_clearance_m": 0.002,
+  "pressed_face_clearance_m": 0.009000000000000001,
+  "triangles": 1541
+}

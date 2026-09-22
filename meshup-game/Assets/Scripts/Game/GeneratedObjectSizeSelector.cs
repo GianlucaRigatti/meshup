@@ -24,6 +24,7 @@ namespace Meshup.Game
             public Material[] OriginalMaterials;
             public Material[] ButtonMaterials;
             public Light Glow;
+            public ConsoleButtonFeedback Feedback;
             public AudioSource AudioSource;
             public XRSimpleInteractable Interactable;
             public UnityAction<SelectEnterEventArgs> Listener;
@@ -31,6 +32,7 @@ namespace Meshup.Game
 
         private readonly List<Binding> bindings = new();
         private Func<bool> canSelect;
+        private Action<GeneratedObjectSize> requestSelection;
         private bool interactable;
         private AudioClip buttonPressClip;
 
@@ -38,10 +40,12 @@ namespace Meshup.Game
             GeneratedObjectSize.Medium;
 
         public void Configure(GameObject small, GameObject medium,
-            GameObject extraLarge, Func<bool> selectionAllowed)
+            GameObject extraLarge, Func<bool> selectionAllowed,
+            Action<GeneratedObjectSize> selectionRequested = null)
         {
             ClearBindings();
             canSelect = selectionAllowed;
+            requestSelection = selectionRequested;
             buttonPressClip = Resources.Load<AudioClip>(
                 ButtonPressClipResourcePath);
             if (buttonPressClip == null)
@@ -73,6 +77,13 @@ namespace Meshup.Game
             {
                 return Array.Empty<Renderer>();
             }
+            // The integrated console binds explicit physical objects, independent of
+            // imported material names, hierarchy order, or model handedness.
+            if (labels.All(label => label.GetComponent<ConsoleButtonFeedback>() != null))
+            {
+                return labels.Reverse().Select(label => label.GetComponent<Renderer>())
+                    .Where(renderer => renderer != null).ToArray();
+            }
             var root = CommonAncestor(labels.Select(label => label.transform));
             if (root == null)
             {
@@ -89,8 +100,7 @@ namespace Meshup.Game
 
         public void ResetToMedium()
         {
-            SelectedSize = GeneratedObjectSize.Medium;
-            RefreshLabels();
+            ApplySelectedSize(GeneratedObjectSize.Medium);
         }
 
         public void SetInteractable(bool value)
@@ -111,9 +121,21 @@ namespace Meshup.Game
             {
                 return false;
             }
+            size = GeneratedObjectSizes.Normalize(size);
+            if (requestSelection != null) requestSelection(size);
+            else ApplySelectedSize(size, true);
+            return true;
+        }
+
+        public void ApplySelectedSize(GeneratedObjectSize size, bool animate = false)
+        {
             SelectedSize = GeneratedObjectSizes.Normalize(size);
             RefreshLabels();
-            return true;
+            if (!animate) return;
+            var binding = bindings.Find(item => item.Size == SelectedSize);
+            binding?.Feedback?.Pulse();
+            if (binding?.AudioSource != null && buttonPressClip != null)
+                binding.AudioSource.PlayOneShot(buttonPressClip);
         }
 
         private void AddBinding(GameObject labelObject, Renderer buttonRenderer,
@@ -148,6 +170,26 @@ namespace Meshup.Game
             if (!xr.colliders.Contains(collider))
             {
                 xr.colliders.Add(collider);
+            }
+            var feedback = target.GetComponent<ConsoleButtonFeedback>();
+            if (feedback != null)
+            {
+                var audio = target.GetComponent<AudioSource>();
+                if (audio == null) audio = target.AddComponent<AudioSource>();
+                audio.playOnAwake = false;
+                audio.loop = false;
+                audio.spatialBlend = 1f;
+                audio.volume = ButtonPressVolume;
+                audio.maxDistance = 8f;
+                audio.clip = buttonPressClip;
+                UnityAction<SelectEnterEventArgs> onSelect = _ => TrySelect(size);
+                xr.selectEntered.AddListener(onSelect);
+                bindings.Add(new Binding
+                {
+                    Size = size, Feedback = feedback, AudioSource = audio,
+                    Interactable = xr, Listener = onSelect
+                });
+                return;
             }
             var originalMaterials = buttonRenderer.sharedMaterials;
             var materials = originalMaterials.Select(material =>
@@ -191,11 +233,7 @@ namespace Meshup.Game
         private void SelectFromButton(GeneratedObjectSize size,
             AudioSource audioSource)
         {
-            if (TrySelect(size) && buttonPressClip != null
-                && audioSource != null)
-            {
-                audioSource.PlayOneShot(buttonPressClip);
-            }
+            TrySelect(size);
         }
 
         private void RefreshLabels()
@@ -221,7 +259,8 @@ namespace Meshup.Game
                     binding.Glow.color = binding.LabelColor;
                     binding.Glow.enabled = selected;
                 }
-                foreach (var material in binding.ButtonMaterials)
+                binding.Feedback?.SetSelected(selected);
+                foreach (var material in binding.ButtonMaterials ?? Array.Empty<Material>())
                 {
                     if (material == null)
                     {
@@ -253,7 +292,7 @@ namespace Meshup.Game
 
         private static void DisableLabelHitTarget(GameObject label)
         {
-            if (label == null)
+            if (label == null || label.GetComponent<ConsoleButtonFeedback>() != null)
             {
                 return;
             }
@@ -320,7 +359,7 @@ namespace Meshup.Game
                         DestroyImmediate(binding.AudioSource);
                     }
                 }
-                foreach (var material in binding.ButtonMaterials)
+                foreach (var material in binding.ButtonMaterials ?? Array.Empty<Material>())
                 {
                     if (material == null)
                     {

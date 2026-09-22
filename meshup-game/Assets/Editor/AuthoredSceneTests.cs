@@ -38,11 +38,11 @@ namespace Meshup.Editor.Tests
                 ("guesserMonitor", "guesser_monitor"),
                 ("mimeTerminal", "mime_terminal"),
                 ("generatorAnchor", "generator_particle_system"),
-                ("generatorButton", "geneartor_button"),
+                ("generatorButton", "Button_Generate"),
                 ("generatorParticles", "generator_particle_system"),
-                ("smallSizeButton", "SmallButton"),
-                ("mediumSizeButton", "MediumButton"),
-                ("extraLargeSizeButton", "LargeButton")
+                ("smallSizeButton", "Button_Small"),
+                ("mediumSizeButton", "Button_Medium"),
+                ("extraLargeSizeButton", "Button_ExtraLarge")
             };
             foreach (var (field, objectName) in references)
             {

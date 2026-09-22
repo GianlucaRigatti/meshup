@@ -1,5 +1,5 @@
 .DS_Store
-
+/art/
 # Imported Unity samples
 /meshup-game/Assets/Samples/
 /meshup-game/Assets/Samples.meta

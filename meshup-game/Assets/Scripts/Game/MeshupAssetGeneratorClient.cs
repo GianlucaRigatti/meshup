@@ -34,11 +34,13 @@ namespace Meshup.Game
         private AudioClip releaseClip;
         private Coroutine recordingTimeout;
         private bool recordingActive;
+        private ConsoleButtonFeedback feedback;
         private GeneratedObjectSize recordingSize = GeneratedObjectSize.Medium;
 
         public void Configure(MeshupGameCoordinator owner)
         {
             coordinator = owner;
+            feedback = GetComponent<ConsoleButtonFeedback>();
             interactable = GetComponent<XRSimpleInteractable>();
             if (interactable == null)
             {
@@ -91,6 +93,7 @@ namespace Meshup.Game
                 return;
             }
             recordingActive = true;
+            feedback?.SetHeld(true);
             recordingSize = coordinator.SelectedGeneratedObjectSize;
             recordingTimeout = StartCoroutine(StopAtMaximumDuration());
             coordinator.ReportLocalMessage("Recording object description…");
@@ -132,6 +135,7 @@ namespace Meshup.Game
                 recordingTimeout = null;
             }
             recordingActive = false;
+            feedback?.SetHeld(false);
             var capture = VoiceChatController.Instance?.EndExclusiveCapture(
                 VoiceMuteReason.ObjectDescription)
                 ?? new VoiceCapture(Array.Empty<float>(), 1,
@@ -280,6 +284,7 @@ namespace Meshup.Game
                 VoiceChatController.Instance?.CancelExclusiveCapture(
                     VoiceMuteReason.ObjectDescription);
                 recordingActive = false;
+                feedback?.SetHeld(false);
             }
             if (recordingTimeout != null)
             {

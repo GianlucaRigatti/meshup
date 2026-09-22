@@ -613,7 +613,7 @@ namespace Meshup.Editor.Tests
             foreach (var required in new[]
             {
                 "Invisible_wall_game_area", "guesser_monitor", "mime_terminal",
-                "geneartor_button", "generator_particle_system",
+                "Button_Generate", "generator_particle_system",
                 "3D_Model_Generator"
             })
             {

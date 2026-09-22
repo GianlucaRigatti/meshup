@@ -28,7 +28,8 @@ namespace Meshup.Game
             GenerationAuthorized,
             GenerationComplete,
             ObjectTransform,
-            RequestSnapshot
+            RequestSnapshot,
+            SelectSize
         }
 
         [Serializable]
@@ -172,7 +173,7 @@ namespace Meshup.Game
                     GeneratorActivityAudio>();
             sizeSelector = gameObject.AddComponent<GeneratedObjectSizeSelector>();
             sizeSelector.Configure(smallSizeButton, mediumSizeButton,
-                extraLargeSizeButton, () => CanRecordGeneratorLocally);
+                extraLargeSizeButton, () => CanRecordGeneratorLocally, RequestSizeSelection);
             SetParticleState(false);
             Render();
 
@@ -180,7 +181,7 @@ namespace Meshup.Game
             {
                 HandleWalkCompleted();
             }
-            else
+            if (!session.IsRoomCreator)
             {
                 Send(new GameMessage
                 {
@@ -285,11 +286,9 @@ namespace Meshup.Game
                             CorrectGuessAudio.ShouldPlayForTransition(
                                 hasAppliedSnapshot, lastAppliedPhase,
                                 message.snapshot);
-                        var enteredMimePreparation = nextPhase ==
-                                MeshupGamePhase.Preparation
-                            && (!hasAppliedSnapshot
-                                || lastAppliedPhase != MeshupGamePhase.Preparation)
-                            && message.snapshot.mimePeerId == session.LocalPeerId;
+                        var animateSizeSelection = hasAppliedSnapshot
+                            && message.snapshot.roundNumber == snapshot.roundNumber
+                            && message.snapshot.sizeSelectionRevision > snapshot.sizeSelectionRevision;
                         snapshot = message.snapshot;
                         lastAppliedPhase = nextPhase;
                         hasAppliedSnapshot = true;
@@ -311,10 +310,8 @@ namespace Meshup.Game
                             }
                         }
                         generatedObjects.Reconcile(snapshot.generatedObjects);
-                        if (enteredMimePreparation)
-                        {
-                            sizeSelector?.ResetToMedium();
-                        }
+                        sizeSelector?.ApplySelectedSize(snapshot.selectedSize,
+                            animateSizeSelection);
                         Render();
                         if (enteredCorrectGuessResult)
                         {
@@ -409,6 +406,13 @@ namespace Meshup.Game
                         SendGuessFeedback(message.senderPeerId, message.text);
                     }
                     break;
+                case MessageKind.SelectSize:
+                    if (hostState.TrySelectSize(message.senderPeerId,
+                        (GeneratedObjectSize)message.intValue))
+                    {
+                        BroadcastSnapshot();
+                    }
+                    break;
                 case MessageKind.GenerationRequest:
                     if (hostState.TryBeginGeneration(message.senderPeerId))
                     {
@@ -470,6 +474,16 @@ namespace Meshup.Game
                     }
                     break;
             }
+        }
+
+        private void RequestSizeSelection(GeneratedObjectSize size)
+        {
+            if (!CanRecordGeneratorLocally) return;
+            SendCommand(new GameMessage
+            {
+                kind = (int)MessageKind.SelectSize,
+                intValue = (int)size
+            });
         }
 
         private void ChooseWord(int option)
@@ -620,9 +634,9 @@ namespace Meshup.Game
 
         private void BroadcastSnapshot()
         {
-            snapshot = hostState.CreateSnapshot(generatedObjects.States);
+            var nextSnapshot = hostState.CreateSnapshot(generatedObjects.States);
             ProcessAuthoritativeMessage(MessageKind.Snapshot,
-                new GameMessage { snapshot = snapshot });
+                new GameMessage { snapshot = nextSnapshot });
             Send(new GameMessage
             {
                 kind = (int)MessageKind.Snapshot,
