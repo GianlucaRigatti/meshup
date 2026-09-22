@@ -123,10 +123,10 @@ namespace Meshup.Lobby
                 rootRect.anchorMin = rootRect.anchorMax = new Vector2(0.5f, 0.5f);
                 rootRect.anchoredPosition = Vector2.zero;
                 rootRect.localRotation = Quaternion.identity;
-                // Ubiq authors this world-space Canvas at 0.003 units per
+                // Ubiq authors this world-space Canvas at 0.005 units per
                 // UI pixel. Compensate for the existing hologram Canvas scale
                 // so the copied menu keeps its original physical size.
-                const float ubiqWorldScale = 0.003f;
+                const float ubiqWorldScale = 0.005f;
                 var parentWorldScale = Mathf.Max(
                     Mathf.Abs(transform.lossyScale.x), 0.00001f);
                 rootRect.localScale = Vector3.one
