@@ -19,6 +19,28 @@ namespace Meshup.Editor.Tests
         private const string LobbyScenePath = "Assets/Scenes/SampleScene.unity";
 
         [Test]
+        public void MonitorUiMountsFitInsideTheAuthoredScreen()
+        {
+            using var validation = new SceneValidationScope(GameScenePath);
+            var coordinator = validation.Scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<
+                    MeshupGameCoordinator>(true)).Single();
+            var serialized = new SerializedObject(coordinator);
+            foreach (var field in new[] { "monitorUiFrontMount",
+                "monitorUiBackMount" })
+            {
+                var mount = (Transform)serialized.FindProperty(field)
+                    .objectReferenceValue;
+                var screen = mount.parent.GetComponent<Renderer>();
+                Assert.That(screen, Is.Not.Null, field);
+                Assert.That(mount.lossyScale.x * 1200f,
+                    Is.LessThan(screen.bounds.size.x), field + " width");
+                Assert.That(mount.lossyScale.y * 600f,
+                    Is.LessThan(screen.bounds.size.y), field + " height");
+            }
+        }
+
+        [Test]
         public void SavedGameRuntimeReferencesTheExistingPropsAndSurvivesRenames()
         {
             using var validation = new SceneValidationScope(GameScenePath);

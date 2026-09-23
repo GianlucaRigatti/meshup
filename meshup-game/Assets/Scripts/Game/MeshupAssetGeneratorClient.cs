@@ -27,6 +27,18 @@ namespace Meshup.Game
             public string asset_id;
         }
 
+        [Serializable]
+        private sealed class GenerateErrorResponse
+        {
+            public GenerateError error;
+        }
+
+        [Serializable]
+        private sealed class GenerateError
+        {
+            public string message;
+        }
+
         private MeshupGameCoordinator coordinator;
         private XRSimpleInteractable interactable;
         private AudioSource buttonAudioSource;
@@ -184,7 +196,7 @@ namespace Meshup.Game
             {
                 operation = request.SendWebRequest();
             }
-            catch (InvalidOperationException exception)
+            catch (Exception exception)
             {
                 coordinator.CompleteGeneration(requestId, string.Empty,
                     exception.Message);
@@ -194,7 +206,7 @@ namespace Meshup.Game
             if (request.result != UnityWebRequest.Result.Success)
             {
                 coordinator.CompleteGeneration(requestId, string.Empty,
-                    request.error ?? "Asset generation failed.");
+                    DescribeFailure(request));
                 yield break;
             }
             GenerateResponse response;
@@ -216,6 +228,31 @@ namespace Meshup.Game
                 yield break;
             }
             coordinator.CompleteGeneration(requestId, response.url, string.Empty);
+        }
+
+        private static string DescribeFailure(UnityWebRequest request)
+        {
+            if (request.result == UnityWebRequest.Result.ConnectionError)
+            {
+                return "Could not reach the asset generator. Check that the "
+                    + "server is running, then try again. " + request.error;
+            }
+
+            try
+            {
+                var response = JsonUtility.FromJson<GenerateErrorResponse>(
+                    request.downloadHandler?.text ?? string.Empty);
+                if (!string.IsNullOrWhiteSpace(response?.error?.message))
+                {
+                    return response.error.message;
+                }
+            }
+            catch (ArgumentException)
+            {
+                // Non-JSON server responses still have an HTTP status below.
+            }
+            return $"Asset generation failed (HTTP {request.responseCode}). "
+                + request.error;
         }
 
         public static byte[] EncodeWav(AudioClip clip, int sampleFrames)

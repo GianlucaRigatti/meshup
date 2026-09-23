@@ -400,8 +400,9 @@ namespace Meshup.Game
                         && message.requestId == activeGenerationRequest)
                     {
                         activeGenerationRequest = string.Empty;
-                        hostState.EndGeneration();
-                        if (!string.IsNullOrWhiteSpace(message.text))
+                        var succeeded = !string.IsNullOrWhiteSpace(message.text);
+                        hostState.EndGeneration(succeeded);
+                        if (succeeded)
                         {
                             generatedObjects.Add(message.text,
                                 activeGenerationSize);
@@ -489,6 +490,7 @@ namespace Meshup.Game
         {
             if (!string.IsNullOrEmpty(error))
             {
+                Debug.LogWarning($"[MeshUp] Asset generation failed: {error}");
                 ReportLocalMessage(error);
             }
             else

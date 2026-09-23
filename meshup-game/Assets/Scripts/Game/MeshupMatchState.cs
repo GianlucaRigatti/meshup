@@ -297,13 +297,17 @@ namespace Meshup.Game
             return true;
         }
 
-        public bool EndGeneration()
+        public bool EndGeneration(bool succeeded = true)
         {
             if (!GenerationPending)
             {
                 return false;
             }
             GenerationPending = false;
+            if (!succeeded)
+            {
+                GenerationTokens++;
+            }
             Touch();
             return true;
         }

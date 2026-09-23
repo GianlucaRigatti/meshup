@@ -71,6 +71,19 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void FailedGenerationReleasesPendingStateAndRestoresAttempt()
+        {
+            var host = PreparedState();
+            var mime = host.MimePeerId;
+            Assert.That(host.TryBeginGeneration(mime), Is.True);
+            Assert.That(host.GenerationTokens, Is.EqualTo(2));
+            Assert.That(host.EndGeneration(false), Is.True);
+            Assert.That(host.GenerationPending, Is.False);
+            Assert.That(host.GenerationTokens, Is.EqualTo(3));
+            Assert.That(host.TryBeginGeneration(mime), Is.True);
+        }
+
+        [Test]
         public void TwoPeersAndLateJoinerDisplayAuthoritativeSelectionWithoutEcho()
         {
             var host = PreparedState();

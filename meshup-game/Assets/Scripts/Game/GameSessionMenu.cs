@@ -13,6 +13,10 @@ namespace Meshup.Game
     public sealed class GameSessionMenu : MonoBehaviour
     {
         private const string VignettePreference = "meshup.graphics.vignette";
+        private const float XrCanvasScale = 0.0009f;
+        private const float XrCanvasDistance = 1.75f;
+        private const float DesktopMaximumWidthFraction = 0.65f;
+        private const float DesktopMaximumHeightFraction = 0.62f;
 
         [SerializeField] private GameObject panelRoot;
         [SerializeField] private Behaviour playerMovement;
@@ -90,6 +94,7 @@ namespace Meshup.Game
             ConfigureXrCanvas();
             PositionXrCanvas();
             panelRoot.SetActive(true);
+            FitPanelToCanvas();
             movementAuthority?.SetLock(MovementLockReason.PauseMenu, true);
             if (playerMovement != null)
             {
@@ -136,7 +141,7 @@ namespace Meshup.Game
             canvas.worldCamera = Camera.main;
             var rect = canvas.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(1024f, 768f);
-            rect.localScale = Vector3.one * 0.0015f;
+            rect.localScale = Vector3.one * XrCanvasScale;
             if (GetComponent<TrackedDeviceGraphicRaycaster>() == null)
             {
                 gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
@@ -157,15 +162,40 @@ namespace Meshup.Game
                 return;
             }
 
-            var forward = Vector3.ProjectOnPlane(camera.transform.forward,
-                Vector3.up).normalized;
-            if (forward.sqrMagnitude < 0.01f)
-            {
-                forward = camera.transform.forward;
-            }
-            transform.position = camera.transform.position + forward * 1.25f;
+            var forward = camera.transform.forward;
+            transform.position = camera.transform.position
+                + forward * XrCanvasDistance;
             // A world-space Canvas renders its front toward local -Z.
             transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
+        }
+
+        private void FitPanelToCanvas()
+        {
+            var panel = panelRoot.GetComponent<RectTransform>();
+            if (panel == null)
+            {
+                return;
+            }
+            if (xrCanvasConfigured)
+            {
+                panel.localScale = Vector3.one;
+                return;
+            }
+
+            Canvas.ForceUpdateCanvases();
+            var canvas = GetComponent<RectTransform>();
+            if (canvas == null || canvas.rect.width <= 0f
+                || canvas.rect.height <= 0f || panel.rect.width <= 0f
+                || panel.rect.height <= 0f)
+            {
+                return;
+            }
+            var widthScale = canvas.rect.width
+                * DesktopMaximumWidthFraction / panel.rect.width;
+            var heightScale = canvas.rect.height
+                * DesktopMaximumHeightFraction / panel.rect.height;
+            panel.localScale = Vector3.one * Mathf.Min(1f,
+                widthScale, heightScale);
         }
 
         private static bool IsXrRunning()
@@ -217,6 +247,7 @@ namespace Meshup.Game
             if (state == RoomSessionState.Leaving)
             {
                 panelRoot.SetActive(true);
+                FitPanelToCanvas();
                 resumeButton.interactable = false;
                 leaveButton.interactable = false;
                 statusText.text = "Leaving room…";
@@ -226,6 +257,7 @@ namespace Meshup.Game
         private void HandleError(string message)
         {
             panelRoot.SetActive(true);
+            FitPanelToCanvas();
             statusText.text = message;
         }
 
