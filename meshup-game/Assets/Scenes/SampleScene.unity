@@ -4042,8 +4042,6 @@ MonoBehaviour:
   followAnchor: {fileID: 800271557}
   panel: {fileID: 171140311}
   idleRoot: {fileID: 226094774}
-  panelRoot: {fileID: 0}
-  panelCanvasGroup: {fileID: 0}
   turnSpeed: 10
   hoverAmount: 0.025
   hoverSpeed: 1.4

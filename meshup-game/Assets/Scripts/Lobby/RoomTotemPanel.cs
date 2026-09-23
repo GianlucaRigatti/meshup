@@ -49,6 +49,8 @@ namespace Meshup.Lobby
         private PanelSwitcher panelSwitcher;
 
         public bool IsOpen => panelRoot != null && panelRoot.activeSelf;
+        public RectTransform PanelRoot => panelRoot != null
+            ? panelRoot.transform as RectTransform : null;
         public string GeneratedRoomName => roomNameText != null ? roomNameText.text : string.Empty;
 
         private void Awake()

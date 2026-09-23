@@ -10,8 +10,6 @@ namespace Meshup.Lobby
         [SerializeField] private Transform followAnchor;
         [SerializeField] private RoomTotemPanel panel;
         [SerializeField] private GameObject idleRoot;
-        [SerializeField] private RectTransform panelRoot;
-        [SerializeField] private CanvasGroup panelCanvasGroup;
         [SerializeField] private float turnSpeed = 10f;
         [SerializeField] private float hoverAmount = 0.025f;
         [SerializeField] private float hoverSpeed = 1.4f;
@@ -70,8 +68,19 @@ namespace Meshup.Lobby
 
         private IEnumerator AnimatePanelIn()
         {
+            var panelRoot = panel != null ? panel.PanelRoot : null;
+            if (panelRoot == null)
+            {
+                yield break;
+            }
+            var panelCanvasGroup = panelRoot.GetComponent<CanvasGroup>();
+            if (panelCanvasGroup == null)
+            {
+                panelCanvasGroup = panelRoot.gameObject.AddComponent<CanvasGroup>();
+            }
+            var fullScale = panelRoot.localScale;
             panelCanvasGroup.alpha = 0f;
-            panelRoot.localScale = Vector3.one * 0.88f;
+            panelRoot.localScale = fullScale * 0.88f;
             var elapsed = 0f;
             const float duration = 0.24f;
             while (elapsed < duration)
@@ -80,11 +89,11 @@ namespace Meshup.Lobby
                 var t = Mathf.Clamp01(elapsed / duration);
                 var eased = 1f - Mathf.Pow(1f - t, 3f);
                 panelCanvasGroup.alpha = eased;
-                panelRoot.localScale = Vector3.one * Mathf.Lerp(0.88f, 1f, eased);
+                panelRoot.localScale = fullScale * Mathf.Lerp(0.88f, 1f, eased);
                 yield return null;
             }
             panelCanvasGroup.alpha = 1f;
-            panelRoot.localScale = Vector3.one;
+            panelRoot.localScale = fullScale;
         }
     }
 }
