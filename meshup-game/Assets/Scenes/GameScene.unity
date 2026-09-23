@@ -12339,9 +12339,17 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 211276393}
     m_Modifications:
+    - target: {fileID: -8372439045653266569, guid: 2b02650290033df4089c945a28057894, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: -6689036041284674117, guid: 2b02650290033df4089c945a28057894, type: 3}
       propertyPath: m_Name
       value: ship_pole_light (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: -1353340047025752379, guid: 2b02650290033df4089c945a28057894, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: 2b02650290033df4089c945a28057894, type: 3}
       propertyPath: m_LocalScale.x
@@ -12393,6 +12401,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: 2b02650290033df4089c945a28057894, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6290420139171951157, guid: 2b02650290033df4089c945a28057894, type: 3}
+      propertyPath: m_CastShadows
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
@@ -13248,9 +13260,17 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 211276393}
     m_Modifications:
+    - target: {fileID: -8372439045653266569, guid: 2b02650290033df4089c945a28057894, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: -6689036041284674117, guid: 2b02650290033df4089c945a28057894, type: 3}
       propertyPath: m_Name
       value: ship_pole_light
+      objectReference: {fileID: 0}
+    - target: {fileID: -1353340047025752379, guid: 2b02650290033df4089c945a28057894, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: 2b02650290033df4089c945a28057894, type: 3}
       propertyPath: m_LocalScale.x
@@ -13302,6 +13322,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2774220344278030320, guid: 2b02650290033df4089c945a28057894, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6290420139171951157, guid: 2b02650290033df4089c945a28057894, type: 3}
+      propertyPath: m_CastShadows
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
