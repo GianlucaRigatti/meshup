@@ -12,7 +12,10 @@ FPS counter. The coordinator's Scene fields reference the existing player,
 formation sequence, wall, monitors, generator button, and particles directly.
 Renaming those objects does not break the coordinator's wiring. Keep these
 references assigned when replacing an object. The game still creates its
-dynamic UI and generated models at runtime with the existing behavior.
+dynamic UI and generated models at runtime. The monitor has authored front and
+back UI mounts, and the mime terminal has an authored UI mount; keep these
+references assigned when replacing the display meshes. The lobby uses the
+copied Ubiq menu prefab as its only room-menu implementation.
 
 `GeneratedObjectManager` owns generated-object state, local instances, and
 pending imports. The coordinator handles match permissions and network messages.

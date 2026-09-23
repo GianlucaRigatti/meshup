@@ -38,7 +38,8 @@ namespace Meshup.EditorTools
             foreach (var field in new[]
             {
                 "gameStart", "localPlayer", "invisibleWall", "guesserMonitor",
-                "mimeTerminal", "generatorAnchor", "generatorButton", "generatorParticles",
+                "monitorUiFrontMount", "monitorUiBackMount", "mimeTerminal",
+                "terminalUiMount", "generatorAnchor", "generatorButton", "generatorParticles",
                 "smallSizeButton", "mediumSizeButton", "extraLargeSizeButton"
             })
             {
@@ -50,6 +51,27 @@ namespace Meshup.EditorTools
                     throw new InvalidOperationException(
                         $"Assign the game coordinator's {field} to an object in this scene.");
                 }
+            }
+            var monitor = (Transform)serialized.FindProperty("guesserMonitor")
+                .objectReferenceValue;
+            var terminal = (Transform)serialized.FindProperty("mimeTerminal")
+                .objectReferenceValue;
+            foreach (var field in new[] { "monitorUiFrontMount", "monitorUiBackMount" })
+            {
+                var mount = (Transform)serialized.FindProperty(field)
+                    .objectReferenceValue;
+                if (!mount.IsChildOf(monitor) || mount.lossyScale.sqrMagnitude < 0.000001f)
+                {
+                    throw new InvalidOperationException($"{field} must be an authored mount on the monitor.");
+                }
+            }
+            var terminalMount = (Transform)serialized.FindProperty("terminalUiMount")
+                .objectReferenceValue;
+            if (!terminalMount.IsChildOf(terminal)
+                || terminalMount.lossyScale.sqrMagnitude < 0.000001f)
+            {
+                throw new InvalidOperationException(
+                    "terminalUiMount must be an authored mount on the terminal.");
             }
             var sizeLabels = new[]
             {

@@ -40,10 +40,10 @@ namespace Meshup.EditorTools
                 throw new InvalidOperationException("The animated book geometry is incomplete.");
             }
             if (lobbyUi.transform.Find("Hologram Idle") == null
-                || lobbyUi.transform.Find("Room Totem Panel") == null
+                || lobbyUi.transform.Find("Room Totem Panel") != null
                 || lobbyUi.transform.Find("Interaction Prompt") != null)
             {
-                throw new InvalidOperationException("The automatic VR hologram UI is incomplete or still requires E.");
+                throw new InvalidOperationException("The automatic VR hologram UI still contains the old panel or E prompt.");
             }
 
             var revealData = new SerializedObject(reveal);
@@ -58,16 +58,9 @@ namespace Meshup.EditorTools
             }
 
             var panelData = new SerializedObject(panel);
-            foreach (var field in new[]
-                     {
-                         "panelRoot", "usernameInput", "roomNameText", "createButton", "refreshButton", "closeButton",
-                         "roomListContent", "roomListItemTemplate", "statusText", "noRoomsMessage", "ubiqMenuPrefab"
-                     })
+            if (panelData.FindProperty("ubiqMenuPrefab").objectReferenceValue == null)
             {
-                if (panelData.FindProperty(field).objectReferenceValue == null)
-                {
-                    throw new InvalidOperationException($"The hologram panel field is missing: {field}");
-                }
+                throw new InvalidOperationException("The Ubiq lobby menu prefab is not assigned.");
             }
             var menuPrefab = panelData.FindProperty("ubiqMenuPrefab")
                 .objectReferenceValue as GameObject;
@@ -87,26 +80,12 @@ namespace Meshup.EditorTools
                     "The lobby must use the copied Ubiq sample menu prefab.");
             }
             if (panelData.FindProperty("allowClose").boolValue
-                || panelData.FindProperty("lockPlayerInputWhenOpen").boolValue
-                || uiHasActiveCloseButton(lobbyUi.transform))
+                || panelData.FindProperty("lockPlayerInputWhenOpen").boolValue)
             {
                 throw new InvalidOperationException("The persistent VR hologram must not close or lock locomotion.");
             }
 
-            var usernameInput = lobbyUi.GetComponentInChildren<InputField>(true);
-            if (usernameInput == null || !usernameInput.interactable
-                || usernameInput.characterLimit < 20)
-            {
-                throw new InvalidOperationException("The VR hologram needs a ray-interactable username field.");
-            }
-
-            var buttons = lobbyUi.GetComponentsInChildren<Button>(true);
-            if (buttons.Length < 4 || buttons.Any(button => button.GetComponent<RectTransform>().rect.height < 54f))
-            {
-                throw new InvalidOperationException("The VR hologram needs large ray-friendly button targets.");
-            }
-
-            Debug.Log($"Falling-book hologram validation passed with {buttons.Length} large UI targets.");
+            Debug.Log("Falling-book hologram validation passed with the Ubiq menu prefab.");
         }
 
         private static GameObject RequireRoot(Scene scene, string name)
@@ -115,10 +94,5 @@ namespace Meshup.EditorTools
                 ?? throw new InvalidOperationException($"Required root is missing: {name}");
         }
 
-        private static bool uiHasActiveCloseButton(Transform root)
-        {
-            return root.GetComponentsInChildren<Button>(false)
-                .Any(button => button.gameObject.name.Contains("Close", StringComparison.OrdinalIgnoreCase));
-        }
     }
 }

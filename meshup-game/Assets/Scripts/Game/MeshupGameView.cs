@@ -28,17 +28,22 @@ namespace Meshup.Game
         private bool previousCursorVisible;
         private readonly Dictionary<GraphicRaycaster, bool>
             desktopOverlayRaycasterStates = new();
-        private readonly System.Collections.Generic.List<ScreenMount>
-            screenMounts = new();
+        private Transform monitorCanvas;
+        private Transform monitorFrontMount;
+        private Transform monitorBackMount;
+        private Transform localViewer;
 
-        public void Build(Transform monitor, Transform terminal,
-            Transform localViewer, Action<int> onChooseWord,
+        public void Build(Transform monitorFront, Transform monitorBack,
+            Transform terminal, Transform viewer, Action<int> onChooseWord,
             Action onStartRound)
         {
             chooseWord = onChooseWord;
             startRound = onStartRound;
-            BuildMonitor(monitor, localViewer);
-            BuildTerminal(terminal, localViewer);
+            monitorFrontMount = monitorFront;
+            monitorBackMount = monitorBack;
+            localViewer = viewer;
+            BuildMonitor(monitorFront, viewer);
+            BuildTerminal(terminal, viewer);
         }
 
         public void Render(MeshupMatchSnapshot snapshot, string localPeerId,
@@ -150,8 +155,8 @@ namespace Meshup.Game
         private void BuildMonitor(Transform target, Transform localViewer)
         {
             var canvas = CreateCanvas("MeshUp Monitor UI", target,
-                new Vector2(1200f, 600f), 0.003f, true, localViewer,
-                "pPlane1_monter_MTL_0", "pPlane1");
+                new Vector2(1200f, 600f), localViewer);
+            monitorCanvas = canvas.transform;
             var background = CreatePanel(canvas.transform, "Background",
                 new Color(0.015f, 0.04f, 0.07f, 0.94f));
             var leaderboardPanel = CreatePanel(background.transform,
@@ -181,8 +186,7 @@ namespace Meshup.Game
         private void BuildTerminal(Transform target, Transform localViewer)
         {
             var canvas = CreateCanvas("MeshUp Mime Terminal UI", target,
-                new Vector2(800f, 600f), 0.002f, false, localViewer,
-                "screen_low_Material_0", "screen_low");
+                new Vector2(800f, 600f), localViewer);
             var background = CreatePanel(canvas.transform, "Background",
                 new Color(0.02f, 0.04f, 0.08f, 0.96f));
             terminalTitle = CreateText(background.transform, "Title", 52,
@@ -227,34 +231,19 @@ namespace Meshup.Game
             startRound?.Invoke();
         }
 
-        private Canvas CreateCanvas(string name, Transform target,
-            Vector2 size, float fallbackWorldScale, bool followViewerAcrossFaces,
-            Transform localViewer,
-            params string[] preferredSurfaceNames)
+        private static Canvas CreateCanvas(string name, Transform mount,
+            Vector2 size, Transform localViewer)
         {
             var gameObject = new GameObject(name, typeof(RectTransform),
                 typeof(Canvas), typeof(CanvasScaler),
                 typeof(GraphicRaycaster),
                 typeof(TrackedDeviceGraphicRaycaster));
-            gameObject.transform.SetParent(target, false);
-            var surface = FindDisplaySurface(target, preferredSurfaceNames);
-            var placement = surface != null
-                ? SurfacePlacement.From(surface, localViewer, size,
-                    followViewerAcrossFaces)
-                : SurfacePlacement.From(target, localViewer,
-                    fallbackWorldScale, followViewerAcrossFaces);
-            placement.Resolve(out var position, out var rotation);
-            gameObject.transform.SetPositionAndRotation(position, rotation);
-            var parentScale = target.lossyScale;
-            gameObject.transform.localScale = new Vector3(
-                placement.WorldScale
-                    / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
-                placement.WorldScale
-                    / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
-                placement.WorldScale
-                    / Mathf.Max(0.0001f, Mathf.Abs(parentScale.z)));
+            gameObject.transform.SetParent(mount, false);
             var rect = gameObject.GetComponent<RectTransform>();
             rect.sizeDelta = size;
+            rect.localPosition = Vector3.zero;
+            rect.localRotation = Quaternion.identity;
+            rect.localScale = Vector3.one;
             var canvas = gameObject.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
             canvas.worldCamera = localViewer != null
@@ -262,7 +251,6 @@ namespace Meshup.Game
                 : Camera.main;
             canvas.overrideSorting = true;
             canvas.sortingOrder = 100;
-            screenMounts.Add(new ScreenMount(gameObject.transform, placement));
             return canvas;
         }
 
@@ -342,231 +330,23 @@ namespace Meshup.Game
 
         private void LateUpdate()
         {
-            foreach (var mount in screenMounts)
+            if (monitorCanvas == null || monitorFrontMount == null
+                || monitorBackMount == null || localViewer == null)
             {
-                mount.Apply();
+                return;
             }
-        }
-
-        private static Renderer FindDisplaySurface(Transform target,
-            string[] preferredNames)
-        {
-            var renderers = target.GetComponentsInChildren<Renderer>(true);
-            foreach (var preferredName in preferredNames ?? Array.Empty<string>())
+            var frontDistance = (localViewer.position - monitorFrontMount.position)
+                .sqrMagnitude;
+            var backDistance = (localViewer.position - monitorBackMount.position)
+                .sqrMagnitude;
+            var target = frontDistance <= backDistance
+                ? monitorFrontMount : monitorBackMount;
+            if (monitorCanvas.parent != target)
             {
-                var preferred = renderers.FirstOrDefault(renderer =>
-                    string.Equals(renderer.name, preferredName,
-                        StringComparison.OrdinalIgnoreCase));
-                if (preferred != null)
-                {
-                    return preferred;
-                }
-            }
-
-            Renderer best = null;
-            var bestScore = 0f;
-            foreach (var renderer in renderers)
-            {
-                if (!TryGetLocalBounds(renderer, out var bounds))
-                {
-                    continue;
-                }
-                var dimensions = GetWorldDimensions(renderer.transform,
-                    bounds.size);
-                Array.Sort(dimensions);
-                if (dimensions[0] > dimensions[1] * 0.35f)
-                {
-                    continue;
-                }
-                var score = dimensions[1] * dimensions[2];
-                if (score > bestScore)
-                {
-                    best = renderer;
-                    bestScore = score;
-                }
-            }
-            return best;
-        }
-
-        private static bool TryGetLocalBounds(Renderer renderer,
-            out Bounds bounds)
-        {
-            if (renderer.TryGetComponent<MeshFilter>(out var filter)
-                && filter.sharedMesh != null)
-            {
-                bounds = filter.sharedMesh.bounds;
-                return true;
-            }
-            if (renderer is SkinnedMeshRenderer skinned
-                && skinned.sharedMesh != null)
-            {
-                bounds = skinned.sharedMesh.bounds;
-                return true;
-            }
-            bounds = default;
-            return false;
-        }
-
-        private static float[] GetWorldDimensions(Transform transform,
-            Vector3 localSize)
-        {
-            return new[]
-            {
-                transform.TransformVector(Vector3.right * localSize.x).magnitude,
-                transform.TransformVector(Vector3.up * localSize.y).magnitude,
-                transform.TransformVector(Vector3.forward * localSize.z).magnitude
-            };
-        }
-
-        private readonly struct SurfacePlacement
-        {
-            public readonly Transform Surface;
-            public readonly Transform Viewer;
-            public readonly Vector3 LocalCenter;
-            public readonly Vector3 LocalNormal;
-            public readonly Vector3 LocalUp;
-            public readonly float Offset;
-            public readonly float WorldScale;
-            public readonly bool FollowViewerAcrossFaces;
-
-            private SurfacePlacement(Transform surface, Transform viewer,
-                Vector3 localCenter, Vector3 localNormal, Vector3 localUp,
-                float offset, float worldScale, bool followViewerAcrossFaces)
-            {
-                Surface = surface;
-                Viewer = viewer;
-                LocalCenter = localCenter;
-                LocalNormal = localNormal;
-                LocalUp = localUp;
-                Offset = offset;
-                WorldScale = worldScale;
-                FollowViewerAcrossFaces = followViewerAcrossFaces;
-            }
-
-            public static SurfacePlacement From(Renderer renderer,
-                Transform viewer, Vector2 canvasSize,
-                bool followViewerAcrossFaces)
-            {
-                TryGetLocalBounds(renderer, out var bounds);
-                var localSize = bounds.size;
-                var dimensions = GetWorldDimensions(renderer.transform,
-                    localSize);
-                var normalIndex = SmallestIndex(dimensions);
-                var remaining = Enumerable.Range(0, 3)
-                    .Where(index => index != normalIndex).ToArray();
-                var firstAxis = Axis(remaining[0]);
-                var secondAxis = Axis(remaining[1]);
-                var firstUp = Mathf.Abs(Vector3.Dot(
-                    renderer.transform.TransformDirection(firstAxis).normalized,
-                    Vector3.up));
-                var secondUp = Mathf.Abs(Vector3.Dot(
-                    renderer.transform.TransformDirection(secondAxis).normalized,
-                    Vector3.up));
-                var upIndex = firstUp >= secondUp ? remaining[0] : remaining[1];
-                var widthIndex = upIndex == remaining[0]
-                    ? remaining[1]
-                    : remaining[0];
-                var localUp = Axis(upIndex);
-                if (Vector3.Dot(renderer.transform.TransformDirection(localUp),
-                    Vector3.up) < 0f)
-                {
-                    localUp = -localUp;
-                }
-                var fittedScale = Mathf.Min(
-                    dimensions[widthIndex] * 0.9f / canvasSize.x,
-                    dimensions[upIndex] * 0.9f / canvasSize.y);
-                var faceClearance = Mathf.Max(0.003f,
-                    Mathf.Min(dimensions[widthIndex], dimensions[upIndex])
-                    * 0.0125f);
-                var offset = dimensions[normalIndex] * 0.5f + faceClearance;
-                var localNormal = Axis(normalIndex);
-                if (!followViewerAcrossFaces && viewer != null)
-                {
-                    var center = renderer.transform.TransformPoint(bounds.center);
-                    var normal = renderer.transform
-                        .TransformDirection(localNormal).normalized;
-                    if (Vector3.Dot(viewer.position - center, normal) >= 0f)
-                    {
-                        localNormal = -localNormal;
-                    }
-                }
-                return new SurfacePlacement(renderer.transform, viewer,
-                    bounds.center, localNormal, localUp, offset,
-                    Mathf.Max(0.0001f, fittedScale), followViewerAcrossFaces);
-            }
-
-            public static SurfacePlacement From(Transform target,
-                Transform viewer, float worldScale,
-                bool followViewerAcrossFaces)
-            {
-                var localNormal = Vector3.forward;
-                if (!followViewerAcrossFaces && viewer != null
-                    && Vector3.Dot(viewer.position - target.position,
-                        target.TransformDirection(localNormal)) >= 0f)
-                {
-                    localNormal = -localNormal;
-                }
-                return new SurfacePlacement(target, viewer, Vector3.zero,
-                    localNormal, Vector3.up, 0.01f, worldScale,
-                    followViewerAcrossFaces);
-            }
-
-            public void Resolve(out Vector3 position, out Quaternion rotation)
-            {
-                var center = Surface.TransformPoint(LocalCenter);
-                var normal = Surface.TransformDirection(LocalNormal).normalized;
-                var up = Surface.TransformDirection(LocalUp).normalized;
-                var towardViewer = normal;
-                if (FollowViewerAcrossFaces && Viewer != null)
-                {
-                    var viewerDirection = Viewer.position - center;
-                    towardViewer = Vector3.Dot(viewerDirection, normal) >= 0f
-                        ? normal
-                        : -normal;
-                }
-                position = center + towardViewer * Offset;
-                rotation = Quaternion.LookRotation(-towardViewer, up);
-            }
-
-            private static int SmallestIndex(float[] values)
-            {
-                return values[0] <= values[1] && values[0] <= values[2]
-                    ? 0
-                    : values[1] <= values[2] ? 1 : 2;
-            }
-
-            private static Vector3 Axis(int index)
-            {
-                return index switch
-                {
-                    0 => Vector3.right,
-                    1 => Vector3.up,
-                    _ => Vector3.forward
-                };
-            }
-        }
-
-        private sealed class ScreenMount
-        {
-            private readonly Transform canvas;
-            private readonly SurfacePlacement placement;
-
-            public ScreenMount(Transform canvasTransform,
-                SurfacePlacement value)
-            {
-                canvas = canvasTransform;
-                placement = value;
-                Apply();
-            }
-
-            public void Apply()
-            {
-                if (canvas == null || placement.Surface == null)
-                {
-                    return;
-                }
-                placement.Resolve(out var position, out var rotation);
-                canvas.SetPositionAndRotation(position, rotation);
+                monitorCanvas.SetParent(target, false);
+                monitorCanvas.localPosition = Vector3.zero;
+                monitorCanvas.localRotation = Quaternion.identity;
+                monitorCanvas.localScale = Vector3.one;
             }
         }
 

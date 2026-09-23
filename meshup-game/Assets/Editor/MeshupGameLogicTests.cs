@@ -452,7 +452,16 @@ namespace Meshup.Editor.Tests
             try
             {
                 var view = owner.AddComponent<MeshupGameView>();
-                view.Build(monitor.transform, terminal.transform,
+                var monitorFront = new GameObject("Monitor Front Mount").transform;
+                monitorFront.SetParent(monitor.transform, false);
+                var monitorBack = new GameObject("Monitor Back Mount").transform;
+                monitorBack.SetParent(monitor.transform, false);
+                var terminalMount = new GameObject("Terminal UI Mount").transform;
+                terminalMount.SetParent(terminal.transform, false);
+                terminalMount.position = terminal.transform.GetChild(0).position
+                    + Vector3.right * 0.125f;
+                terminalMount.rotation = Quaternion.LookRotation(Vector3.left);
+                view.Build(monitorFront, monitorBack, terminalMount,
                     viewer.transform, _ => { }, () => startInvoked = true);
                 view.Render(new MeshupMatchSnapshot
                 {
@@ -469,7 +478,7 @@ namespace Meshup.Editor.Tests
                     }
                 }, "mime", new[] { "jump", "swim" }, string.Empty);
 
-                var canvas = terminal.transform.Find("MeshUp Mime Terminal UI");
+                var canvas = terminal.transform.Find("Terminal UI Mount/MeshUp Mime Terminal UI");
                 Assert.That(canvas, Is.Not.Null);
                 Assert.That(canvas.GetComponent<GraphicRaycaster>(), Is.Not.Null);
                 Assert.That(canvas.GetComponent<TrackedDeviceGraphicRaycaster>(),
@@ -552,13 +561,13 @@ namespace Meshup.Editor.Tests
                     string.Empty,
                     "thing is an incorrect guess — try again", true);
                 var monitorStatus = monitor.transform
-                    .Find("MeshUp Monitor UI")
+                    .Find("Monitor Front Mount/MeshUp Monitor UI")
                     .GetComponentsInChildren<Text>(true)
                     .Single(text => text.name == "Game Status");
                 Assert.That(monitorStatus.text,
                     Does.Contain("thing is an incorrect guess — try again"));
                 var listening = monitor.transform
-                    .Find("MeshUp Monitor UI")
+                    .Find("Monitor Front Mount/MeshUp Monitor UI")
                     .GetComponentsInChildren<Text>(true)
                     .Single(text => text.name == "Listening Indicator");
                 Assert.That(listening.gameObject.activeSelf, Is.True);

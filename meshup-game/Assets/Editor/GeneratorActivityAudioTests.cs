@@ -33,7 +33,10 @@ namespace Meshup.Editor.Tests
             var owner = new GameObject("Generator spatial audio test");
             try
             {
-                owner.AddComponent<GeneratorActivityAudio>();
+                var audio = owner.AddComponent<GeneratorActivityAudio>();
+                typeof(GeneratorActivityAudio).GetMethod("Awake",
+                    System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.NonPublic)?.Invoke(audio, null);
                 var sources = owner.GetComponents<AudioSource>();
 
                 Assert.That(sources, Has.Length.EqualTo(2));

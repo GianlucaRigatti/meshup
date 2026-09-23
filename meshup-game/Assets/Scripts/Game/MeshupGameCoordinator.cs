@@ -15,7 +15,7 @@ namespace Meshup.Game
         private const KeyCode GeneratorAudioTestKey = KeyCode.F7;
         private const KeyCode GeneratorFailureAudioTestKey = KeyCode.F9;
 
-        private enum MessageKind
+        internal enum MessageKind
         {
             Snapshot,
             PrivateWords,
@@ -33,7 +33,7 @@ namespace Meshup.Game
         }
 
         [Serializable]
-        private sealed class GameMessage
+        internal sealed class GameMessage
         {
             public int kind;
             public string creatorPeerId;
@@ -41,7 +41,6 @@ namespace Meshup.Game
             public string targetPeerId;
             public string requestId;
             public string text;
-            public string error;
             public int intValue;
             public string[] words;
             public MeshupMatchSnapshot snapshot;
@@ -59,7 +58,10 @@ namespace Meshup.Game
         [SerializeField] private PlayerMovementAuthority localPlayer;
         [SerializeField] private Collider invisibleWall;
         [SerializeField] private Transform guesserMonitor;
+        [SerializeField] private Transform monitorUiFrontMount;
+        [SerializeField] private Transform monitorUiBackMount;
         [SerializeField] private Transform mimeTerminal;
+        [SerializeField] private Transform terminalUiMount;
         [SerializeField] private Transform generatorAnchor;
         [SerializeField] private GameObject generatorButton;
         [SerializeField] private ParticleSystem generatorParticles;
@@ -78,8 +80,7 @@ namespace Meshup.Game
         private MeshupMatchState hostState;
         private MeshupMatchSnapshot snapshot = new();
         private MimeWordService wordService;
-        private NetworkContext context;
-        private bool contextRegistered;
+        private MeshupGameMessageChannel messageChannel;
         private MeshupGameView view;
         private MeshupVictoryFireworks victoryFireworks;
         private CorrectGuessAudio correctGuessAudio;
@@ -87,6 +88,7 @@ namespace Meshup.Game
         private MeshupAssetGeneratorClient generatorClient;
         private GeneratedObjectSizeSelector sizeSelector;
         private GeneratorActivityAudio generatorActivityAudio;
+        private MeshupGameSnapshotEffects snapshotEffects;
         private string[] privateWordOptions = Array.Empty<string>();
         private string privateSelectedWord = string.Empty;
         private string activeGenerationRequest = string.Empty;
@@ -127,7 +129,9 @@ namespace Meshup.Game
             session = UbiqRoomSession.Instance;
             if (session == null || gameStart == null || localPlayer == null
                 || invisibleWall == null || guesserMonitor == null
-                || mimeTerminal == null || generatorAnchor == null
+                || monitorUiFrontMount == null || monitorUiBackMount == null
+                || mimeTerminal == null || terminalUiMount == null
+                || generatorAnchor == null
                 || generatorButton == null || smallSizeButton == null
                 || mediumSizeButton == null || extraLargeSizeButton == null)
             {
@@ -142,8 +146,13 @@ namespace Meshup.Game
                 (instance, state, cancellation) =>
                     instance.Initialize(this, state, cancellation),
                 ReportLocalMessage);
-            context = NetworkScene.Register(this);
-            contextRegistered = true;
+            messageChannel = new MeshupGameMessageChannel(this, session,
+                IsAuthoritativeInbound,
+                (kind, message) => ProcessAuthoritativeMessage(kind, message),
+                (kind, message) =>
+                {
+                    if (hostState != null) ProcessHostCommand(kind, message);
+                });
             originalWallEnabled = invisibleWall.enabled;
             wallStateCaptured = true;
             previousWallSide = WallSide;
@@ -151,8 +160,8 @@ namespace Meshup.Game
             gameStart.Completed += HandleWalkCompleted;
 
             view = gameObject.AddComponent<MeshupGameView>();
-            view.Build(guesserMonitor, mimeTerminal, localPlayer.transform,
-                ChooseWord, StartRound);
+            view.Build(monitorUiFrontMount, monitorUiBackMount,
+                terminalUiMount, localPlayer.transform, ChooseWord, StartRound);
             victoryFireworks = gameObject.AddComponent<MeshupVictoryFireworks>();
             victoryFireworks.Configure(guesserMonitor);
             correctGuessAudio = guesserMonitor.GetComponent<CorrectGuessAudio>()
@@ -174,6 +183,9 @@ namespace Meshup.Game
             sizeSelector = gameObject.AddComponent<GeneratedObjectSizeSelector>();
             sizeSelector.Configure(smallSizeButton, mediumSizeButton,
                 extraLargeSizeButton, () => CanRecordGeneratorLocally, RequestSizeSelection);
+            snapshotEffects = new MeshupGameSnapshotEffects(generatedObjects,
+                sizeSelector, generatorActivityAudio, correctGuessAudio,
+                victoryFireworks, SetParticleState);
             SetParticleState(false);
             Render();
 
@@ -237,22 +249,7 @@ namespace Meshup.Game
 
         public void ProcessMessage(ReferenceCountedSceneGraphMessage networkMessage)
         {
-            var message = networkMessage.FromJson<GameMessage>();
-            var kind = (MessageKind)message.kind;
-            if (IsAuthoritativeInbound(kind, message))
-            {
-                if (!string.Equals(message.creatorPeerId,
-                    session?.CreatorPeerId, StringComparison.Ordinal))
-                {
-                    return;
-                }
-                ProcessAuthoritativeMessage(kind, message);
-                return;
-            }
-            if (session?.IsRoomCreator == true && hostState != null)
-            {
-                ProcessHostCommand(kind, message);
-            }
+            messageChannel?.ProcessMessage(networkMessage);
         }
 
         private static bool IsAuthoritativeInbound(MessageKind kind,
@@ -274,53 +271,12 @@ namespace Meshup.Game
                     if (message.snapshot != null
                         && message.snapshot.version >= snapshot.version)
                     {
-                        var generationWasPending = snapshot.generationPending;
-                        var previousObjectCount = snapshot.generatedObjects?.Length
-                            ?? 0;
-                        var nextPhase =
-                            (MeshupGamePhase)message.snapshot.phase;
-                        var enteredFinishedPhase = hasAppliedSnapshot
-                            && lastAppliedPhase != MeshupGamePhase.Finished
-                            && nextPhase == MeshupGamePhase.Finished;
-                        var enteredCorrectGuessResult =
-                            CorrectGuessAudio.ShouldPlayForTransition(
-                                hasAppliedSnapshot, lastAppliedPhase,
-                                message.snapshot);
-                        var animateSizeSelection = hasAppliedSnapshot
-                            && message.snapshot.roundNumber == snapshot.roundNumber
-                            && message.snapshot.sizeSelectionRevision > snapshot.sizeSelectionRevision;
+                        snapshotEffects.Apply(snapshot, message.snapshot,
+                            hasAppliedSnapshot, lastAppliedPhase);
                         snapshot = message.snapshot;
-                        lastAppliedPhase = nextPhase;
+                        lastAppliedPhase = (MeshupGamePhase)snapshot.phase;
                         hasAppliedSnapshot = true;
-                        SetParticleState(snapshot.generationPending);
-                        generatorActivityAudio?.SetGenerating(
-                            snapshot.generationPending);
-                        if (generationWasPending
-                            && !snapshot.generationPending)
-                        {
-                            var generatedObjectCount =
-                                snapshot.generatedObjects?.Length ?? 0;
-                            if (generatedObjectCount > previousObjectCount)
-                            {
-                                generatorActivityAudio?.PlayCompletion();
-                            }
-                            else
-                            {
-                                generatorActivityAudio?.PlayFailure();
-                            }
-                        }
-                        generatedObjects.Reconcile(snapshot.generatedObjects);
-                        sizeSelector?.ApplySelectedSize(snapshot.selectedSize,
-                            animateSizeSelection);
                         Render();
-                        if (enteredCorrectGuessResult)
-                        {
-                            correctGuessAudio?.Play();
-                        }
-                        if (enteredFinishedPhase)
-                        {
-                            victoryFireworks?.Play();
-                        }
                     }
                     break;
                 case MessageKind.PrivateWords:
@@ -543,8 +499,7 @@ namespace Meshup.Game
             {
                 kind = (int)MessageKind.GenerationComplete,
                 requestId = requestId,
-                text = url ?? string.Empty,
-                error = error ?? string.Empty
+                text = url ?? string.Empty
             });
         }
 
@@ -696,10 +651,7 @@ namespace Meshup.Game
 
         private void Send(GameMessage message)
         {
-            if (contextRegistered && context.Scene != null)
-            {
-                context.SendJson(message);
-            }
+            messageChannel?.Send(message);
         }
 
         private void HandleParticipantsChanged()
@@ -847,10 +799,7 @@ namespace Meshup.Game
             {
                 invisibleWall.enabled = originalWallEnabled;
             }
-            if (contextRegistered && context.Scene != null)
-            {
-                context.Scene.RemoveProcessor(context.Id, ProcessMessage);
-            }
+            messageChannel?.Dispose();
         }
     }
 }

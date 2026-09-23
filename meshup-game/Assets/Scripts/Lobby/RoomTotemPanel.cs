@@ -23,17 +23,15 @@ namespace Meshup.Lobby
             "Tiger", "Whale", "Willow", "Wren"
         };
 
-        [SerializeField] private GameObject panelRoot;
-        [SerializeField] private InputField usernameInput;
-        [SerializeField] private Text roomNameText;
-        [SerializeField] private Button createButton;
-        [SerializeField] private Button refreshButton;
-        [SerializeField] private Button closeButton;
-        [SerializeField] private Transform roomListContent;
-        [SerializeField] private RoomListItemView roomListItemTemplate;
-        [SerializeField] private Text statusText;
-        [SerializeField] private GameObject noRoomsMessage;
-        [SerializeField] private GameObject ubiqKeyboardPrefab;
+        private GameObject panelRoot;
+        private Text roomNameText;
+        private Button createButton;
+        private Button refreshButton;
+        private Button closeButton;
+        private Transform roomListContent;
+        private RoomListItemView roomListItemTemplate;
+        private Text statusText;
+        private GameObject noRoomsMessage;
         [SerializeField] private GameObject ubiqMenuPrefab;
         [SerializeField] private float refreshInterval = 2f;
         [SerializeField] private bool allowClose = true;
@@ -43,7 +41,6 @@ namespace Meshup.Lobby
         private UbiqRoomSession session;
         private LobbyFirstPersonController player;
         private float nextRefreshTime;
-        private bool usesUbiqSampleMenu;
         private Text ubiqUsernameText;
         private Text ubiqJoinCodeText;
         private Text displayedUsernameText;
@@ -56,33 +53,21 @@ namespace Meshup.Lobby
 
         private void Awake()
         {
-            if (ubiqMenuPrefab != null)
+            if (ubiqMenuPrefab == null)
             {
-                BuildUbiqSampleMenu();
+                enabled = false;
+                Debug.LogError("[MeshUp] The Ubiq menu prefab is not assigned.", this);
+                return;
             }
 
-            var canvas = GetComponent<Canvas>();
-            if (canvas == null || canvas.renderMode != RenderMode.WorldSpace)
+            if (!BuildUbiqSampleMenu())
             {
-                transform.localScale = Vector3.one;
+                enabled = false;
+                return;
             }
-            if (usesUbiqSampleMenu)
-            {
-                createButton.onClick = new Button.ButtonClickedEvent();
-            }
+            createButton.onClick = new Button.ButtonClickedEvent();
             createButton.onClick.AddListener(CreateRoom);
             refreshButton?.onClick.AddListener(RefreshRooms);
-            if (!usesUbiqSampleMenu)
-            {
-                usernameInput.onEndEdit.AddListener(ApplyUsername);
-                var nativeKeyboard = usernameInput.gameObject.GetComponent<
-                    QuestNativeKeyboardInput>()
-                    ?? usernameInput.gameObject.AddComponent<
-                        QuestNativeKeyboardInput>();
-                nativeKeyboard.Initialize(ApplyUsername, ubiqKeyboardPrefab,
-                    panelRoot.transform as RectTransform);
-                UbiqUiTheme.ApplyTo(panelRoot, true);
-            }
             SetRoomName(GenerateRoomName());
             closeButton.gameObject.SetActive(allowClose);
             if (allowClose)
@@ -93,9 +78,8 @@ namespace Meshup.Lobby
             roomListItemTemplate.gameObject.SetActive(false);
         }
 
-        private void BuildUbiqSampleMenu()
+        private bool BuildUbiqSampleMenu()
         {
-            var oldPanel = panelRoot;
             var staging = new GameObject("Ubiq Menu Staging");
             staging.SetActive(false);
             var instance = Instantiate(ubiqMenuPrefab, staging.transform, false);
@@ -106,7 +90,7 @@ namespace Meshup.Lobby
                 Destroy(staging);
                 Debug.LogError("[MeshUp] The copied Ubiq Menu prefab no longer "
                     + "contains Canvas/Main Panel.");
-                return;
+                return false;
             }
 
             canvasRoot.gameObject.SetActive(false);
@@ -114,8 +98,6 @@ namespace Meshup.Lobby
             canvasRoot.SetParent(transform, false);
             canvasRoot.name = "Ubiq Sample Menu";
             panelRoot = canvasRoot.gameObject;
-            usesUbiqSampleMenu = true;
-            oldPanel?.SetActive(false);
 
             var rootRect = canvasRoot as RectTransform;
             if (rootRect != null)
@@ -184,6 +166,12 @@ namespace Meshup.Lobby
                 "Browse Menu Joined Control");
             joinedControl?.gameObject.SetActive(false);
             var template = Find(browsePanel, "Browse Menu Control Template");
+            if (template == null)
+            {
+                Debug.LogError("[MeshUp] The Ubiq browse control template is missing.", this);
+                Destroy(staging);
+                return false;
+            }
             roomListItemTemplate = template.GetComponent<RoomListItemView>()
                 ?? template.gameObject.AddComponent<RoomListItemView>();
             roomListItemTemplate.ConfigureFromUbiqSample();
@@ -198,6 +186,14 @@ namespace Meshup.Lobby
                 ?.gameObject.SetActive(true);
 
             Destroy(staging);
+            if (createButton == null || closeButton == null
+                || roomNameText == null || statusText == null
+                || roomListContent == null || noRoomsMessage == null)
+            {
+                Debug.LogError("[MeshUp] The Ubiq menu prefab is missing a required control.", this);
+                return false;
+            }
+            return true;
         }
 
         private void Update()
@@ -287,11 +283,6 @@ namespace Meshup.Lobby
             }
 
             ApplyUsername(CurrentUsername());
-            if (!usesUbiqSampleMenu)
-            {
-                usernameInput.GetComponent<QuestNativeKeyboardInput>()
-                    ?.HideKeyboard();
-            }
             session.CreateRoom(roomNameText.text);
         }
 
@@ -367,10 +358,6 @@ namespace Meshup.Lobby
                 refreshButton.interactable = browsing
                     || state == RoomSessionState.Error;
             }
-            if (usernameInput != null && !usesUbiqSampleMenu)
-            {
-                usernameInput.interactable = !IsBusy(state);
-            }
             if (setNameButton != null)
             {
                 setNameButton.interactable = !IsBusy(state);
@@ -389,11 +376,9 @@ namespace Meshup.Lobby
             {
                 RoomSessionState.Connecting => "Connecting to the room service…",
                 RoomSessionState.LobbyReady => string.IsNullOrEmpty(session?.LastError)
-                    ? usesUbiqSampleMenu ? "MeshUp" : string.Empty
+                    ? "MeshUp"
                     : session.LastError,
-                RoomSessionState.Discovering => usesUbiqSampleMenu
-                    ? "Finding rooms…"
-                    : string.Empty,
+                RoomSessionState.Discovering => "Finding rooms…",
                 RoomSessionState.Joining => "Joining room…",
                 RoomSessionState.Publishing => "Publishing room…",
                 RoomSessionState.LoadingGame => "Loading game…",
@@ -476,11 +461,6 @@ namespace Meshup.Lobby
 
         private string CurrentUsername()
         {
-            if (!usesUbiqSampleMenu)
-            {
-                return usernameInput?.text ?? string.Empty;
-            }
-
             var entry = ubiqUsernameText?.GetComponent<TextEntry>();
             var showingPlaceholder = entry != null
                 && ubiqUsernameText.text == entry.defaultText
@@ -492,7 +472,7 @@ namespace Meshup.Lobby
 
         private void CorrectLegacyNamePlaceholder()
         {
-            if (!usesUbiqSampleMenu || ubiqUsernameText == null
+            if (ubiqUsernameText == null
                 || ubiqUsernameText.text != "My Room")
             {
                 return;
@@ -508,37 +488,28 @@ namespace Meshup.Lobby
 
         private void SetUsernameText(string value)
         {
-            if (usesUbiqSampleMenu)
+            if (ubiqUsernameText != null)
             {
-                if (ubiqUsernameText != null)
+                var entry = ubiqUsernameText.GetComponentInParent<TextEntry>();
+                if (entry != null)
                 {
-                    var entry = ubiqUsernameText.GetComponentInParent<TextEntry>();
-                    if (entry != null)
-                    {
-                        entry.defaultText = "Name";
-                        entry.SetText("Name", entry.defaultTextColor, true);
-                    }
-                    else
-                    {
-                        ubiqUsernameText.text = value;
-                    }
+                    entry.defaultText = "Name";
+                    entry.SetText("Name", entry.defaultTextColor, true);
                 }
-                if (displayedUsernameText != null)
+                else
                 {
-                    displayedUsernameText.text = value;
+                    ubiqUsernameText.text = value;
                 }
             }
-            else
+            if (displayedUsernameText != null)
             {
-                usernameInput?.SetTextWithoutNotify(value);
+                displayedUsernameText.text = value;
             }
         }
 
         private void SetRoomName(string value)
         {
-            var entry = usesUbiqSampleMenu
-                ? roomNameText?.GetComponentInParent<TextEntry>()
-                : null;
+            var entry = roomNameText?.GetComponentInParent<TextEntry>();
             if (entry != null)
             {
                 entry.defaultText = value;
@@ -607,10 +578,6 @@ namespace Meshup.Lobby
             UnbindSession();
             createButton?.onClick.RemoveListener(CreateRoom);
             refreshButton?.onClick.RemoveListener(RefreshRooms);
-            if (!usesUbiqSampleMenu)
-            {
-                usernameInput?.onEndEdit.RemoveListener(ApplyUsername);
-            }
             setNameButton?.onClick.RemoveListener(ApplySampleUsername);
             joinCodeButton?.onClick.RemoveListener(JoinRoomByCode);
             if (allowClose)

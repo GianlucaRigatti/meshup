@@ -78,10 +78,10 @@ namespace Meshup.Editor.Tests
                     System.StringComparison.Ordinal))
                 .ToArray();
 
-            Assert.That(fireworks, Is.Not.Empty);
-            Assert.That(fireworks.All(firework => !firework.activeSelf), Is.True,
-                "Authored firework prefabs must remain inactive; victory "
-                + "fireworks are spawned by MeshupVictoryFireworks.");
+            Assert.That(fireworks, Is.Empty,
+                "Victory fireworks are spawned from the Resources prefab at runtime.");
+            Assert.That(Resources.Load<GameObject>("Game/FireworkSpawner"),
+                Is.Not.Null);
         }
 
         [TestCase(GameScenePath)]
