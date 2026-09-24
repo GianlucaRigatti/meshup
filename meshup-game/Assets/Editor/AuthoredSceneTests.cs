@@ -19,6 +19,18 @@ namespace Meshup.Editor.Tests
         private const string LobbyScenePath = "Assets/Scenes/SampleScene.unity";
 
         [Test]
+        public void MimeZoneDividerDoesNotBlockTheOpening()
+        {
+            using var validation = new SceneValidationScope(GameScenePath);
+            var divider = validation.Scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<Transform>(true))
+                .Single(item => item.name == "Mime_zone_divisor");
+
+            Assert.That(divider.GetComponent<Renderer>(), Is.Not.Null);
+            Assert.That(divider.GetComponents<Collider>(), Is.Empty);
+        }
+
+        [Test]
         public void MonitorUiMountsFitInsideTheAuthoredScreen()
         {
             using var validation = new SceneValidationScope(GameScenePath);

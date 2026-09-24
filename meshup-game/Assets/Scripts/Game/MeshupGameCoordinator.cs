@@ -573,8 +573,9 @@ namespace Meshup.Game
             previousWallSide = side;
         }
 
+        // The XR Origin can remain behind the wall during room-scale movement.
         private float WallSide => invisibleWall.transform
-            .InverseTransformPoint(localPlayer.transform.position).z;
+            .InverseTransformPoint(localPlayer.BodyPosition).z;
 
         private void SendCommand(GameMessage message)
         {
