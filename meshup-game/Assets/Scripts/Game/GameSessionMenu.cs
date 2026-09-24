@@ -10,8 +10,8 @@ namespace Meshup.Game
 {
     public sealed class GameSessionMenu : MonoBehaviour
     {
-        private const float XrCanvasScale = 0.0009f;
-        private const float XrCanvasDistance = 1.75f;
+        private const float XrCanvasScale = 0.0015f;
+        private const float XrCanvasDistance = 1.2f;
         private const float DesktopMaximumWidthFraction = 0.65f;
         private const float DesktopMaximumHeightFraction = 0.62f;
 
