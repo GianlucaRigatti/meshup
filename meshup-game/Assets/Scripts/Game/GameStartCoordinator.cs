@@ -91,6 +91,8 @@ namespace Meshup.Game
 
         public bool IsIdle => phase == SequencePhase.Idle;
         public bool IsComplete => phase == SequencePhase.Complete;
+        public IReadOnlyList<string> CompletedRoster => IsComplete
+            ? roster.ToArray() : Array.Empty<string>();
         public bool IsRunning => phase is SequencePhase.Preparing
             or SequencePhase.Regrouping or SequencePhase.Walking
             or SequencePhase.WaitingForGroup;
@@ -402,6 +404,7 @@ namespace Meshup.Game
             localSlot = Array.IndexOf(roster, session.LocalPeerId);
             if (localSlot < 0)
             {
+                BroadcastCancel("A player was missing from the start roster.");
                 return;
             }
 

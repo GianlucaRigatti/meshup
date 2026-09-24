@@ -137,23 +137,38 @@ namespace Meshup.Game
 
         public void Begin(IEnumerable<Multiplayer.ParticipantInfo> participants)
         {
+            Begin(participants, null);
+        }
+
+        public void Begin(IEnumerable<Multiplayer.ParticipantInfo> participants,
+            IEnumerable<string> assignedRoster)
+        {
             if (participants == null)
             {
                 throw new ArgumentNullException(nameof(participants));
             }
 
+            var knownParticipants = participants
+                .Where(item => item != null && !string.IsNullOrEmpty(item.PeerId))
+                .GroupBy(item => item.PeerId, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Last(),
+                    StringComparer.Ordinal);
+            var roster = assignedRoster ?? knownParticipants.Keys;
             players.Clear();
             mimeOrder.Clear();
-            foreach (var participant in participants
-                .Where(item => item != null && !string.IsNullOrEmpty(item.PeerId)))
+            foreach (var peerId in roster.Where(peerId =>
+                !string.IsNullOrEmpty(peerId)).Distinct(StringComparer.Ordinal))
             {
-                players[participant.PeerId] = new MeshupPlayerScore
+                knownParticipants.TryGetValue(peerId, out var participant);
+                players[peerId] = new MeshupPlayerScore
                 {
-                    peerId = participant.PeerId,
-                    displayName = participant.DisplayName,
-                    connected = participant.Connected
+                    peerId = peerId,
+                    displayName = participant?.DisplayName
+                        ?? new Multiplayer.ParticipantInfo(peerId, null, true)
+                            .DisplayName,
+                    connected = participant?.Connected ?? true
                 };
-                mimeOrder.Add(participant.PeerId);
+                mimeOrder.Add(peerId);
             }
             Shuffle(mimeOrder);
             RoundNumber = 0;

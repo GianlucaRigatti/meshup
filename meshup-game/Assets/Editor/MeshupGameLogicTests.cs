@@ -39,6 +39,31 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void OpeningRosterKeepsAPlayerMissingFromTheRoomSnapshot()
+        {
+            var state = new MeshupMatchState(new System.Random(7));
+            state.Begin(new[]
+            {
+                new ParticipantInfo("one", "One", true),
+                new ParticipantInfo("two", "Two", true)
+            }, new[] { "one", "two", "three" });
+
+            var seenMimes = new System.Collections.Generic.HashSet<string>();
+            while (state.Phase != MeshupGamePhase.Finished)
+            {
+                var mime = state.MimePeerId;
+                Assert.That(seenMimes.Add(mime), Is.True);
+                BeginTimedRound(state, "jump");
+                state.Tick(120f);
+                Assert.That(state.MimeExited(mime), Is.True);
+            }
+
+            Assert.That(seenMimes, Is.EquivalentTo(new[]
+                { "one", "two", "three" }));
+            Assert.That(state.RoundNumber, Is.EqualTo(3));
+        }
+
+        [Test]
         public void PreparationRejectsGuessesAndStartWaitsForGeneration()
         {
             var state = CreateState();

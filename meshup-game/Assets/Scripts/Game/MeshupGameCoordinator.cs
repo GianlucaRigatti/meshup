@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Meshup.Multiplayer;
@@ -10,6 +11,7 @@ namespace Meshup.Game
     [DisallowMultipleComponent]
     public sealed class MeshupGameCoordinator : MonoBehaviour
     {
+        private const float PeerDepartureGraceSeconds = 10f;
         // TODO: Remove this temporary binding after the fireworks are approved.
         private const KeyCode FireworksTestKey = KeyCode.F8;
         private const KeyCode GeneratorAudioTestKey = KeyCode.F7;
@@ -76,6 +78,8 @@ namespace Meshup.Game
 
         private GeneratedObjectManager generatedObjects;
         private readonly Dictionary<string, byte[]> pendingAudio =
+            new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Coroutine> pendingDepartures =
             new(StringComparer.Ordinal);
         private UbiqRoomSession session;
         private MeshupMatchState hostState;
@@ -253,8 +257,11 @@ namespace Meshup.Game
                 return;
             }
             hostState = new MeshupMatchState();
-            hostState.Begin(session.GetParticipants());
+            // The walk roster is the group that started together. The room
+            // peer list may briefly lag behind it during the scene transition.
+            hostState.Begin(session.GetParticipants(), gameStart.CompletedRoster);
             BroadcastSnapshot();
+            HandleParticipantsChanged();
         }
 
         public void ProcessMessage(ReferenceCountedSceneGraphMessage networkMessage)
@@ -675,19 +682,39 @@ namespace Meshup.Game
             }
             var connected = new HashSet<string>(session.GetParticipantIds(),
                 StringComparer.Ordinal);
-            var changed = false;
+            foreach (var peerId in pendingDepartures.Keys
+                .Where(connected.Contains).ToArray())
+            {
+                StopCoroutine(pendingDepartures[peerId]);
+                pendingDepartures.Remove(peerId);
+            }
             foreach (var player in hostState.Players.Where(item =>
                 item.connected && !connected.Contains(item.peerId)).ToArray())
             {
-                var wasMime = player.peerId == hostState.MimePeerId;
-                changed |= hostState.Disconnect(player.peerId);
+                if (!pendingDepartures.ContainsKey(player.peerId))
+                {
+                    pendingDepartures[player.peerId] = StartCoroutine(
+                        ConfirmDeparture(player.peerId));
+                }
+            }
+        }
+
+        private IEnumerator ConfirmDeparture(string peerId)
+        {
+            yield return new WaitForSecondsRealtime(PeerDepartureGraceSeconds);
+            pendingDepartures.Remove(peerId);
+            if (session == null || hostState == null
+                || session.GetParticipantIds().Contains(peerId))
+            {
+                yield break;
+            }
+            var wasMime = peerId == hostState.MimePeerId;
+            if (hostState.Disconnect(peerId))
+            {
                 if (wasMime)
                 {
                     ClearRoundGeneration();
                 }
-            }
-            if (changed)
-            {
                 BroadcastSnapshot();
             }
         }
