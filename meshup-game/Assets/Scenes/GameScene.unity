@@ -4629,6 +4629,7 @@ MonoBehaviour:
   gameStart: {fileID: 390863633}
   localPlayer: {fileID: 656482935}
   invisibleWall: {fileID: 1537894675}
+  mimeZoneDivider: {fileID: 494281029}
   guesserMonitor: {fileID: 1815578344}
   monitorUiFrontMount: {fileID: 300938074}
   monitorUiBackMount: {fileID: 909123831}
@@ -14616,7 +14617,6 @@ GameObject:
   - component: {fileID: 494281029}
   - component: {fileID: 494281032}
   - component: {fileID: 494281031}
-  - component: {fileID: 494281030}
   m_Layer: 0
   m_Name: Mime_zone_divisor
   m_TagString: Untagged
@@ -14639,28 +14639,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 386095718}
   m_LocalEulerAnglesHint: {x: 180, y: 0, z: 0}
---- !u!64 &494281030
-MeshCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 494281028}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 5
-  m_Convex: 0
-  m_CookingOptions: 30
-  m_Mesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!23 &494281031
 MeshRenderer:
   m_ObjectHideFlags: 0

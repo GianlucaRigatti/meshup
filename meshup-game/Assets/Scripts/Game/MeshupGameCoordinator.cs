@@ -57,6 +57,7 @@ namespace Meshup.Game
         [SerializeField] private GameStartCoordinator gameStart;
         [SerializeField] private PlayerMovementAuthority localPlayer;
         [SerializeField] private Collider invisibleWall;
+        [SerializeField] private Transform mimeZoneDivider;
         [SerializeField] private Transform guesserMonitor;
         [SerializeField] private Transform monitorUiFrontMount;
         [SerializeField] private Transform monitorUiBackMount;
@@ -128,7 +129,8 @@ namespace Meshup.Game
         {
             session = UbiqRoomSession.Instance;
             if (session == null || gameStart == null || localPlayer == null
-                || invisibleWall == null || guesserMonitor == null
+                || invisibleWall == null || mimeZoneDivider == null
+                || guesserMonitor == null
                 || monitorUiFrontMount == null || monitorUiBackMount == null
                 || mimeTerminal == null || terminalUiMount == null
                 || generatorAnchor == null
@@ -138,6 +140,14 @@ namespace Meshup.Game
                 enabled = false;
                 Debug.LogError("[MeshUp] Game coordinator references are incomplete.");
                 return;
+            }
+
+            // The divider is visual only. A scene re-save can restore its
+            // MeshCollider and block the XR CharacterController even when the
+            // actual game-area wall has been opened for the mime.
+            foreach (var collider in mimeZoneDivider.GetComponents<Collider>())
+            {
+                collider.enabled = false;
             }
 
             wordService = MimeWordService.LoadDefault();

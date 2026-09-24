@@ -69,6 +69,7 @@ namespace Meshup.Editor.Tests
                 ("gameStart", "Game Start Sequence"),
                 ("localPlayer", "Ubiq Demo Player"),
                 ("invisibleWall", "Invisible_wall_game_area"),
+                ("mimeZoneDivider", "Mime_zone_divisor"),
                 ("guesserMonitor", "guesser_monitor"),
                 ("mimeTerminal", "mime_terminal"),
                 ("generatorAnchor", "generator_particle_system"),

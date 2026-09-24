@@ -37,7 +37,8 @@ namespace Meshup.EditorTools
             var serialized = new SerializedObject(coordinator);
             foreach (var field in new[]
             {
-                "gameStart", "localPlayer", "invisibleWall", "guesserMonitor",
+                "gameStart", "localPlayer", "invisibleWall", "mimeZoneDivider",
+                "guesserMonitor",
                 "monitorUiFrontMount", "monitorUiBackMount", "mimeTerminal",
                 "terminalUiMount", "generatorAnchor", "generatorButton", "generatorParticles",
                 "smallSizeButton", "mediumSizeButton", "extraLargeSizeButton"
@@ -51,6 +52,13 @@ namespace Meshup.EditorTools
                     throw new InvalidOperationException(
                         $"Assign the game coordinator's {field} to an object in this scene.");
                 }
+            }
+            var divider = (Transform)serialized.FindProperty("mimeZoneDivider")
+                .objectReferenceValue;
+            if (divider.GetComponents<Collider>().Length != 0)
+            {
+                throw new InvalidOperationException(
+                    "The visual mime zone divider must not have a collider.");
             }
             var monitor = (Transform)serialized.FindProperty("guesserMonitor")
                 .objectReferenceValue;
