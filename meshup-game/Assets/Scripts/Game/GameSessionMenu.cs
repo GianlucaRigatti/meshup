@@ -2,8 +2,6 @@ using Meshup.Multiplayer;
 using Meshup;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit.UI;
@@ -12,7 +10,6 @@ namespace Meshup.Game
 {
     public sealed class GameSessionMenu : MonoBehaviour
     {
-        private const string VignettePreference = "meshup.graphics.vignette";
         private const float XrCanvasScale = 0.0009f;
         private const float XrCanvasDistance = 1.75f;
         private const float DesktopMaximumWidthFraction = 0.65f;
@@ -29,26 +26,19 @@ namespace Meshup.Game
         private VoiceChatController voiceChat;
         private Button voiceButton;
         private Text voiceButtonLabel;
-        private Button vignetteButton;
-        private Text vignetteButtonLabel;
-        private readonly Dictionary<Vignette, bool> vignetteDefaults = new();
         private readonly List<InputDevice> xrControllers = new();
-        private bool vignetteEnabled;
         private bool xrMenuWasPressed;
         private bool xrCanvasConfigured;
 
         private void Start()
         {
             transform.localScale = Vector3.one;
-            vignetteEnabled = PlayerPrefs.GetInt(VignettePreference, 1) != 0;
             BuildMenuControls();
             UbiqUiTheme.ApplyTo(panelRoot, true);
             ConfigureUbiqLayout();
-            ApplyVignetteSetting();
             resumeButton.onClick.AddListener(Resume);
             leaveButton.onClick.AddListener(LeaveRoom);
             voiceButton?.onClick.AddListener(ToggleVoiceMute);
-            vignetteButton?.onClick.AddListener(ToggleVignette);
             session = UbiqRoomSession.Instance;
             voiceChat = VoiceChatController.Instance;
             if (session != null)
@@ -90,7 +80,6 @@ namespace Meshup.Game
 
         public void Open()
         {
-            ApplyVignetteSetting();
             ConfigureXrCanvas();
             PositionXrCanvas();
             panelRoot.SetActive(true);
@@ -299,19 +288,6 @@ namespace Meshup.Game
                 voiceRect.anchoredPosition = new Vector2(
                     voiceRect.anchoredPosition.x, -30f);
             }
-
-            var vignetteObject = Instantiate(resumeButton.gameObject,
-                resumeButton.transform.parent, false);
-            vignetteObject.name = "Vignette Toggle";
-            vignetteButton = vignetteObject.GetComponent<Button>();
-            vignetteButtonLabel = vignetteObject.GetComponentInChildren<Text>(true);
-            var vignetteRect = vignetteObject.GetComponent<RectTransform>();
-            if (vignetteRect != null)
-            {
-                vignetteRect.anchoredPosition = new Vector2(
-                    vignetteRect.anchoredPosition.x, 30f);
-            }
-            UpdateVignetteControl();
         }
 
         private void ConfigureUbiqLayout()
@@ -319,13 +295,12 @@ namespace Meshup.Game
             var panelRect = panelRoot.GetComponent<RectTransform>();
             if (panelRect != null)
             {
-                panelRect.sizeDelta = new Vector2(440f, 380f);
+                panelRect.sizeDelta = new Vector2(440f, 320f);
             }
 
-            PositionControl(resumeButton, new Vector2(0f, 70f));
-            PositionControl(vignetteButton, new Vector2(0f, 10f));
-            PositionControl(voiceButton, new Vector2(0f, -50f));
-            PositionControl(leaveButton, new Vector2(0f, -110f));
+            PositionControl(resumeButton, new Vector2(0f, 60f));
+            PositionControl(voiceButton, new Vector2(0f, -10f));
+            PositionControl(leaveButton, new Vector2(0f, -80f));
 
             var title = panelRoot.transform.Find("Title")?.GetComponent<Text>();
             if (title != null)
@@ -363,48 +338,6 @@ namespace Meshup.Game
                 label.rectTransform.offsetMax = new Vector2(-8f, -4f);
                 label.fontSize = 20;
                 label.alignment = TextAnchor.MiddleCenter;
-            }
-        }
-
-        private void ToggleVignette()
-        {
-            vignetteEnabled = !vignetteEnabled;
-            PlayerPrefs.SetInt(VignettePreference, vignetteEnabled ? 1 : 0);
-            PlayerPrefs.Save();
-            ApplyVignetteSetting();
-        }
-
-        private void ApplyVignetteSetting()
-        {
-            var volumes = FindObjectsByType<Volume>(FindObjectsInactive.Include);
-            foreach (var volume in volumes)
-            {
-                if (volume.sharedProfile == null
-                    || !volume.sharedProfile.TryGet<Vignette>(out _))
-                {
-                    continue;
-                }
-
-                if (!volume.profile.TryGet<Vignette>(out var vignette))
-                {
-                    continue;
-                }
-
-                if (!vignetteDefaults.ContainsKey(vignette))
-                {
-                    vignetteDefaults.Add(vignette, vignette.active);
-                }
-                vignette.active = vignetteEnabled && vignetteDefaults[vignette];
-            }
-            UpdateVignetteControl();
-        }
-
-        private void UpdateVignetteControl()
-        {
-            if (vignetteButtonLabel != null)
-            {
-                vignetteButtonLabel.text = vignetteEnabled
-                    ? "Vignette: On" : "Vignette: Off";
             }
         }
 
@@ -465,7 +398,6 @@ namespace Meshup.Game
             resumeButton?.onClick.RemoveListener(Resume);
             leaveButton?.onClick.RemoveListener(LeaveRoom);
             voiceButton?.onClick.RemoveListener(ToggleVoiceMute);
-            vignetteButton?.onClick.RemoveListener(ToggleVignette);
             if (session != null)
             {
                 session.StateChanged -= HandleStateChanged;
