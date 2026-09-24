@@ -4,6 +4,7 @@ using Meshup;
 using Ubiq.Samples;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Meshup.Lobby
 {
@@ -122,6 +123,12 @@ namespace Meshup.Lobby
             nestedCanvas.worldCamera = parentCanvas.worldCamera;
             nestedCanvas.overrideSorting = true;
             nestedCanvas.sortingOrder = parentCanvas.sortingOrder + 1;
+            // Graphics on a nested Canvas are registered with that Canvas,
+            // so the raycaster on the outer hologram cannot hit this menu.
+            if (canvasRoot.GetComponent<TrackedDeviceGraphicRaycaster>() == null)
+            {
+                canvasRoot.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+            }
 
             panelSwitcher = mainPanel.GetComponent<PanelSwitcher>();
 
