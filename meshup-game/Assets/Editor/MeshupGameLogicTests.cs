@@ -411,8 +411,13 @@ namespace Meshup.Editor.Tests
                     .Toolkit.Interactables.XRGrabInteractable>();
                 Assert.That(body, Is.Not.Null);
                 Assert.That(grab, Is.Not.Null);
-                Assert.That(grab.trackRotation, Is.False,
-                    "Generated objects must keep their current rotation when grabbed.");
+                Assert.That(grab.useDynamicAttach, Is.True,
+                    "Each grab must start from the object's current pose.");
+                Assert.That(grab.matchAttachPosition, Is.True);
+                Assert.That(grab.matchAttachRotation, Is.True,
+                    "Grabbing must preserve the object's placed orientation.");
+                Assert.That(grab.trackRotation, Is.True,
+                    "Held objects must turn with the player's hand.");
                 Assert.That(grab.movementType, Is.EqualTo(
                     UnityEngine.XR.Interaction.Toolkit.Interactables
                         .XRBaseInteractable.MovementType.VelocityTracking));
