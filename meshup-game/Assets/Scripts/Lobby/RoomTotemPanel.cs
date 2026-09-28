@@ -68,7 +68,7 @@ namespace Meshup.Lobby
                 enabled = false;
                 return;
             }
-            createButton.onClick = new Button.ButtonClickedEvent();
+            createButton.onClick.RemoveAllListeners();
             createButton.onClick.AddListener(CreateRoom);
             refreshButton?.onClick.AddListener(RefreshRooms);
             SetRoomName(GenerateRoomName());
@@ -536,7 +536,7 @@ namespace Meshup.Lobby
             {
                 return;
             }
-            button.onClick = new Button.ButtonClickedEvent();
+            button.onClick.RemoveAllListeners();
             button.onClick.AddListener(action);
         }
 

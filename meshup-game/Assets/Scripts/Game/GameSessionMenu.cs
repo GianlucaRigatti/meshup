@@ -1,5 +1,4 @@
 using Meshup.Multiplayer;
-using Meshup;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -34,7 +33,6 @@ namespace Meshup.Game
         {
             transform.localScale = Vector3.one;
             BuildMenuControls();
-            UbiqUiTheme.ApplyTo(panelRoot, true);
             ConfigureUbiqLayout();
             resumeButton.onClick.AddListener(Resume);
             leaveButton.onClick.AddListener(LeaveRoom);

@@ -63,10 +63,9 @@ namespace Meshup.Lobby
                 ? "Unnamed Room"
                 : room.Name;
             joinCodeText.text = $"Join code: {room.JoinCode}";
-            // The copied Ubiq control has a persistent listener that talks
-            // directly to RoomClient. Replace it so MeshUp remains the sole
-            // owner of room transitions and late-join validation.
-            joinButton.onClick = new Button.ButtonClickedEvent();
+            // The Ubiq RoomClient listener is removed in the menu prefab.
+            // Preserve its editor-wired click sound while rebinding Join.
+            joinButton.onClick.RemoveAllListeners();
             joinButton.onClick.AddListener(Join);
             joinButton.interactable = true;
         }

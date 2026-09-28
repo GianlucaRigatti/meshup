@@ -383,18 +383,20 @@ namespace Meshup.Game
         private static Button CreateButton(Transform parent, string name,
             Vector2 anchorMin, Vector2 anchorMax)
         {
-            var panel = CreatePanel(parent, name,
-                new Color(0.06f, 0.38f, 0.48f, 1f));
-            panel.raycastTarget = true;
-            SetRect(panel.rectTransform, anchorMin, anchorMax,
+            var template = Resources.Load<Button>("TerminalButton");
+            if (template == null)
+            {
+                throw new InvalidOperationException(
+                    "The TerminalButton prefab is missing from Resources.");
+            }
+            var button = Instantiate(template, parent, false);
+            button.name = name;
+            SetRect(button.GetComponent<RectTransform>(), anchorMin, anchorMax,
                 Vector2.zero, Vector2.zero);
-            var button = panel.gameObject.AddComponent<Button>();
-            button.targetGraphic = panel;
-            var collider = panel.gameObject.AddComponent<BoxCollider>();
-            collider.size = new Vector3(panel.rectTransform.rect.width,
-                panel.rectTransform.rect.height, 8f);
-            var xrInteractable = panel.gameObject.AddComponent<
-                XRSimpleInteractable>();
+            var collider = button.GetComponent<BoxCollider>();
+            var rect = button.GetComponent<RectTransform>();
+            collider.size = new Vector3(rect.rect.width, rect.rect.height, 8f);
+            var xrInteractable = button.GetComponent<XRSimpleInteractable>();
             xrInteractable.selectEntered.AddListener(_ =>
             {
                 if (button.isActiveAndEnabled && button.interactable)
@@ -402,10 +404,6 @@ namespace Meshup.Game
                     button.onClick.Invoke();
                 }
             });
-            var label = CreateText(panel.transform, "Label", 38,
-                TextAnchor.MiddleCenter, Color.white);
-            SetRect(label.rectTransform, Vector2.zero, Vector2.one,
-                new Vector2(8f, 8f), new Vector2(-8f, -8f));
             return button;
         }
 
