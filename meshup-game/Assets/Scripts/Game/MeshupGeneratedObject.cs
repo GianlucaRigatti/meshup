@@ -150,11 +150,6 @@ namespace Meshup.Game
             }
         }
 
-        private void AddInteractionComponents()
-        {
-            AddInteractionComponentsForBounds(null);
-        }
-
         private void AddInteractionComponentsForBounds(Bounds? importedBounds)
         {
             var bounds = importedBounds ?? new Bounds(Vector3.zero,

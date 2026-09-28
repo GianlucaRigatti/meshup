@@ -10,11 +10,6 @@ namespace Meshup.Game
     {
         [SerializeField] private GameObject traditionalController;
 
-        public void SetTraditionalController(GameObject controller)
-        {
-            traditionalController = controller;
-        }
-
         private void OnEnable()
         {
             if (traditionalController != null)

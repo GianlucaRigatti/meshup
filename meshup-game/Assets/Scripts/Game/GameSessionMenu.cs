@@ -211,11 +211,6 @@ namespace Meshup.Game
             Cursor.visible = false;
         }
 
-        public void SetMovementAuthority(PlayerMovementAuthority authority)
-        {
-            movementAuthority = authority;
-        }
-
         private void LeaveRoom()
         {
             if (session == null || !session.LeaveRoom())

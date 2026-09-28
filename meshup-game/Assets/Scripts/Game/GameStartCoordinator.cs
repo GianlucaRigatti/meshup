@@ -101,17 +101,6 @@ namespace Meshup.Game
 
         public event Action Completed;
 
-        public void Configure(GameStartRoute formationRoute,
-            GameStartRegroupRing waitingRoomRing,
-            PlayerMovementAuthority localPlayer,
-            GameStartDoorController[] routeDoors = null)
-        {
-            route = formationRoute;
-            regroupRing = waitingRoomRing;
-            player = localPlayer;
-            doors = routeDoors ?? Array.Empty<GameStartDoorController>();
-        }
-
         private void Start()
         {
             session = UbiqRoomSession.Instance;

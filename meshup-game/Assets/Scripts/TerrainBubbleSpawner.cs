@@ -19,7 +19,7 @@ public class TerrainBubbleSpawner : MonoBehaviour
     [Min(0f)] public float structureClearance = 10f;
 
     [Header("Prefab")]
-    public ParticleSystem bubblePrefab; // se assegnato, verrà instanziato; altrimenti verrà creato uno ps di default
+    public ParticleSystem bubblePrefab;
 
     [Header("Randomizzazione (opzionale)")]
     public Vector2 randomEmitRate = new Vector2(8f, 18f);
@@ -34,6 +34,12 @@ public class TerrainBubbleSpawner : MonoBehaviour
 
     public void SpawnBubbles()
     {
+        if (bubblePrefab == null)
+        {
+            Debug.LogError("[TerrainBubbleSpawner] Bubble prefab is not assigned.", this);
+            return;
+        }
+
         if (playerArea == null)
         {
             playerArea = FindAnyObjectByType<FishSchoolController>();
@@ -92,19 +98,8 @@ public class TerrainBubbleSpawner : MonoBehaviour
             }
             if (!ok) continue;
 
-            // istanzia o crea un ParticleSystem
-            ParticleSystem psInstance;
-            if (bubblePrefab != null)
-            {
-                var go = Instantiate(bubblePrefab.gameObject);
-                go.name = "BubbleEmitter_" + spawned;
-                psInstance = go.GetComponent<ParticleSystem>();
-            }
-            else
-            {
-                psInstance = CreateDefaultBubbleSystem();
-                psInstance.gameObject.name = "BubbleEmitter_" + spawned;
-            }
+            var psInstance = Instantiate(bubblePrefab);
+            psInstance.gameObject.name = "BubbleEmitter_" + spawned;
 
             // posiziona e non parentare (le bolle salgono nello spazio World)
             psInstance.transform.SetParent(null);
@@ -124,68 +119,5 @@ public class TerrainBubbleSpawner : MonoBehaviour
 
         if (spawned == 0)
             Debug.LogWarning("[TerrainBubbleSpawner] Non sono stati trovati punti validi per spawnare bolle.");
-    }
-
-    // Crea un ParticleSystem pensato per le bolle (coerente con le protezioni contro l'errore velocity-mode)
-    private ParticleSystem CreateDefaultBubbleSystem()
-    {
-        var go = new GameObject("Bubbles_Default");
-        var ps = go.AddComponent<ParticleSystem>();
-
-        var main = ps.main;
-        main.loop = true;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(1.0f, 2.6f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(0.6f, 1.6f);
-        main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.24f);
-        main.startColor = Color.white;
-        main.gravityModifier = -0.2f;
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.maxParticles = 300;
-
-        var emission = ps.emission;
-        emission.rateOverTime = 12f;
-
-        var shape = ps.shape;
-        shape.shapeType = ParticleSystemShapeType.Cone;
-        shape.angle = 35f;
-        shape.radius = 0.12f;
-
-        var vel = ps.velocityOverLifetime;
-        vel.enabled = true;
-        vel.space = ParticleSystemSimulationSpace.Local;
-        // impostiamo X/Y/Z nello stesso modo (TwoConstants) per evitare l'errore
-        vel.x = new ParticleSystem.MinMaxCurve(0f, 0f);
-        vel.y = new ParticleSystem.MinMaxCurve(0.3f, 1.4f);
-        vel.z = new ParticleSystem.MinMaxCurve(0f, 0f);
-
-        var col = ps.colorOverLifetime;
-        col.enabled = true;
-        Gradient grad = new Gradient();
-        grad.SetKeys(
-            new GradientColorKey[] {
-                new GradientColorKey(new Color(0.95f, 0.97f, 1f), 0f),
-                new GradientColorKey(new Color(0.95f, 0.97f, 1f), 1f)
-            },
-            new GradientAlphaKey[] {
-                new GradientAlphaKey(0.0f, 0f),
-                new GradientAlphaKey(0.9f, 0.08f),
-                new GradientAlphaKey(0.0f, 1f)
-            }
-        );
-        col.color = grad;
-
-        var sizeOverLife = ps.sizeOverLifetime;
-        sizeOverLife.enabled = true;
-        AnimationCurve curve = new AnimationCurve();
-        curve.AddKey(0f, 0f);
-        curve.AddKey(0.05f, 1f);
-        curve.AddKey(1f, 1.15f);
-        sizeOverLife.size = new ParticleSystem.MinMaxCurve(1f, curve);
-
-        var renderer = ps.GetComponent<ParticleSystemRenderer>();
-        renderer.renderMode = ParticleSystemRenderMode.Billboard;
-        renderer.sortingOrder = 1000;
-
-        return ps;
     }
 }

@@ -25,15 +25,6 @@ namespace Meshup.Game
         public float PathOffset => pathOffset;
         public bool IsConfigured => doorAnimator != null && route != null;
 
-        public void Configure(Animator animator, GameStartRoute formationRoute,
-            float leadDistance = 4f)
-        {
-            doorAnimator = animator;
-            route = formationRoute;
-            openLeadDistance = Mathf.Max(0f, leadDistance);
-            RecalculateRoutePosition();
-        }
-
         private void Awake()
         {
             doorAnimator ??= GetComponent<Animator>();
