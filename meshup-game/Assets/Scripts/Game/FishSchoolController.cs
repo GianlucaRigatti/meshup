@@ -3,6 +3,7 @@ using Unity.Profiling;
 using UnityEngine;
 
 [DisallowMultipleComponent]
+[RequireComponent(typeof(PlayerAreaVolumes))]
 public sealed class FishSchoolController : MonoBehaviour
 {
     [Header("School")]
@@ -29,19 +30,9 @@ public sealed class FishSchoolController : MonoBehaviour
     [SerializeField, Min(0f)] private float cohesionWeight = 0.8f;
     [SerializeField, Min(0f)] private float separationWeight = 2.4f;
 
-    [Header("Volumes (local space)")]
+    [Header("Volumes")]
     [SerializeField] private Vector3 swimVolumeCenter = new Vector3(25f, 0f, 20f);
     [SerializeField] private Vector3 swimVolumeSize = new Vector3(85f, 16f, 80f);
-    [Tooltip("Interior of the waiting room. Fish may swim above this finite-height volume.")]
-    [SerializeField] private Vector3 forbiddenVolumeCenter = new Vector3(58.1f, -3.29f, 34.1f);
-    [SerializeField] private Vector3 forbiddenVolumeSize = new Vector3(20f, 10f, 20f);
-    [Tooltip("Interior of the corridor connecting the two player rooms.")]
-    [SerializeField] private Vector3 corridorForbiddenVolumeCenter = new Vector3(36.35f, -3.29f, 27.91f);
-    [SerializeField] private Vector3 corridorForbiddenVolumeSize = new Vector3(25f, 10f, 10f);
-    [Tooltip("Interior of the glass playing room.")]
-    [SerializeField] private Vector3 playingRoomForbiddenVolumeCenter = new Vector3(17.35f, -3.29f, 24.01f);
-    [SerializeField] private Vector3 playingRoomForbiddenVolumeSize = new Vector3(17f, 10f, 21f);
-    [SerializeField, Min(0f)] private float forbiddenSafetyMargin = 2f;
     [SerializeField, Min(0.01f)] private float boundaryLookAhead = 4f;
     [SerializeField, Min(0f)] private float boundaryWeight = 4.5f;
     [SerializeField, Min(0f)] private float fishRadius = 0.4f;
@@ -65,9 +56,29 @@ public sealed class FishSchoolController : MonoBehaviour
     private Vector3[] nextVelocities;
     private Vector3[] wanderAxes;
     private float[] wanderPhases;
+    private PlayerAreaVolumes playerArea;
+
+    private PlayerAreaVolumes Area
+    {
+        get
+        {
+            if (playerArea == null)
+            {
+                playerArea = GetComponent<PlayerAreaVolumes>();
+            }
+            return playerArea;
+        }
+    }
 
     private void Awake()
     {
+        if (Area == null)
+        {
+            Debug.LogError("Fish School Controller needs player area volumes.", this);
+            enabled = false;
+            return;
+        }
+
         if (fishPrefab == null)
         {
             Debug.LogError("Fish School Controller needs a fish prefab.", this);
@@ -100,9 +111,9 @@ public sealed class FishSchoolController : MonoBehaviour
         wanderPhases = new float[fishCount];
 
         Bounds swimBounds = GetSwimBounds();
-        Bounds waitingRoomBounds = GetForbiddenBounds();
-        Bounds corridorBounds = GetCorridorForbiddenBounds();
-        Bounds playingRoomBounds = GetPlayingRoomForbiddenBounds();
+        Bounds waitingRoomBounds = Area.WaitingRoomBounds(fishRadius);
+        Bounds corridorBounds = Area.CorridorBounds(fishRadius);
+        Bounds playingRoomBounds = Area.PlayingRoomBounds(fishRadius);
 
         for (int i = 0; i < fishCount; i++)
         {
@@ -163,9 +174,9 @@ public sealed class FishSchoolController : MonoBehaviour
         using (PresentationMarker.Auto())
         {
             float alpha = accumulatedTime / step;
-            Bounds waitingRoomBounds = GetForbiddenBounds();
-            Bounds corridorBounds = GetCorridorForbiddenBounds();
-            Bounds playingRoomBounds = GetPlayingRoomForbiddenBounds();
+            Bounds waitingRoomBounds = Area.WaitingRoomBounds(fishRadius);
+            Bounds corridorBounds = Area.CorridorBounds(fishRadius);
+            Bounds playingRoomBounds = Area.PlayingRoomBounds(fishRadius);
             for (int i = 0; i < fish.Length; i++)
             {
                 Vector3 position = Vector3.Lerp(previousPositions[i], positions[i], alpha);
@@ -199,9 +210,9 @@ public sealed class FishSchoolController : MonoBehaviour
             previousRotations[i] = rotations[i];
         }
         Bounds swimBounds = GetSwimBounds();
-        Bounds waitingRoomBounds = GetForbiddenBounds();
-        Bounds corridorBounds = GetCorridorForbiddenBounds();
-        Bounds playingRoomBounds = GetPlayingRoomForbiddenBounds();
+        Bounds waitingRoomBounds = Area.WaitingRoomBounds(fishRadius);
+        Bounds corridorBounds = Area.CorridorBounds(fishRadius);
+        Bounds playingRoomBounds = Area.PlayingRoomBounds(fishRadius);
         float neighborDistanceSquared = neighborDistance * neighborDistance;
         float separationDistanceSquared = separationDistance * separationDistance;
 
@@ -422,31 +433,6 @@ public sealed class FishSchoolController : MonoBehaviour
             || playingRoomBounds.Contains(position);
     }
 
-    /// <summary>
-    /// Returns whether a world-space point lies below or above the player structure.
-    /// The vertical coordinate is deliberately ignored so terrain effects can avoid
-    /// the complete footprint of all three connected areas.
-    /// </summary>
-    public bool IsInsidePlayerAreaFootprint(Vector3 worldPosition, float padding = 0f)
-    {
-        Vector3 localPosition = transform.InverseTransformPoint(worldPosition);
-        float safePadding = Mathf.Max(0f, padding);
-        return IsInsideFootprint(localPosition, forbiddenVolumeCenter,
-                forbiddenVolumeSize, safePadding)
-            || IsInsideFootprint(localPosition, corridorForbiddenVolumeCenter,
-                corridorForbiddenVolumeSize, safePadding)
-            || IsInsideFootprint(localPosition, playingRoomForbiddenVolumeCenter,
-                playingRoomForbiddenVolumeSize, safePadding);
-    }
-
-    private static bool IsInsideFootprint(Vector3 position, Vector3 center,
-        Vector3 size, float padding)
-    {
-        Vector3 halfSize = PositiveSize(size) * 0.5f;
-        return Mathf.Abs(position.x - center.x) <= halfSize.x + padding
-            && Mathf.Abs(position.z - center.z) <= halfSize.z + padding;
-    }
-
     private Vector3 SteerTowards(Vector3 desiredDirection, Vector3 currentVelocity)
     {
         if (desiredDirection.sqrMagnitude < 0.0001f)
@@ -466,29 +452,6 @@ public sealed class FishSchoolController : MonoBehaviour
     private Bounds GetSwimBounds()
     {
         return new Bounds(swimVolumeCenter, PositiveSize(swimVolumeSize));
-    }
-
-    private Bounds GetForbiddenBounds()
-    {
-        Bounds bounds = new Bounds(forbiddenVolumeCenter, PositiveSize(forbiddenVolumeSize));
-        bounds.Expand((forbiddenSafetyMargin + fishRadius) * 2f);
-        return bounds;
-    }
-
-    private Bounds GetCorridorForbiddenBounds()
-    {
-        Bounds bounds = new Bounds(corridorForbiddenVolumeCenter,
-            PositiveSize(corridorForbiddenVolumeSize));
-        bounds.Expand((forbiddenSafetyMargin + fishRadius) * 2f);
-        return bounds;
-    }
-
-    private Bounds GetPlayingRoomForbiddenBounds()
-    {
-        Bounds bounds = new Bounds(playingRoomForbiddenVolumeCenter,
-            PositiveSize(playingRoomForbiddenVolumeSize));
-        bounds.Expand((forbiddenSafetyMargin + fishRadius) * 2f);
-        return bounds;
     }
 
     private static Vector3 NearestExitNormal(Vector3 position, Bounds bounds)
@@ -525,9 +488,6 @@ public sealed class FishSchoolController : MonoBehaviour
         fishScaleRange.x = Mathf.Max(0.01f, fishScaleRange.x);
         fishScaleRange.y = Mathf.Max(fishScaleRange.x, fishScaleRange.y);
         swimVolumeSize = PositiveSize(swimVolumeSize);
-        forbiddenVolumeSize = PositiveSize(forbiddenVolumeSize);
-        corridorForbiddenVolumeSize = PositiveSize(corridorForbiddenVolumeSize);
-        playingRoomForbiddenVolumeSize = PositiveSize(playingRoomForbiddenVolumeSize);
     }
 
     private void OnDrawGizmosSelected()
@@ -541,12 +501,16 @@ public sealed class FishSchoolController : MonoBehaviour
         Gizmos.matrix = transform.localToWorldMatrix;
         Gizmos.color = new Color(0f, 0.8f, 1f, 0.8f);
         Gizmos.DrawWireCube(swimVolumeCenter, PositiveSize(swimVolumeSize));
-        Gizmos.color = new Color(1f, 0.2f, 0.1f, 0.8f);
-        Gizmos.DrawWireCube(forbiddenVolumeCenter, PositiveSize(forbiddenVolumeSize) + Vector3.one * forbiddenSafetyMargin * 2f);
-        Gizmos.DrawWireCube(corridorForbiddenVolumeCenter,
-            PositiveSize(corridorForbiddenVolumeSize) + Vector3.one * forbiddenSafetyMargin * 2f);
-        Gizmos.DrawWireCube(playingRoomForbiddenVolumeCenter,
-            PositiveSize(playingRoomForbiddenVolumeSize) + Vector3.one * forbiddenSafetyMargin * 2f);
+        if (Area != null)
+        {
+            Gizmos.color = new Color(1f, 0.2f, 0.1f, 0.8f);
+            Bounds waitingRoom = Area.WaitingRoomBounds();
+            Bounds corridor = Area.CorridorBounds();
+            Bounds playingRoom = Area.PlayingRoomBounds();
+            Gizmos.DrawWireCube(waitingRoom.center, waitingRoom.size);
+            Gizmos.DrawWireCube(corridor.center, corridor.size);
+            Gizmos.DrawWireCube(playingRoom.center, playingRoom.size);
+        }
         Gizmos.matrix = oldMatrix;
     }
 }

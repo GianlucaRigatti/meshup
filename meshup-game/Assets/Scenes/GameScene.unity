@@ -64412,6 +64412,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1601976250}
   - component: {fileID: 1601976249}
+  - component: {fileID: 1601976251}
   m_Layer: 0
   m_Name: FishFlockController
   m_TagString: Untagged
@@ -64449,6 +64450,22 @@ MonoBehaviour:
   separationWeight: 2.4
   swimVolumeCenter: {x: 25, y: 0, z: 20}
   swimVolumeSize: {x: 85, y: 16, z: 80}
+  boundaryLookAhead: 4
+  boundaryWeight: 4.5
+  fishRadius: 0.4
+  drawVolumeGizmos: 0
+--- !u!114 &1601976251
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1601976248}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a44e0b4c77ad4ab291930aa71a80a30e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerAreaVolumes
   forbiddenVolumeCenter: {x: 58.1, y: -3.29, z: 34.1}
   forbiddenVolumeSize: {x: 20, y: 10, z: 20}
   corridorForbiddenVolumeCenter: {x: 36.35, y: -3.29, z: 27.91}
@@ -64456,10 +64473,6 @@ MonoBehaviour:
   playingRoomForbiddenVolumeCenter: {x: 17.35, y: -3.29, z: 24.01}
   playingRoomForbiddenVolumeSize: {x: 17, y: 10, z: 21}
   forbiddenSafetyMargin: 2
-  boundaryLookAhead: 4
-  boundaryWeight: 4.5
-  fishRadius: 0.4
-  drawVolumeGizmos: 0
 --- !u!4 &1601976250
 Transform:
   m_ObjectHideFlags: 0
@@ -67639,7 +67652,7 @@ MonoBehaviour:
     m_Bits: 4294967295
   raycastHeight: 50
   verticalOffset: 0.05
-  playerArea: {fileID: 1601976249}
+  playerArea: {fileID: 1601976251}
   structureClearance: 0.5
   bubblePrefab: {fileID: 4866755625902391056, guid: 4841ca4b7d955ca46ae2344b9648d9d0, type: 3}
   randomEmitRate: {x: 8, y: 18}

@@ -14,8 +14,8 @@ public class TerrainBubbleSpawner : MonoBehaviour
     public float verticalOffset = 0.05f; // offset sulla normale per evitare clipping nella superficie
 
     [Header("Esclusione Struttura")]
-    [Tooltip("Controller che descrive le impronte della sala d'attesa, del corridoio e dell'area di gioco.")]
-    public FishSchoolController playerArea;
+    [Tooltip("Volumi che descrivono le impronte della sala d'attesa, del corridoio e dell'area di gioco.")]
+    [SerializeField] private PlayerAreaVolumes playerArea;
     [Min(0f)] public float structureClearance = 10f;
 
     [Header("Prefab")]
@@ -42,7 +42,7 @@ public class TerrainBubbleSpawner : MonoBehaviour
 
         if (playerArea == null)
         {
-            playerArea = FindAnyObjectByType<FishSchoolController>();
+            playerArea = FindAnyObjectByType<PlayerAreaVolumes>();
         }
 
         int attempts = 0;
@@ -81,7 +81,7 @@ public class TerrainBubbleSpawner : MonoBehaviour
 
             if (!found) continue;
             if (playerArea != null
-                && playerArea.IsInsidePlayerAreaFootprint(spawnPos, structureClearance))
+                && playerArea.ContainsFootprint(spawnPos, structureClearance))
             {
                 continue;
             }

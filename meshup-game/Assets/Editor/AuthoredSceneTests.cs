@@ -119,6 +119,22 @@ namespace Meshup.Editor.Tests
                 Is.Not.Null);
         }
 
+        [Test]
+        public void GameSceneFishAndBubblesUseTheSamePlayerAreaVolumes()
+        {
+            using var validation = new SceneValidationScope(GameScenePath);
+            var roots = validation.Scene.GetRootGameObjects();
+            var school = roots.SelectMany(root => root.GetComponentsInChildren<
+                FishSchoolController>(true)).Single();
+            var playerArea = school.GetComponent<PlayerAreaVolumes>();
+            var spawner = roots.SelectMany(root => root.GetComponentsInChildren<
+                TerrainBubbleSpawner>(true)).Single();
+
+            Assert.That(playerArea, Is.Not.Null);
+            Assert.That(new SerializedObject(spawner).FindProperty("playerArea")
+                .objectReferenceValue, Is.SameAs(playerArea));
+        }
+
         [TestCase(GameScenePath)]
         [TestCase(LobbyScenePath)]
         public void AuthoredScenesIncludeAnFpsCounter(string scenePath)

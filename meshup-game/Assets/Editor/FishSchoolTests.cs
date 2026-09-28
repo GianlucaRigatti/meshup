@@ -10,8 +10,10 @@ namespace Meshup.Editor.Tests
         private GameObject root;
         private GameObject prefab;
         private FishSchoolController school;
+        private PlayerAreaVolumes playerArea;
         private const BindingFlags Flags = BindingFlags.Instance | BindingFlags.NonPublic;
         private void Set(string name, object value) => typeof(FishSchoolController).GetField(name, Flags).SetValue(school, value);
+        private void SetArea(string name, object value) => typeof(PlayerAreaVolumes).GetField(name, Flags).SetValue(playerArea, value);
         private T Get<T>(string name) => (T)typeof(FishSchoolController).GetField(name, Flags).GetValue(school);
         private void Call(string name, params object[] args) => typeof(FishSchoolController).GetMethod(name, Flags).Invoke(school, args);
 
@@ -19,6 +21,7 @@ namespace Meshup.Editor.Tests
         {
             root = new GameObject("School test");
             root.SetActive(false);
+            playerArea = root.AddComponent<PlayerAreaVolumes>();
             school = root.AddComponent<FishSchoolController>();
             prefab = new GameObject("Fish test");
             Set("fishPrefab", prefab);
@@ -37,9 +40,9 @@ namespace Meshup.Editor.Tests
         {
             Set("wanderStrength", 0f); Set("boundaryWeight", 0f);
             Set("swimVolumeCenter", Vector3.zero); Set("swimVolumeSize", Vector3.one * 1000);
-            Set("forbiddenVolumeCenter", Vector3.one * 1000);
-            Set("corridorForbiddenVolumeCenter", Vector3.one * 1000);
-            Set("playingRoomForbiddenVolumeCenter", Vector3.one * 1000);
+            SetArea("forbiddenVolumeCenter", Vector3.one * 1000);
+            SetArea("corridorForbiddenVolumeCenter", Vector3.one * 1000);
+            SetArea("playingRoomForbiddenVolumeCenter", Vector3.one * 1000);
             var p = Get<Vector3[]>("positions"); var v = Get<Vector3[]>("velocities");
             var rng = new System.Random(42);
             for (int i = 0; i < p.Length; i++)
@@ -142,13 +145,13 @@ namespace Meshup.Editor.Tests
             foreach (Vector3 center in centers)
             {
                 Vector3 worldCenter = root.transform.TransformPoint(center);
-                Assert.That(school.IsInsidePlayerAreaFootprint(worldCenter), Is.True);
+                Assert.That(playerArea.ContainsFootprint(worldCenter), Is.True);
             }
 
             Vector3 justOutsideWaitingRoom = root.transform.TransformPoint(
                 new Vector3(68.2f, -3.29f, 34.1f));
-            Assert.That(school.IsInsidePlayerAreaFootprint(justOutsideWaitingRoom), Is.False);
-            Assert.That(school.IsInsidePlayerAreaFootprint(justOutsideWaitingRoom, 0.2f), Is.True);
+            Assert.That(playerArea.ContainsFootprint(justOutsideWaitingRoom), Is.False);
+            Assert.That(playerArea.ContainsFootprint(justOutsideWaitingRoom, 0.2f), Is.True);
         }
 
         [Test] public void ImportedFishUsesCulledAnimationAndBoundsContainSwimmingClip()
@@ -156,6 +159,7 @@ namespace Meshup.Editor.Tests
             Cleanup();
             root = new GameObject("Animated school test");
             root.SetActive(false);
+            playerArea = root.AddComponent<PlayerAreaVolumes>();
             school = root.AddComponent<FishSchoolController>();
             prefab = null;
             Set("fishCount", 1);
