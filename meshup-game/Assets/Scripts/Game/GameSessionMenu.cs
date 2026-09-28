@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.XR;
-using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Meshup.Game
 {
@@ -19,12 +18,12 @@ namespace Meshup.Game
         [SerializeField] private PlayerMovementAuthority movementAuthority;
         [SerializeField] private Button resumeButton;
         [SerializeField] private Button leaveButton;
+        [SerializeField] private Button voiceButton;
+        [SerializeField] private Text voiceButtonLabel;
         [SerializeField] private Text statusText;
 
         private UbiqRoomSession session;
         private VoiceChatController voiceChat;
-        private Button voiceButton;
-        private Text voiceButtonLabel;
         private readonly List<InputDevice> xrControllers = new();
         private bool xrMenuWasPressed;
         private bool xrCanvasConfigured;
@@ -32,8 +31,6 @@ namespace Meshup.Game
         private void Start()
         {
             transform.localScale = Vector3.one;
-            BuildMenuControls();
-            ConfigureUbiqLayout();
             resumeButton.onClick.AddListener(Resume);
             leaveButton.onClick.AddListener(LeaveRoom);
             voiceButton?.onClick.AddListener(ToggleVoiceMute);
@@ -129,10 +126,6 @@ namespace Meshup.Game
             var rect = canvas.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(1024f, 768f);
             rect.localScale = Vector3.one * XrCanvasScale;
-            if (GetComponent<TrackedDeviceGraphicRaycaster>() == null)
-            {
-                gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
-            }
             xrCanvasConfigured = true;
         }
 
@@ -241,97 +234,6 @@ namespace Meshup.Game
             panelRoot.SetActive(true);
             FitPanelToCanvas();
             statusText.text = message;
-        }
-
-        private void BuildMenuControls()
-        {
-            if (panelRoot == null || resumeButton == null || leaveButton == null)
-            {
-                return;
-            }
-
-            var panelRect = panelRoot.GetComponent<RectTransform>();
-            if (panelRect != null)
-            {
-                panelRect.sizeDelta = new Vector2(panelRect.sizeDelta.x,
-                    Mathf.Max(450f, panelRect.sizeDelta.y));
-            }
-
-            var resumeRect = resumeButton.GetComponent<RectTransform>();
-            var leaveRect = leaveButton.GetComponent<RectTransform>();
-            if (resumeRect != null)
-            {
-                resumeRect.anchoredPosition = new Vector2(
-                    resumeRect.anchoredPosition.x, 90f);
-            }
-            if (leaveRect != null)
-            {
-                leaveRect.anchoredPosition = new Vector2(
-                    leaveRect.anchoredPosition.x, -90f);
-            }
-
-            var voiceObject = Instantiate(resumeButton.gameObject,
-                resumeButton.transform.parent, false);
-            voiceObject.name = "Voice Mute Button";
-            voiceButton = voiceObject.GetComponent<Button>();
-            voiceButtonLabel = voiceObject.GetComponentInChildren<Text>(true);
-            var voiceRect = voiceObject.GetComponent<RectTransform>();
-            if (voiceRect != null)
-            {
-                voiceRect.anchoredPosition = new Vector2(
-                    voiceRect.anchoredPosition.x, -30f);
-            }
-        }
-
-        private void ConfigureUbiqLayout()
-        {
-            var panelRect = panelRoot.GetComponent<RectTransform>();
-            if (panelRect != null)
-            {
-                panelRect.sizeDelta = new Vector2(440f, 320f);
-            }
-
-            PositionControl(resumeButton, new Vector2(0f, 60f));
-            PositionControl(voiceButton, new Vector2(0f, -10f));
-            PositionControl(leaveButton, new Vector2(0f, -80f));
-
-            var title = panelRoot.transform.Find("Title")?.GetComponent<Text>();
-            if (title != null)
-            {
-                title.fontSize = 28;
-                title.fontStyle = FontStyle.Normal;
-                title.color = Color.white;
-                title.rectTransform.anchoredPosition = new Vector2(0f, -38f);
-                title.rectTransform.sizeDelta = new Vector2(400f, 52f);
-            }
-            if (statusText != null)
-            {
-                statusText.fontSize = 18;
-                statusText.rectTransform.anchoredPosition = new Vector2(0f, 28f);
-            }
-        }
-
-        private static void PositionControl(Button button, Vector2 position)
-        {
-            if (button == null)
-            {
-                return;
-            }
-            var rect = button.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = position;
-            rect.sizeDelta = new Vector2(320f, 52f);
-            var label = button.GetComponentInChildren<Text>(true);
-            if (label != null)
-            {
-                label.rectTransform.anchorMin = Vector2.zero;
-                label.rectTransform.anchorMax = Vector2.one;
-                label.rectTransform.offsetMin = new Vector2(8f, 4f);
-                label.rectTransform.offsetMax = new Vector2(-8f, -4f);
-                label.fontSize = 20;
-                label.alignment = TextAnchor.MiddleCenter;
-            }
         }
 
         private void ToggleVoiceMute()

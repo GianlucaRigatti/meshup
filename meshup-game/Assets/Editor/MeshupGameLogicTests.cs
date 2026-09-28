@@ -3,7 +3,7 @@ using System.Linq;
 using Meshup.Game;
 using Meshup.Multiplayer;
 using NUnit.Framework;
-using TMPro;
+using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -177,9 +177,13 @@ namespace Meshup.Editor.Tests
         [Test]
         public void GeneratorButtonLoadsSpatialPressAndReleaseSounds()
         {
-            var button = new GameObject("Generator audio test");
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Art/GeneratorConsole/IntegratedGeneratorConsole.prefab");
+            var instance = UnityEngine.Object.Instantiate(prefab);
             try
             {
+                var button = instance.GetComponentsInChildren<ConsoleButtonFeedback>(true)
+                    .Single(control => control.name == "Button_Generate").gameObject;
                 var client = button.AddComponent<MeshupAssetGeneratorClient>();
                 client.Configure(null);
                 var source = button.GetComponent<AudioSource>();
@@ -200,7 +204,7 @@ namespace Meshup.Editor.Tests
             }
             finally
             {
-                UnityEngine.Object.DestroyImmediate(button);
+                UnityEngine.Object.DestroyImmediate(instance);
             }
         }
 
@@ -319,60 +323,37 @@ namespace Meshup.Editor.Tests
         [Test]
         public void SizeSelectorDefaultsToMediumAndHonorsPermissions()
         {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Art/GeneratorConsole/IntegratedGeneratorConsole.prefab");
+            var model = UnityEngine.Object.Instantiate(prefab);
             var owner = new GameObject("Size selector test");
-            var model = new GameObject("Size selector model");
-            var small = SizeButton("SmallButton");
-            var medium = SizeButton("MediumButton");
-            var extraLarge = SizeButton("LargeButton");
-            small.transform.SetParent(model.transform);
-            medium.transform.SetParent(model.transform);
-            extraLarge.transform.SetParent(model.transform);
-            var shader = Shader.Find("Universal Render Pipeline/Lit");
-            var buttonMaterials = Enumerable.Range(0, 3).Select(index =>
-                new Material(shader) { name = index == 0 ? "Button"
-                    : $"Button.00{index}" }).ToArray();
-            var extraLargePhysical = PhysicalSizeButton(model.transform,
-                "XL Physical Button", -1f, buttonMaterials[0]);
-            var mediumPhysical = PhysicalSizeButton(model.transform,
-                "Medium Physical Button", 0f, buttonMaterials[1]);
-            var smallPhysical = PhysicalSizeButton(model.transform,
-                "Small Physical Button", 1f, buttonMaterials[2]);
+            var buttons = model.GetComponentsInChildren<ConsoleButtonFeedback>(true);
+            var small = buttons.Single(button => button.name == "Button_Small");
+            var medium = buttons.Single(button => button.name == "Button_Medium");
+            var extraLarge = buttons.Single(button => button.name == "Button_ExtraLarge");
             var allowed = false;
             try
             {
                 var selector = owner.AddComponent<GeneratedObjectSizeSelector>();
-                selector.Configure(small, medium, extraLarge, () => allowed);
-                Assert.That(small.GetComponent<BoxCollider>().enabled, Is.False,
-                    "The letter itself must not remain a hit target.");
-                Assert.That(smallPhysical.GetComponent<XRSimpleInteractable>(),
-                    Is.Not.Null);
-                Assert.That(mediumPhysical.GetComponent<XRSimpleInteractable>(),
-                    Is.Not.Null);
-                Assert.That(extraLargePhysical.GetComponent<XRSimpleInteractable>(),
-                    Is.Not.Null);
-                var sizeButtonAudio = smallPhysical.GetComponent<AudioSource>();
-                Assert.That(sizeButtonAudio, Is.Not.Null);
-                Assert.That(sizeButtonAudio.playOnAwake, Is.False);
-                Assert.That(sizeButtonAudio.spatialBlend, Is.EqualTo(1f));
-                Assert.That(sizeButtonAudio.clip, Is.EqualTo(
-                    Resources.Load<AudioClip>("SizeButtonPress")));
+                selector.Configure(small.gameObject, medium.gameObject,
+                    extraLarge.gameObject, () => allowed);
                 selector.SetInteractable(true);
                 Assert.That(selector.SelectedSize,
                     Is.EqualTo(GeneratedObjectSize.Medium));
-                Assert.That(mediumPhysical.GetComponentInChildren<Light>().enabled,
-                    Is.True);
-                Assert.That(smallPhysical.GetComponentInChildren<Light>().enabled,
-                    Is.False);
+                Assert.That(medium.transform.Find("Lit_Medium").localScale,
+                    Is.EqualTo(Vector3.one));
+                Assert.That(small.transform.Find("Lit_Small").localScale.x,
+                    Is.LessThan(.002f));
                 Assert.That(selector.TrySelect(GeneratedObjectSize.Small), Is.False);
                 allowed = true;
                 Assert.That(selector.TrySelect(GeneratedObjectSize.ExtraLarge),
                     Is.True);
                 Assert.That(selector.SelectedSize,
                     Is.EqualTo(GeneratedObjectSize.ExtraLarge));
-                Assert.That(extraLargePhysical.GetComponentInChildren<Light>().enabled,
-                    Is.True);
-                Assert.That(mediumPhysical.GetComponentInChildren<Light>().enabled,
-                    Is.False);
+                Assert.That(extraLarge.transform.Find("Lit_ExtraLarge").localScale,
+                    Is.EqualTo(Vector3.one));
+                Assert.That(medium.transform.Find("Lit_Medium").localScale.x,
+                    Is.LessThan(.002f));
                 selector.ResetToMedium();
                 Assert.That(selector.SelectedSize,
                     Is.EqualTo(GeneratedObjectSize.Medium));
@@ -381,10 +362,6 @@ namespace Meshup.Editor.Tests
             {
                 UnityEngine.Object.DestroyImmediate(owner);
                 UnityEngine.Object.DestroyImmediate(model);
-                foreach (var material in buttonMaterials)
-                {
-                    UnityEngine.Object.DestroyImmediate(material);
-                }
             }
         }
 
@@ -424,12 +401,12 @@ namespace Meshup.Editor.Tests
             {
                 var generated = gameObject.AddComponent<MeshupGeneratedObject>();
                 var addInteractionComponents = typeof(MeshupGeneratedObject)
-                    .GetMethod("AddInteractionComponents",
+                    .GetMethod("AddInteractionComponentsForBounds",
                         System.Reflection.BindingFlags.Instance
                         | System.Reflection.BindingFlags.NonPublic);
 
                 Assert.That(addInteractionComponents, Is.Not.Null);
-                addInteractionComponents.Invoke(generated, null);
+                addInteractionComponents.Invoke(generated, new object[] { null });
 
                 var body = gameObject.GetComponent<Rigidbody>();
                 var grab = gameObject.GetComponent<UnityEngine.XR.Interaction
@@ -678,26 +655,6 @@ namespace Meshup.Editor.Tests
                 new ParticipantInfo("three", "Three", true)
             });
             return state;
-        }
-
-        private static GameObject SizeButton(string name)
-        {
-            var button = new GameObject(name, typeof(RectTransform),
-                typeof(CanvasRenderer), typeof(TextMeshProUGUI));
-            button.AddComponent<BoxCollider>();
-            button.AddComponent<XRSimpleInteractable>();
-            return button;
-        }
-
-        private static GameObject PhysicalSizeButton(Transform parent,
-            string name, float x, Material material)
-        {
-            var button = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            button.name = name;
-            button.transform.SetParent(parent, false);
-            button.transform.localPosition = new Vector3(x, 1f, 0f);
-            button.GetComponent<Renderer>().sharedMaterial = material;
-            return button;
         }
 
         private static void BeginTimedRound(MeshupMatchState state, string word)

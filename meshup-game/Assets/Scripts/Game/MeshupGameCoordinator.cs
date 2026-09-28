@@ -178,9 +178,7 @@ namespace Meshup.Game
                 terminalUiMount, localPlayer.transform, ChooseWord, StartRound);
             victoryFireworks = gameObject.AddComponent<MeshupVictoryFireworks>();
             victoryFireworks.Configure(guesserMonitor);
-            correctGuessAudio = guesserMonitor.GetComponent<CorrectGuessAudio>()
-                ?? guesserMonitor.gameObject.AddComponent<CorrectGuessAudio>();
-            correctGuessAudio.Configure();
+            correctGuessAudio = guesserMonitor.GetComponent<CorrectGuessAudio>();
             transcriber = gameObject.AddComponent<VoskGuessTranscriber>();
             transcriber.Configure(() => CanGuessLocally, wordService.Verbs);
             transcriber.TranscriptionReceived += SubmitGuess;
@@ -191,9 +189,7 @@ namespace Meshup.Game
                 ?? generatorButton.AddComponent<MeshupAssetGeneratorClient>();
             generatorClient.Configure(this);
             generatorActivityAudio = generatorAnchor.GetComponent<
-                GeneratorActivityAudio>()
-                ?? generatorAnchor.gameObject.AddComponent<
-                    GeneratorActivityAudio>();
+                GeneratorActivityAudio>();
             sizeSelector = gameObject.AddComponent<GeneratedObjectSizeSelector>();
             sizeSelector.Configure(smallSizeButton, mediumSizeButton,
                 extraLargeSizeButton, () => CanRecordGeneratorLocally, RequestSizeSelection);

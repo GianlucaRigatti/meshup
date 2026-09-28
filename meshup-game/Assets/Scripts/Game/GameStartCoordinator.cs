@@ -13,7 +13,6 @@ namespace Meshup.Game
     {
         // Temporary solo shortcut for testing the full opening sequence.
         private const KeyCode SoloTestKey = KeyCode.F6;
-        private const string PoseidonClipResourcePath = "PoseidonGreeting";
 
         private enum SequencePhase
         {
@@ -54,8 +53,6 @@ namespace Meshup.Game
 
         [Header("Poseidon Audio")]
         [SerializeField] private Transform poseidon;
-        [SerializeField] private Transform poseidonVisual;
-        [SerializeField, Range(0f, 1f)] private float poseidonVolume = 0.65f;
         [SerializeField, Min(0f)] private float poseidonTriggerDistance = 5.6f;
         [SerializeField, Min(0f)] private float poseidonLightIntensity = 3.5f;
 
@@ -84,8 +81,8 @@ namespace Meshup.Game
         private int localSlot = -1;
         private Coroutine motion;
         private bool contextRegistered;
-        private AudioSource poseidonAudioSource;
-        private Light poseidonSpeakingLight;
+        [SerializeField] private AudioSource poseidonAudioSource;
+        [SerializeField] private Light poseidonSpeakingLight;
         private Coroutine poseidonLightPulse;
         private bool poseidonCuePlayed;
 
@@ -115,7 +112,6 @@ namespace Meshup.Game
             context = NetworkScene.Register(this);
             contextRegistered = true;
             session.ParticipantsChanged += HandleParticipantsChanged;
-            ConfigurePoseidonAudio();
         }
 
         private void Update()
@@ -124,65 +120,6 @@ namespace Meshup.Game
             {
                 TryStartSoloTest();
             }
-        }
-
-        private void ConfigurePoseidonAudio()
-        {
-            if (poseidon == null)
-            {
-                Debug.LogWarning("[GameStart] Poseidon is not assigned; "
-                    + "the walk-by greeting will not play.", this);
-                return;
-            }
-
-            var clip = Resources.Load<AudioClip>(PoseidonClipResourcePath);
-            if (clip == null)
-            {
-                Debug.LogWarning($"[GameStart] Poseidon sound not found at "
-                    + $"Resources/{PoseidonClipResourcePath}.", this);
-                return;
-            }
-
-            var anchor = new GameObject("Poseidon Voice Anchor").transform;
-            anchor.SetParent(poseidon, false);
-            anchor.position = GetPoseidonHeadPosition();
-
-            poseidonAudioSource = anchor.gameObject.AddComponent<AudioSource>();
-            poseidonAudioSource.clip = clip;
-            poseidonAudioSource.playOnAwake = false;
-            poseidonAudioSource.loop = false;
-            poseidonAudioSource.volume = poseidonVolume;
-            poseidonAudioSource.spatialBlend = 1f;
-            poseidonAudioSource.spread = 0f;
-            poseidonAudioSource.minDistance = 6f;
-            poseidonAudioSource.maxDistance = 22f;
-
-            poseidonSpeakingLight = anchor.gameObject.AddComponent<Light>();
-            poseidonSpeakingLight.type = LightType.Point;
-            poseidonSpeakingLight.color = new Color(0.08f, 0.58f, 1f);
-            poseidonSpeakingLight.range = 7f;
-            poseidonSpeakingLight.intensity = 0f;
-            poseidonSpeakingLight.shadows = LightShadows.None;
-        }
-
-        private Vector3 GetPoseidonHeadPosition()
-        {
-            var visual = poseidonVisual != null ? poseidonVisual : poseidon;
-            var renderers = visual.GetComponentsInChildren<Renderer>(true);
-            if (renderers.Length == 0)
-            {
-                return poseidon.position + Vector3.up * 1.5f;
-            }
-
-            var bounds = renderers[0].bounds;
-            for (var i = 1; i < renderers.Length; i++)
-            {
-                bounds.Encapsulate(renderers[i].bounds);
-            }
-
-            var head = bounds.center;
-            head.y = bounds.max.y - bounds.size.y * 0.14f;
-            return head;
         }
 
         public bool TryStartSequence()

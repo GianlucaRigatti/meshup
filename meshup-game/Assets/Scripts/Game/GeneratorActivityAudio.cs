@@ -9,14 +9,12 @@ namespace Meshup.Game
     [DisallowMultipleComponent]
     public sealed class GeneratorActivityAudio : MonoBehaviour
     {
-        private const string ActivityClipResourcePath = "HolyAuraResonance";
         private const int SampleRate = 24000;
         private const float ActivityVolume = 0.28f;
-        private const float CueVolume = 0.45f;
         private const float FadeDuration = 1.25f;
 
-        private AudioSource activitySource;
-        private AudioSource cueSource;
+        [SerializeField] private AudioSource activitySource;
+        [SerializeField] private AudioSource cueSource;
         private AudioClip completionClip;
         private AudioClip failureClip;
         private Coroutine fadeRoutine;
@@ -25,18 +23,6 @@ namespace Meshup.Game
 
         private void Awake()
         {
-            activitySource = CreateSource(0f);
-            activitySource.loop = true;
-            activitySource.clip = Resources.Load<AudioClip>(ActivityClipResourcePath);
-            if (activitySource.clip == null)
-            {
-                Debug.LogWarning(
-                    $"Generator ambience was not found at Resources/{ActivityClipResourcePath}.",
-                    this);
-            }
-
-            cueSource = CreateSource(CueVolume);
-            cueSource.minDistance = 2.5f;
             completionClip = CreateCompletionCue();
             failureClip = CreateFailureCue();
         }
@@ -131,30 +117,6 @@ namespace Meshup.Game
                 cueSource.pitch = 1f;
                 cueSource.PlayOneShot(clip);
             }
-        }
-
-        private AudioSource CreateSource(float volume)
-        {
-            var source = gameObject.AddComponent<AudioSource>();
-            source.playOnAwake = false;
-            source.loop = false;
-            source.panStereo = 0f;
-            source.spatialBlend = 1f;
-            source.spatialize = true;
-            source.spread = 0f;
-            source.dopplerLevel = 0f;
-            source.volume = volume;
-            source.minDistance = 1f;
-            source.maxDistance = 14f;
-            source.rolloffMode = AudioRolloffMode.Custom;
-            source.SetCustomCurve(AudioSourceCurveType.CustomRolloff,
-                new AnimationCurve(
-                    new Keyframe(0f, 1f),
-                    new Keyframe(0.2f, 0.9f),
-                    new Keyframe(0.45f, 0.55f),
-                    new Keyframe(0.7f, 0.2f),
-                    new Keyframe(1f, 0f)));
-            return source;
         }
 
         private static AudioClip CreateCompletionCue()

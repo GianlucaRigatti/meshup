@@ -1,5 +1,8 @@
 using Meshup.Game;
+using Meshup.EditorTools;
 using NUnit.Framework;
+using System.Linq;
+using UnityEditor;
 using UnityEngine;
 
 namespace Meshup.Editor.Tests
@@ -7,27 +10,23 @@ namespace Meshup.Editor.Tests
     public sealed class CorrectGuessAudioTests
     {
         [Test]
-        public void LoadsTheDownloadedClipAndUsesPositionalAudio()
+        public void SceneAuthorsTheSuccessClipAndPositionalAudio()
         {
-            var owner = new GameObject("Correct guess audio test");
-            try
-            {
-                var cue = owner.AddComponent<CorrectGuessAudio>();
-                cue.Configure();
-                var source = owner.GetComponent<AudioSource>();
-
-                Assert.That(cue.IsReady, Is.True);
-                Assert.That(source, Is.Not.Null);
-                Assert.That(source.playOnAwake, Is.False);
-                Assert.That(source.loop, Is.False);
-                Assert.That(source.spatialBlend, Is.EqualTo(1f));
-                Assert.That(source.spatialize, Is.True);
-                Assert.That(source.maxDistance, Is.EqualTo(18f));
-            }
-            finally
-            {
-                Object.DestroyImmediate(owner);
-            }
+            using var scene = new SceneValidationScope("Assets/Scenes/GameScene.unity");
+            var cue = scene.Scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<CorrectGuessAudio>(true))
+                .Single();
+            Assert.That(cue, Is.Not.Null);
+            var source = new SerializedObject(cue).FindProperty("audioSource")
+                .objectReferenceValue as AudioSource;
+            Assert.That(cue.IsReady, Is.True);
+            Assert.That(source, Is.Not.Null);
+            Assert.That(source.clip, Is.Not.Null);
+            Assert.That(source.playOnAwake, Is.False);
+            Assert.That(source.loop, Is.False);
+            Assert.That(source.spatialBlend, Is.EqualTo(1f));
+            Assert.That(source.spatialize, Is.True);
+            Assert.That(source.maxDistance, Is.EqualTo(18f));
         }
 
         [Test]

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.XR.Interaction.Toolkit;
@@ -12,18 +11,9 @@ namespace Meshup.Game
     [DisallowMultipleComponent]
     public sealed class GeneratedObjectSizeSelector : MonoBehaviour
     {
-        private const string ButtonPressClipResourcePath = "SizeButtonPress";
-        private const float ButtonPressVolume = 0.45f;
-
         private sealed class Binding
         {
             public GeneratedObjectSize Size;
-            public TMP_Text Label;
-            public Color LabelColor;
-            public Renderer ButtonRenderer;
-            public Material[] OriginalMaterials;
-            public Material[] ButtonMaterials;
-            public Light Glow;
             public ConsoleButtonFeedback Feedback;
             public AudioSource AudioSource;
             public XRSimpleInteractable Interactable;
@@ -34,7 +24,6 @@ namespace Meshup.Game
         private Func<bool> canSelect;
         private Action<GeneratedObjectSize> requestSelection;
         private bool interactable;
-        private AudioClip buttonPressClip;
 
         public GeneratedObjectSize SelectedSize { get; private set; } =
             GeneratedObjectSize.Medium;
@@ -46,56 +35,21 @@ namespace Meshup.Game
             ClearBindings();
             canSelect = selectionAllowed;
             requestSelection = selectionRequested;
-            buttonPressClip = Resources.Load<AudioClip>(
-                ButtonPressClipResourcePath);
-            if (buttonPressClip == null)
-            {
-                Debug.LogWarning($"[MeshUp] Size button sound not found at "
-                    + $"Resources/{ButtonPressClipResourcePath}.");
-            }
-            DisableLabelHitTarget(small);
-            DisableLabelHitTarget(medium);
-            DisableLabelHitTarget(extraLarge);
-            var buttons = FindPhysicalButtons(small, medium, extraLarge);
-            if (buttons.Length != 3)
-            {
-                Debug.LogError("[MeshUp] The S, M, and XL physical buttons "
-                    + "could not be resolved from the authored selector model.");
-                return;
-            }
-            AddBinding(small, buttons[2], GeneratedObjectSize.Small, "S");
-            AddBinding(medium, buttons[1], GeneratedObjectSize.Medium, "M");
-            AddBinding(extraLarge, buttons[0], GeneratedObjectSize.ExtraLarge,
-                "XL");
+            AddBinding(small, GeneratedObjectSize.Small);
+            AddBinding(medium, GeneratedObjectSize.Medium);
+            AddBinding(extraLarge, GeneratedObjectSize.ExtraLarge);
             ResetToMedium();
         }
 
-        public static Renderer[] FindPhysicalButtons(params GameObject[] labels)
+        public static Renderer[] FindPhysicalButtons(params GameObject[] buttons)
         {
-            if (labels == null || labels.Length != 3
-                || labels.Any(label => label == null))
+            if (buttons == null || buttons.Length != 3 || buttons.Any(button =>
+                    button == null || button.GetComponent<ConsoleButtonFeedback>() == null))
             {
                 return Array.Empty<Renderer>();
             }
-            // The integrated console binds explicit physical objects, independent of
-            // imported material names, hierarchy order, or model handedness.
-            if (labels.All(label => label.GetComponent<ConsoleButtonFeedback>() != null))
-            {
-                return labels.Reverse().Select(label => label.GetComponent<Renderer>())
-                    .Where(renderer => renderer != null).ToArray();
-            }
-            var root = CommonAncestor(labels.Select(label => label.transform));
-            if (root == null)
-            {
-                return Array.Empty<Renderer>();
-            }
-            return root.GetComponentsInChildren<Renderer>(true)
-                .Where(renderer => renderer.sharedMaterials.Any(material =>
-                    material != null && material.name.StartsWith("Button",
-                        StringComparison.OrdinalIgnoreCase)))
-                .OrderBy(renderer => root.InverseTransformPoint(
-                    renderer.bounds.center).x)
-                .ToArray();
+            return buttons.Reverse().Select(button => button.GetComponent<Renderer>())
+                .Where(renderer => renderer != null).ToArray();
         }
 
         public void ResetToMedium()
@@ -108,10 +62,7 @@ namespace Meshup.Game
             interactable = value;
             foreach (var binding in bindings)
             {
-                if (binding.Interactable != null)
-                {
-                    binding.Interactable.enabled = value;
-                }
+                binding.Interactable.enabled = value;
             }
         }
 
@@ -130,197 +81,41 @@ namespace Meshup.Game
         public void ApplySelectedSize(GeneratedObjectSize size, bool animate = false)
         {
             SelectedSize = GeneratedObjectSizes.Normalize(size);
-            RefreshLabels();
+            foreach (var binding in bindings)
+            {
+                binding.Feedback.SetSelected(binding.Size == SelectedSize);
+            }
             if (!animate) return;
-            var binding = bindings.Find(item => item.Size == SelectedSize);
-            binding?.Feedback?.Pulse();
-            if (binding?.AudioSource != null && buttonPressClip != null)
-                binding.AudioSource.PlayOneShot(buttonPressClip);
+
+            var selected = bindings.Find(item => item.Size == SelectedSize);
+            selected?.Feedback.Pulse();
+            if (selected?.AudioSource != null && selected.AudioSource.clip != null)
+            {
+                selected.AudioSource.PlayOneShot(selected.AudioSource.clip);
+            }
         }
 
-        private void AddBinding(GameObject labelObject, Renderer buttonRenderer,
-            GeneratedObjectSize size, string labelText)
+        private void AddBinding(GameObject button, GeneratedObjectSize size)
         {
-            var label = labelObject.GetComponent<TMP_Text>();
-            if (label == null)
+            if (button == null || !button.TryGetComponent(out ConsoleButtonFeedback feedback)
+                || !button.TryGetComponent(out XRSimpleInteractable xr)
+                || !button.TryGetComponent(out AudioSource audio))
             {
-                label = labelObject.GetComponentInChildren<TMP_Text>(true);
-            }
-            if (label != null)
-            {
-                label.text = labelText;
-            }
-            var target = buttonRenderer.gameObject;
-            var collider = target.GetComponent<BoxCollider>();
-            if (collider == null)
-            {
-                collider = target.AddComponent<BoxCollider>();
-            }
-            var mesh = target.GetComponent<MeshFilter>()?.sharedMesh;
-            if (mesh != null)
-            {
-                collider.center = mesh.bounds.center;
-                collider.size = mesh.bounds.size;
-            }
-            var xr = target.GetComponent<XRSimpleInteractable>();
-            if (xr == null)
-            {
-                xr = target.AddComponent<XRSimpleInteractable>();
-            }
-            if (!xr.colliders.Contains(collider))
-            {
-                xr.colliders.Add(collider);
-            }
-            var feedback = target.GetComponent<ConsoleButtonFeedback>();
-            if (feedback != null)
-            {
-                var audio = target.GetComponent<AudioSource>();
-                if (audio == null) audio = target.AddComponent<AudioSource>();
-                audio.playOnAwake = false;
-                audio.loop = false;
-                audio.spatialBlend = 1f;
-                audio.volume = ButtonPressVolume;
-                audio.maxDistance = 8f;
-                audio.clip = buttonPressClip;
-                UnityAction<SelectEnterEventArgs> onSelect = _ => TrySelect(size);
-                xr.selectEntered.AddListener(onSelect);
-                bindings.Add(new Binding
-                {
-                    Size = size, Feedback = feedback, AudioSource = audio,
-                    Interactable = xr, Listener = onSelect
-                });
+                Debug.LogError($"[MeshUp] {size} selector button needs authored "
+                    + "feedback, XR interaction, and audio components.", this);
                 return;
             }
-            var originalMaterials = buttonRenderer.sharedMaterials;
-            var materials = originalMaterials.Select(material =>
-                material != null ? new Material(material) : null).ToArray();
-            buttonRenderer.sharedMaterials = materials;
-            var glowObject = new GameObject("Selected Size Glow");
-            glowObject.transform.SetParent(target.transform, false);
-            glowObject.transform.localPosition = mesh != null
-                ? mesh.bounds.center : Vector3.zero;
-            var glow = glowObject.AddComponent<Light>();
-            glow.type = LightType.Point;
-            glow.shadows = LightShadows.None;
-            glow.range = Mathf.Max(0.25f, buttonRenderer.bounds.extents.magnitude
-                * 1.5f);
-            glow.intensity = size == GeneratedObjectSize.Small ? 0.65f : 2f;
-            var audioSource = target.AddComponent<AudioSource>();
-            audioSource.playOnAwake = false;
-            audioSource.loop = false;
-            audioSource.spatialBlend = 1f;
-            audioSource.volume = ButtonPressVolume;
-            audioSource.maxDistance = 8f;
-            audioSource.clip = buttonPressClip;
-            UnityAction<SelectEnterEventArgs> listener = _ =>
-                SelectFromButton(size, audioSource);
+
+            UnityAction<SelectEnterEventArgs> listener = _ => TrySelect(size);
             xr.selectEntered.AddListener(listener);
             bindings.Add(new Binding
             {
                 Size = size,
-                Label = label,
-                LabelColor = label != null ? label.color : Color.cyan,
-                ButtonRenderer = buttonRenderer,
-                OriginalMaterials = originalMaterials,
-                ButtonMaterials = materials,
-                Glow = glow,
-                AudioSource = audioSource,
+                Feedback = feedback,
+                AudioSource = audio,
                 Interactable = xr,
                 Listener = listener
             });
-        }
-
-        private void SelectFromButton(GeneratedObjectSize size,
-            AudioSource audioSource)
-        {
-            TrySelect(size);
-        }
-
-        private void RefreshLabels()
-        {
-            foreach (var binding in bindings)
-            {
-                var selected = binding.Size == SelectedSize;
-                if (binding.Label != null)
-                {
-                    var plain = binding.Size == GeneratedObjectSize.ExtraLarge
-                        ? "XL" : binding.Size == GeneratedObjectSize.Medium ? "M" : "S";
-                    binding.Label.text = plain;
-                    binding.Label.color = selected ? binding.LabelColor
-                        : Color.Lerp(binding.LabelColor, Color.black, 0.65f);
-                    binding.Label.fontStyle = selected
-                        ? FontStyles.Bold : FontStyles.Normal;
-                    binding.Label.alpha = selected
-                        ? binding.Size == GeneratedObjectSize.Small ? 0.8f : 1f
-                        : 0.45f;
-                }
-                if (binding.Glow != null)
-                {
-                    binding.Glow.color = binding.LabelColor;
-                    binding.Glow.enabled = selected;
-                }
-                binding.Feedback?.SetSelected(selected);
-                foreach (var material in binding.ButtonMaterials ?? Array.Empty<Material>())
-                {
-                    if (material == null)
-                    {
-                        continue;
-                    }
-                    var emissionStrength = binding.Size ==
-                        GeneratedObjectSize.Small ? 1.1f : 2.5f;
-                    var emission = selected
-                        ? binding.LabelColor * emissionStrength : Color.black;
-                    if (material.HasProperty("_EmissionColor"))
-                    {
-                        material.SetColor("_EmissionColor", emission);
-                    }
-                    if (material.HasProperty("emissiveFactor"))
-                    {
-                        material.SetColor("emissiveFactor", emission);
-                    }
-                    if (selected)
-                    {
-                        material.EnableKeyword("_EMISSION");
-                    }
-                    else
-                    {
-                        material.DisableKeyword("_EMISSION");
-                    }
-                }
-            }
-        }
-
-        private static void DisableLabelHitTarget(GameObject label)
-        {
-            if (label == null || label.GetComponent<ConsoleButtonFeedback>() != null)
-            {
-                return;
-            }
-            var interactable = label.GetComponent<XRSimpleInteractable>();
-            if (interactable != null)
-            {
-                interactable.enabled = false;
-            }
-            var collider = label.GetComponent<Collider>();
-            if (collider != null)
-            {
-                collider.enabled = false;
-            }
-        }
-
-        private static Transform CommonAncestor(IEnumerable<Transform> values)
-        {
-            var transforms = values.ToArray();
-            for (var candidate = transforms[0]; candidate != null;
-                 candidate = candidate.parent)
-            {
-                if (transforms.All(value => value == candidate
-                    || value.IsChildOf(candidate)))
-                {
-                    return candidate;
-                }
-            }
-            return null;
         }
 
         private void ClearBindings()
@@ -329,50 +124,7 @@ namespace Meshup.Game
             {
                 if (binding.Interactable != null)
                 {
-                    binding.Interactable.selectEntered.RemoveListener(
-                        binding.Listener);
-                }
-                if (binding.ButtonRenderer != null)
-                {
-                    binding.ButtonRenderer.sharedMaterials =
-                        binding.OriginalMaterials;
-                }
-                if (binding.Glow != null)
-                {
-                    if (Application.isPlaying)
-                    {
-                        Destroy(binding.Glow.gameObject);
-                    }
-                    else
-                    {
-                        DestroyImmediate(binding.Glow.gameObject);
-                    }
-                }
-                if (binding.AudioSource != null)
-                {
-                    if (Application.isPlaying)
-                    {
-                        Destroy(binding.AudioSource);
-                    }
-                    else
-                    {
-                        DestroyImmediate(binding.AudioSource);
-                    }
-                }
-                foreach (var material in binding.ButtonMaterials ?? Array.Empty<Material>())
-                {
-                    if (material == null)
-                    {
-                        continue;
-                    }
-                    if (Application.isPlaying)
-                    {
-                        Destroy(material);
-                    }
-                    else
-                    {
-                        DestroyImmediate(material);
-                    }
+                    binding.Interactable.selectEntered.RemoveListener(binding.Listener);
                 }
             }
             bindings.Clear();

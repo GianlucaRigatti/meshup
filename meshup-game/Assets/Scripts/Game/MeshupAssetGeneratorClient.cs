@@ -18,7 +18,6 @@ namespace Meshup.Game
         private const int UploadSampleRate = 16000;
         private const string PressClipResourcePath = "GenerateButtonPress";
         private const string ReleaseClipResourcePath = "GenerateButtonRelease";
-        private const float ButtonSoundVolume = 0.45f;
 
         [Serializable]
         private sealed class GenerateResponse
@@ -54,20 +53,13 @@ namespace Meshup.Game
             coordinator = owner;
             feedback = GetComponent<ConsoleButtonFeedback>();
             interactable = GetComponent<XRSimpleInteractable>();
-            if (interactable == null)
-            {
-                interactable = gameObject.AddComponent<XRSimpleInteractable>();
-            }
             buttonAudioSource = GetComponent<AudioSource>();
-            if (buttonAudioSource == null)
+            if (interactable == null || buttonAudioSource == null)
             {
-                buttonAudioSource = gameObject.AddComponent<AudioSource>();
+                Debug.LogError("[MeshUp] Generate button needs authored XR "
+                    + "interaction and audio components.", this);
+                return;
             }
-            buttonAudioSource.playOnAwake = false;
-            buttonAudioSource.loop = false;
-            buttonAudioSource.spatialBlend = 1f;
-            buttonAudioSource.volume = ButtonSoundVolume;
-            buttonAudioSource.maxDistance = 8f;
             pressClip = Resources.Load<AudioClip>(PressClipResourcePath);
             releaseClip = Resources.Load<AudioClip>(ReleaseClipResourcePath);
             if (pressClip == null || releaseClip == null)
