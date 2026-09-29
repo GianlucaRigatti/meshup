@@ -209,7 +209,7 @@ namespace Meshup.Multiplayer
                 return;
             }
 
-            BeginPrivateRoom(PendingOperation.EnterInitialLobby);
+            EnterLobby();
         }
 
         private void OnDestroy()
@@ -231,7 +231,7 @@ namespace Meshup.Multiplayer
                 && SceneManager.GetActiveScene().name == lobbySceneName)
             {
                 roomClient.Reconnect();
-                BeginPrivateRoom(PendingOperation.EnterInitialLobby);
+                EnterLobby();
                 return true;
             }
 
@@ -266,11 +266,8 @@ namespace Meshup.Multiplayer
             }
 
             LastError = string.Empty;
-            pendingOperation = PendingOperation.Create;
-            pendingRoomName = trimmedName;
-            pendingRoom = null;
-            roomBeforeOperation = roomClient.Room?.UUID ?? string.Empty;
-            SetState(RoomSessionState.Joining);
+            PrepareRoomOperation(PendingOperation.Create,
+                RoomSessionState.Joining, roomName: trimmedName);
             var version = BeginTimeout();
             roomClient.Join(trimmedName, true);
             StartCoroutine(RoomOperationTimeout(version,
@@ -336,11 +333,8 @@ namespace Meshup.Multiplayer
             }
 
             LastError = string.Empty;
-            pendingOperation = PendingOperation.Join;
-            pendingRoom = room;
-            pendingRoomName = string.Empty;
-            roomBeforeOperation = roomClient.Room?.UUID ?? string.Empty;
-            SetState(RoomSessionState.Joining);
+            PrepareRoomOperation(PendingOperation.Join,
+                RoomSessionState.Joining, room);
             var version = BeginTimeout();
             roomClient.Join(room.JoinCode);
             StartCoroutine(RoomOperationTimeout(version,
@@ -369,12 +363,8 @@ namespace Meshup.Multiplayer
             }
 
             LastError = string.Empty;
-            pendingOperation = PendingOperation.Leave;
-            roomBeforeOperation = roomClient.Room?.UUID ?? string.Empty;
-            SetState(RoomSessionState.Leaving);
-            var version = BeginTimeout();
-            roomClient.Join(string.Empty, false);
-            StartCoroutine(LeaveTimeout(version));
+            BeginPrivateRoom(PendingOperation.Leave,
+                "Leaving the room timed out. The network connection was reset.");
             return true;
         }
 
@@ -474,19 +464,36 @@ namespace Meshup.Multiplayer
             return true;
         }
 
-        private void BeginPrivateRoom(PendingOperation operation)
+        private void PrepareRoomOperation(PendingOperation operation,
+            RoomSessionState state, RoomListing room = null, string roomName = "")
         {
             pendingOperation = operation;
-            pendingRoom = null;
-            pendingRoomName = string.Empty;
+            pendingRoom = room;
+            pendingRoomName = roomName;
             roomBeforeOperation = roomClient.Room?.UUID ?? string.Empty;
-            SetState(operation == PendingOperation.Leave
+            SetState(state);
+        }
+
+        private void EnterLobby()
+        {
+            BeginPrivateRoom(PendingOperation.EnterInitialLobby,
+                "Connecting to the room service timed out. Press Refresh to retry.");
+        }
+
+        private void BeginPrivateRoom(PendingOperation operation,
+            string timeoutMessage, bool reconnect = false)
+        {
+            PrepareRoomOperation(operation, operation == PendingOperation.Leave
                 ? RoomSessionState.Leaving
                 : RoomSessionState.Connecting);
+            if (reconnect)
+            {
+                roomClient.Reconnect();
+            }
+
             var version = BeginTimeout();
             roomClient.Join(string.Empty, false);
-            StartCoroutine(RoomOperationTimeout(version,
-                "Connecting to the room service timed out. Press Refresh to retry."));
+            StartCoroutine(RoomOperationTimeout(version, timeoutMessage));
         }
 
         private void HandleJoinedRoom(IRoom room)
@@ -500,16 +507,10 @@ namespace Meshup.Multiplayer
             {
                 case PendingOperation.EnterInitialLobby:
                 case PendingOperation.Recover:
-                    if (IsNewPrivateRoom(room))
-                    {
-                        CompletePrivateRoom(false);
-                    }
-                    break;
-
                 case PendingOperation.Leave:
                     if (IsNewPrivateRoom(room))
                     {
-                        CompletePrivateRoom(true);
+                        CompletePrivateRoom(pendingOperation == PendingOperation.Leave);
                     }
                     break;
 
@@ -590,30 +591,9 @@ namespace Meshup.Multiplayer
                 ? "The room server rejected the request."
                 : rejection.reason;
 
-            if (pendingOperation == PendingOperation.EnterInitialLobby)
-            {
-                CancelPendingOperation();
-                SetState(RoomSessionState.Error);
-                ReportError(reason);
-                return;
-            }
-
-            if (pendingOperation == PendingOperation.Recover)
-            {
-                CancelPendingOperation();
-                SetState(RoomSessionState.Error);
-                ReportError(reason);
-                return;
-            }
-
-            if (pendingOperation == PendingOperation.Leave)
-            {
-                StartCoroutine(ForceReturnToLobby(
-                    $"Leaving the room was rejected: {reason}"));
-                return;
-            }
-
-            BeginRecovery(reason);
+            HandleRoomOperationFailure(pendingOperation == PendingOperation.Leave
+                ? $"Leaving the room was rejected: {reason}"
+                : reason);
         }
 
         private void HandleRoomsDiscovered(List<IRoom> discovered,
@@ -712,16 +692,9 @@ namespace Meshup.Multiplayer
         {
             operationVersion++;
             recoveryMessage = message;
-            pendingOperation = PendingOperation.Recover;
-            pendingRoom = null;
-            pendingRoomName = string.Empty;
-            roomBeforeOperation = roomClient.Room?.UUID ?? string.Empty;
-            SetState(RoomSessionState.Connecting);
-            roomClient.Reconnect();
-            var version = BeginTimeout();
-            roomClient.Join(string.Empty, false);
-            StartCoroutine(RoomOperationTimeout(version,
-                "Reconnecting to the lobby timed out. Press Refresh to retry."));
+            BeginPrivateRoom(PendingOperation.Recover,
+                "Reconnecting to the lobby timed out. Press Refresh to retry.",
+                reconnect: true);
         }
 
         private IEnumerator LoadScene(string sceneName, bool enteringGame,
@@ -790,33 +763,27 @@ namespace Meshup.Multiplayer
                 yield break;
             }
 
-            if (pendingOperation == PendingOperation.EnterInitialLobby)
-            {
-                CancelPendingOperation();
-                SetState(RoomSessionState.Error);
-                ReportError(message);
-                yield break;
-            }
-
-
-            if (pendingOperation == PendingOperation.Recover)
-            {
-                CancelPendingOperation();
-                SetState(RoomSessionState.Error);
-                ReportError(message);
-                yield break;
-            }
-
-            BeginRecovery(message);
+            HandleRoomOperationFailure(message);
         }
 
-        private IEnumerator LeaveTimeout(int version)
+        private void HandleRoomOperationFailure(string message)
         {
-            yield return new WaitForSecondsRealtime(roomOperationTimeout);
-            if (version == operationVersion && pendingOperation == PendingOperation.Leave)
+            switch (pendingOperation)
             {
-                yield return ForceReturnToLobby(
-                    "Leaving the room timed out. The network connection was reset.");
+                case PendingOperation.None:
+                    return;
+                case PendingOperation.EnterInitialLobby:
+                case PendingOperation.Recover:
+                    CancelPendingOperation();
+                    SetState(RoomSessionState.Error);
+                    ReportError(message);
+                    break;
+                case PendingOperation.Leave:
+                    StartCoroutine(ForceReturnToLobby(message));
+                    break;
+                default:
+                    BeginRecovery(message);
+                    break;
             }
         }
 
