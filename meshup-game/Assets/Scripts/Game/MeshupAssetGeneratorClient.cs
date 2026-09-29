@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using Meshup.Multiplayer;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -150,9 +149,9 @@ namespace Meshup.Game
                 coordinator.ReportLocalMessage("No audio was recorded.");
                 return;
             }
-            var pcm = VoskGuessTranscriber.ConvertToMonoPcm(capture.Samples,
+            var pcm = AudioEncoding.ConvertToMonoPcm(capture.Samples,
                 capture.Channels, capture.SampleRate, UploadSampleRate);
-            var wav = EncodeWav(pcm, UploadSampleRate);
+            var wav = AudioEncoding.EncodeWav(pcm, UploadSampleRate);
             coordinator.ReportLocalMessage("Sending description…");
             coordinator.RequestGeneration(wav, recordingSize);
         }
@@ -245,65 +244,6 @@ namespace Meshup.Game
             }
             return $"Asset generation failed (HTTP {request.responseCode}). "
                 + request.error;
-        }
-
-        public static byte[] EncodeWav(AudioClip clip, int sampleFrames)
-        {
-            sampleFrames = Mathf.Clamp(sampleFrames, 0, clip.samples);
-            var sampleCount = sampleFrames * clip.channels;
-            var samples = new float[sampleCount];
-            clip.GetData(samples, 0);
-            const int headerSize = 44;
-            var bytes = new byte[headerSize + sampleCount * 2];
-            using var stream = new MemoryStream(bytes);
-            using var writer = new BinaryWriter(stream);
-            writer.Write(new[] { 'R', 'I', 'F', 'F' });
-            writer.Write(bytes.Length - 8);
-            writer.Write(new[] { 'W', 'A', 'V', 'E' });
-            writer.Write(new[] { 'f', 'm', 't', ' ' });
-            writer.Write(16);
-            writer.Write((short)1);
-            writer.Write((short)clip.channels);
-            writer.Write(clip.frequency);
-            writer.Write(clip.frequency * clip.channels * 2);
-            writer.Write((short)(clip.channels * 2));
-            writer.Write((short)16);
-            writer.Write(new[] { 'd', 'a', 't', 'a' });
-            writer.Write(sampleCount * 2);
-            foreach (var sample in samples)
-            {
-                writer.Write((short)Mathf.RoundToInt(
-                    Mathf.Clamp(sample, -1f, 1f) * short.MaxValue));
-            }
-            return bytes;
-        }
-
-        public static byte[] EncodeWav(short[] monoSamples, int sampleRate)
-        {
-            monoSamples ??= Array.Empty<short>();
-            sampleRate = Mathf.Max(1, sampleRate);
-            const int headerSize = 44;
-            var bytes = new byte[headerSize + monoSamples.Length * 2];
-            using var stream = new MemoryStream(bytes);
-            using var writer = new BinaryWriter(stream);
-            writer.Write(new[] { 'R', 'I', 'F', 'F' });
-            writer.Write(bytes.Length - 8);
-            writer.Write(new[] { 'W', 'A', 'V', 'E' });
-            writer.Write(new[] { 'f', 'm', 't', ' ' });
-            writer.Write(16);
-            writer.Write((short)1);
-            writer.Write((short)1);
-            writer.Write(sampleRate);
-            writer.Write(sampleRate * 2);
-            writer.Write((short)2);
-            writer.Write((short)16);
-            writer.Write(new[] { 'd', 'a', 't', 'a' });
-            writer.Write(monoSamples.Length * 2);
-            foreach (var sample in monoSamples)
-            {
-                writer.Write(sample);
-            }
-            return bytes;
         }
 
         private void OnDestroy()

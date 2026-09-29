@@ -15,21 +15,11 @@ using Vosk;
 
 namespace Meshup.Game
 {
-    public interface IGuessTranscriber
-    {
-        event Action<string> TranscriptionReceived;
-        event Action<string> ErrorOccurred;
-        event Action<bool> ListeningChanged;
-        bool IsAvailable { get; }
-        void Activate();
-        void Deactivate();
-    }
-
     /// <summary>
     /// Offline push-to-talk recognition constrained to the game's verb list.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class VoskGuessTranscriber : MonoBehaviour, IGuessTranscriber
+    public sealed class VoskGuessTranscriber : MonoBehaviour
     {
         private const string ModelName = "vosk-model-small-en-us-0.15";
         private const string ModelArchive = ModelName + ".zip";
@@ -47,10 +37,8 @@ namespace Meshup.Game
         private Task<Model> modelLoadTask;
         private Task decodeTask;
         private Coroutine recordingTimeout;
-        private Coroutine permissionRequest;
         private bool initializationStarted;
         private bool initializationComplete;
-        private bool activationRequested;
         private bool isListening;
         private bool isProcessing;
         private bool isDestroyed;
@@ -126,13 +114,23 @@ namespace Meshup.Game
                 return;
             }
 
-            activationRequested = true;
-            RequestPermissionOrBeginRecording();
+            var voice = VoiceChatController.Instance;
+            var error = string.Empty;
+            if (voice == null || !voice.TryBeginExclusiveCapture(
+                    VoiceMuteReason.GuessRecording, MaximumRecordingSeconds,
+                    out error))
+            {
+                ErrorOccurred?.Invoke(string.IsNullOrEmpty(error)
+                    ? "Voice chat is unavailable."
+                    : error);
+                return;
+            }
+            SetListening(true);
+            recordingTimeout = StartCoroutine(StopAtMaximumDuration());
         }
 
         public void Deactivate()
         {
-            activationRequested = false;
             if (!isListening)
             {
                 return;
@@ -354,98 +352,12 @@ namespace Meshup.Game
             ErrorOccurred?.Invoke(initializationError);
         }
 
-        private void RequestPermissionOrBeginRecording()
-        {
-#if UNITY_ANDROID && !UNITY_EDITOR
-            if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(
-                    UnityEngine.Android.Permission.Microphone))
-            {
-                var callbacks = new UnityEngine.Android.PermissionCallbacks();
-                callbacks.PermissionGranted += HandleAndroidPermissionGranted;
-                callbacks.PermissionDenied += HandleAndroidPermissionDenied;
-                callbacks.PermissionDeniedAndDontAskAgain +=
-                    HandleAndroidPermissionDenied;
-                UnityEngine.Android.Permission.RequestUserPermission(
-                    UnityEngine.Android.Permission.Microphone, callbacks);
-                return;
-            }
-#endif
-            if (IsAppleDesktop
-                && !Application.HasUserAuthorization(UserAuthorization.Microphone))
-            {
-                if (permissionRequest == null)
-                {
-                    permissionRequest = StartCoroutine(RequestApplePermission());
-                }
-                return;
-            }
-            BeginRecording();
-        }
-
-#if UNITY_ANDROID && !UNITY_EDITOR
-        private void HandleAndroidPermissionGranted(string permission)
-        {
-            if (activationRequested && pushToTalk?.IsPressed() == true)
-            {
-                BeginRecording();
-            }
-        }
-
-        private void HandleAndroidPermissionDenied(string permission)
-        {
-            activationRequested = false;
-            ErrorOccurred?.Invoke("Microphone permission was denied. Enable it "
-                + "in the Quest application permissions, then try again.");
-        }
-#endif
-
-        private IEnumerator RequestApplePermission()
-        {
-            yield return Application.RequestUserAuthorization(
-                UserAuthorization.Microphone);
-            permissionRequest = null;
-            if (!Application.HasUserAuthorization(UserAuthorization.Microphone))
-            {
-                activationRequested = false;
-                ErrorOccurred?.Invoke("Microphone permission was denied. Enable "
-                    + "it in System Settings > Privacy & Security > Microphone.");
-                yield break;
-            }
-            if (activationRequested && pushToTalk?.IsPressed() == true)
-            {
-                BeginRecording();
-            }
-        }
-
-        private void BeginRecording()
-        {
-            if (!activationRequested || isListening || isProcessing)
-            {
-                return;
-            }
-            var voice = VoiceChatController.Instance;
-            var error = string.Empty;
-            if (voice == null || !voice.TryBeginExclusiveCapture(
-                    VoiceMuteReason.GuessRecording, MaximumRecordingSeconds,
-                    out error))
-            {
-                activationRequested = false;
-                ErrorOccurred?.Invoke(string.IsNullOrEmpty(error)
-                    ? "Voice chat is unavailable."
-                    : error);
-                return;
-            }
-            SetListening(true);
-            recordingTimeout = StartCoroutine(StopAtMaximumDuration());
-        }
-
         private IEnumerator StopAtMaximumDuration()
         {
             yield return new WaitForSecondsRealtime(MaximumRecordingSeconds);
             recordingTimeout = null;
             if (isListening)
             {
-                activationRequested = false;
                 FinishRecording();
             }
         }
@@ -469,8 +381,8 @@ namespace Meshup.Game
                 return;
             }
 
-            var samples = ConvertToMonoPcm(capture.Samples, capture.Channels,
-                capture.SampleRate, RecognitionSampleRate);
+            var samples = AudioEncoding.ConvertToMonoPcm(capture.Samples,
+                capture.Channels, capture.SampleRate, RecognitionSampleRate);
             if (samples.Length < RecognitionSampleRate * MinimumRecordingSeconds)
             {
                 ErrorOccurred?.Invoke("The guess was too short. Try again.");
@@ -551,9 +463,6 @@ namespace Meshup.Game
             ListeningChanged?.Invoke(value);
         }
 
-        private static bool IsAppleDesktop => Application.platform is
-            RuntimePlatform.OSXEditor or RuntimePlatform.OSXPlayer;
-
         public static string BuildGrammar(IReadOnlyList<string> values)
         {
             if (values == null)
@@ -625,42 +534,6 @@ namespace Meshup.Game
             return false;
         }
 
-        public static short[] ConvertToMonoPcm(float[] interleaved,
-            int channels, int inputRate, int outputRate)
-        {
-            if (interleaved == null || interleaved.Length == 0 || channels <= 0
-                || inputRate <= 0 || outputRate <= 0)
-            {
-                return Array.Empty<short>();
-            }
-            var frameCount = interleaved.Length / channels;
-            var mono = new float[frameCount];
-            for (var frame = 0; frame < frameCount; frame++)
-            {
-                var sum = 0f;
-                for (var channel = 0; channel < channels; channel++)
-                {
-                    sum += interleaved[frame * channels + channel];
-                }
-                mono[frame] = sum / channels;
-            }
-
-            var outputCount = Math.Max(1, (int)Math.Round(
-                frameCount * (double)outputRate / inputRate));
-            var output = new short[outputCount];
-            for (var index = 0; index < outputCount; index++)
-            {
-                var sourcePosition = index * (double)inputRate / outputRate;
-                var lower = Math.Min((int)sourcePosition, frameCount - 1);
-                var upper = Math.Min(lower + 1, frameCount - 1);
-                var fraction = (float)(sourcePosition - lower);
-                var value = Mathf.Lerp(mono[lower], mono[upper], fraction);
-                output[index] = (short)Mathf.RoundToInt(Mathf.Clamp(value,
-                    -1f, 1f) * short.MaxValue);
-            }
-            return output;
-        }
-
         private static string SpokenForm(string canonical)
         {
             return canonical == "high-five" ? "high five" : canonical;
@@ -687,7 +560,6 @@ namespace Meshup.Game
         private void OnDestroy()
         {
             isDestroyed = true;
-            activationRequested = false;
             if (pushToTalk != null)
             {
                 pushToTalk.started -= HandlePress;

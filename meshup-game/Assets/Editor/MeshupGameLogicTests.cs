@@ -161,7 +161,7 @@ namespace Meshup.Editor.Tests
         [Test]
         public void PcmWavEncodingProducesMonoSixteenBitHeader()
         {
-            var wav = MeshupAssetGeneratorClient.EncodeWav(
+            var wav = AudioEncoding.EncodeWav(
                 new short[] { short.MinValue, 0, short.MaxValue }, 16000);
 
             Assert.That(System.Text.Encoding.ASCII.GetString(wav, 0, 4),

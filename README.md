@@ -69,6 +69,11 @@ desktop, say one guess, and release. The model is extracted to the application's
 persistent data directory on first use; no network connection or voice-service
 credential is required.
 
+`VoiceChatController` owns microphone permissions and shared capture for voice
+chat, guesses, and object descriptions. Both recording features use
+`AudioEncoding` for mono PCM conversion; object descriptions also use its WAV
+encoder. Keep permission requests in the shared controller.
+
 Quest, macOS, and Windows microphone access is used for push-to-talk guesses,
 held-button asset descriptions, and live spatial voice chat with the other
 players in the current Ubiq room. UWP/MSIX builds declare Unity's Microphone
