@@ -468,7 +468,8 @@ namespace Meshup.Editor.Tests
                 terminalMount.position = terminal.transform.GetChild(0).position
                     + Vector3.right * 0.125f;
                 terminalMount.rotation = Quaternion.LookRotation(Vector3.left);
-                view.Build(monitorFront, monitorBack, terminalMount,
+                GameUiTests.MountPrefabs(view, monitorFront, terminalMount);
+                view.Configure(monitorFront, monitorBack,
                     viewer.transform, _ => { }, () => startInvoked = true);
                 view.Render(new MeshupMatchSnapshot
                 {

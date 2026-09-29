@@ -11,10 +11,13 @@ edit the existing scene objects and prefabs in Unity instead.
 FPS counter. The coordinator's Scene fields reference the existing player,
 formation sequence, wall, monitors, generator button, and particles directly.
 Renaming those objects does not break the coordinator's wiring. Keep these
-references assigned when replacing an object. The game still creates its
-dynamic UI and generated models at runtime. The monitor has authored front and
-back UI mounts, and the mime terminal has an authored UI mount; keep these
-references assigned when replacing the display meshes. The lobby contains an
+references assigned when replacing an object. Generated models are created at
+runtime. The monitor and mime terminal use authored UI prefabs in
+`Assets/Prefabs/Game UI`, with their controls assigned on `MeshupGameView`.
+The monitor moves its Canvas between the authored front and back mounts; the
+terminal stays on its authored mount. Keep these references, both Canvas
+raycasters, and the terminal buttons' XR interactables, colliders, and click
+sounds when editing the displays. The lobby contains an
 authored instance of the copied Ubiq menu prefab. `RoomTotemPanel` references its
 controls directly; edit the prefab instead of reconstructing it at runtime.
 Keep both raycasters on the menu's nested Canvas, its camera reference, and

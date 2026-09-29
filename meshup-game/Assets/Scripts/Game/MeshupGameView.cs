@@ -2,23 +2,30 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
-using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Meshup.Game
 {
     [DisallowMultipleComponent]
     public sealed class MeshupGameView : MonoBehaviour
     {
-        private Text leaderboard;
-        private Text status;
-        private Text listeningIndicator;
-        private Text terminalTitle;
-        private Text terminalStatus;
-        private Button firstChoice;
-        private Button secondChoice;
-        private Button startButton;
+        [SerializeField] private Text leaderboard;
+        [SerializeField] private Text status;
+        [SerializeField] private Text listeningIndicator;
+        [SerializeField] private Transform monitorCanvas;
+        [SerializeField] private Canvas terminalCanvas;
+        [SerializeField] private Text terminalTitle;
+        [SerializeField] private Text terminalStatus;
+        [SerializeField] private Button firstChoice;
+        [SerializeField] private Button secondChoice;
+        [SerializeField] private Button startButton;
+        [SerializeField] private Text firstChoiceLabel;
+        [SerializeField] private Text secondChoiceLabel;
+        [SerializeField] private Text startButtonLabel;
+
         private Action<int> chooseWord;
         private Action startRound;
         private int lastChoiceInteractionFrame = -1;
@@ -28,22 +35,25 @@ namespace Meshup.Game
         private bool previousCursorVisible;
         private readonly Dictionary<GraphicRaycaster, bool>
             desktopOverlayRaycasterStates = new();
-        private Transform monitorCanvas;
         private Transform monitorFrontMount;
         private Transform monitorBackMount;
         private Transform localViewer;
 
-        public void Build(Transform monitorFront, Transform monitorBack,
-            Transform terminal, Transform viewer, Action<int> onChooseWord,
-            Action onStartRound)
+        public void Configure(Transform monitorFront, Transform monitorBack,
+            Transform viewer, Action<int> onChooseWord, Action onStartRound)
         {
             chooseWord = onChooseWord;
             startRound = onStartRound;
             monitorFrontMount = monitorFront;
             monitorBackMount = monitorBack;
             localViewer = viewer;
-            BuildMonitor(monitorFront, viewer);
-            BuildTerminal(terminal, viewer);
+            var camera = viewer != null
+                ? viewer.GetComponentInChildren<Camera>(true) : Camera.main;
+            monitorCanvas.GetComponent<Canvas>().worldCamera = camera;
+            terminalCanvas.worldCamera = camera;
+            BindButton(firstChoice, SelectFirstWord);
+            BindButton(secondChoice, SelectSecondWord);
+            BindButton(startButton, StartRound);
         }
 
         public void Render(MeshupMatchSnapshot snapshot, string localPeerId,
@@ -101,8 +111,8 @@ namespace Meshup.Game
             secondChoice.gameObject.SetActive(choicesVisible);
             if (choicesVisible)
             {
-                firstChoice.GetComponentInChildren<Text>().text = privateWordOptions[0];
-                secondChoice.GetComponentInChildren<Text>().text = privateWordOptions[1];
+                firstChoiceLabel.text = privateWordOptions[0];
+                secondChoiceLabel.text = privateWordOptions[1];
             }
             SetInteractable(firstChoice, choicesVisible);
             SetInteractable(secondChoice, choicesVisible);
@@ -112,7 +122,7 @@ namespace Meshup.Game
             startButton.gameObject.SetActive(preparation);
             SetInteractable(startButton,
                 preparation && !snapshot.generationPending);
-            startButton.GetComponentInChildren<Text>().text =
+            startButtonLabel.text =
                 snapshot.generationPending ? "GENERATING…" : "START";
             terminalTitle.text = isMime
                 ? phase switch
@@ -152,63 +162,29 @@ namespace Meshup.Game
                 : $"FINAL LEADERBOARD\n\n{winner.displayName} won";
         }
 
-        private void BuildMonitor(Transform target, Transform localViewer)
+        private void SelectFirstWord() => SelectWord(0);
+        private void SelectSecondWord() => SelectWord(1);
+
+        private void BindButton(Button button, UnityAction onClick)
         {
-            var canvas = CreateCanvas("MeshUp Monitor UI", target,
-                new Vector2(1200f, 600f), localViewer);
-            monitorCanvas = canvas.transform;
-            var background = CreatePanel(canvas.transform, "Background",
-                new Color(0.015f, 0.04f, 0.07f, 0.94f));
-            var leaderboardPanel = CreatePanel(background.transform,
-                "Leaderboard", new Color(0.02f, 0.12f, 0.17f, 0.95f));
-            SetRect(leaderboardPanel.rectTransform, new Vector2(0f, 0f),
-                new Vector2(0.34f, 1f), Vector2.zero, Vector2.zero);
-            leaderboard = CreateText(leaderboardPanel.transform, "Scores", 34,
-                TextAnchor.UpperLeft, Color.white);
-            SetRect(leaderboard.rectTransform, Vector2.zero, Vector2.one,
-                new Vector2(24f, 24f), new Vector2(-24f, -24f));
-
-            status = CreateText(background.transform, "Game Status", 52,
-                TextAnchor.MiddleCenter, new Color(0.65f, 0.95f, 1f));
-            SetRect(status.rectTransform, new Vector2(0.34f, 0f), Vector2.one,
-                new Vector2(30f, 30f), new Vector2(-30f, -30f));
-
-            listeningIndicator = CreateText(background.transform,
-                "Listening Indicator", 30, TextAnchor.UpperRight,
-                new Color(1f, 0.12f, 0.12f));
-            listeningIndicator.text = "●  LISTENING";
-            SetRect(listeningIndicator.rectTransform,
-                new Vector2(0.72f, 0.86f), new Vector2(0.98f, 0.98f),
-                Vector2.zero, Vector2.zero);
-            listeningIndicator.gameObject.SetActive(false);
+            button.onClick.AddListener(onClick);
+            button.GetComponent<XRSimpleInteractable>().selectEntered.AddListener(ForwardXrClick);
         }
 
-        private void BuildTerminal(Transform target, Transform localViewer)
+        private void UnbindButton(Button button, UnityAction onClick)
         {
-            var canvas = CreateCanvas("MeshUp Mime Terminal UI", target,
-                new Vector2(800f, 600f), localViewer);
-            var background = CreatePanel(canvas.transform, "Background",
-                new Color(0.02f, 0.04f, 0.08f, 0.96f));
-            terminalTitle = CreateText(background.transform, "Title", 52,
-                TextAnchor.MiddleCenter, new Color(0.4f, 1f, 0.95f));
-            SetRect(terminalTitle.rectTransform, new Vector2(0.05f, 0.68f),
-                new Vector2(0.95f, 0.96f), Vector2.zero, Vector2.zero);
+            if (button == null) return;
+            button.onClick.RemoveListener(onClick);
+            button.GetComponent<XRSimpleInteractable>().selectEntered.RemoveListener(ForwardXrClick);
+        }
 
-            firstChoice = CreateButton(background.transform, "First Choice",
-                new Vector2(0.08f, 0.38f), new Vector2(0.47f, 0.65f));
-            secondChoice = CreateButton(background.transform, "Second Choice",
-                new Vector2(0.53f, 0.38f), new Vector2(0.92f, 0.65f));
-            firstChoice.onClick.AddListener(() => SelectWord(0));
-            secondChoice.onClick.AddListener(() => SelectWord(1));
-
-            terminalStatus = CreateText(background.transform, "Status", 38,
-                TextAnchor.MiddleCenter, Color.white);
-            SetRect(terminalStatus.rectTransform, new Vector2(0.08f, 0.18f),
-                new Vector2(0.92f, 0.37f), Vector2.zero, Vector2.zero);
-            startButton = CreateButton(background.transform, "Start",
-                new Vector2(0.28f, 0.03f), new Vector2(0.72f, 0.18f));
-            startButton.GetComponentInChildren<Text>().text = "START";
-            startButton.onClick.AddListener(StartRound);
+        private void ForwardXrClick(SelectEnterEventArgs args)
+        {
+            var button = args.interactableObject.transform.GetComponent<Button>();
+            if (button.isActiveAndEnabled && button.interactable)
+            {
+                button.onClick.Invoke();
+            }
         }
 
         private void SelectWord(int index)
@@ -229,29 +205,6 @@ namespace Meshup.Game
             }
             lastStartInteractionFrame = Time.frameCount;
             startRound?.Invoke();
-        }
-
-        private static Canvas CreateCanvas(string name, Transform mount,
-            Vector2 size, Transform localViewer)
-        {
-            var gameObject = new GameObject(name, typeof(RectTransform),
-                typeof(Canvas), typeof(CanvasScaler),
-                typeof(GraphicRaycaster),
-                typeof(TrackedDeviceGraphicRaycaster));
-            gameObject.transform.SetParent(mount, false);
-            var rect = gameObject.GetComponent<RectTransform>();
-            rect.sizeDelta = size;
-            rect.localPosition = Vector3.zero;
-            rect.localRotation = Quaternion.identity;
-            rect.localScale = Vector3.one;
-            var canvas = gameObject.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.WorldSpace;
-            canvas.worldCamera = localViewer != null
-                ? localViewer.GetComponentInChildren<Camera>(true)
-                : Camera.main;
-            canvas.overrideSorting = true;
-            canvas.sortingOrder = 100;
-            return canvas;
         }
 
         private void SetDesktopTerminalCursor(bool terminalInteractionActive)
@@ -326,6 +279,9 @@ namespace Meshup.Game
         private void OnDestroy()
         {
             RestoreDesktopCursor();
+            UnbindButton(firstChoice, SelectFirstWord);
+            UnbindButton(secondChoice, SelectSecondWord);
+            UnbindButton(startButton, StartRound);
         }
 
         private void LateUpdate()
@@ -350,63 +306,6 @@ namespace Meshup.Game
             }
         }
 
-        private static Image CreatePanel(Transform parent, string name,
-            Color color)
-        {
-            var gameObject = new GameObject(name, typeof(RectTransform),
-                typeof(CanvasRenderer), typeof(Image));
-            gameObject.transform.SetParent(parent, false);
-            var image = gameObject.GetComponent<Image>();
-            image.color = color;
-            image.raycastTarget = false;
-            SetRect(image.rectTransform, Vector2.zero, Vector2.one,
-                Vector2.zero, Vector2.zero);
-            return image;
-        }
-
-        private static Text CreateText(Transform parent, string name,
-            int fontSize, TextAnchor alignment, Color color)
-        {
-            var gameObject = new GameObject(name, typeof(RectTransform),
-                typeof(CanvasRenderer), typeof(Text));
-            gameObject.transform.SetParent(parent, false);
-            var text = gameObject.GetComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = fontSize;
-            text.alignment = alignment;
-            text.color = color;
-            text.horizontalOverflow = HorizontalWrapMode.Wrap;
-            text.verticalOverflow = VerticalWrapMode.Truncate;
-            return text;
-        }
-
-        private static Button CreateButton(Transform parent, string name,
-            Vector2 anchorMin, Vector2 anchorMax)
-        {
-            var template = Resources.Load<Button>("TerminalButton");
-            if (template == null)
-            {
-                throw new InvalidOperationException(
-                    "The TerminalButton prefab is missing from Resources.");
-            }
-            var button = Instantiate(template, parent, false);
-            button.name = name;
-            SetRect(button.GetComponent<RectTransform>(), anchorMin, anchorMax,
-                Vector2.zero, Vector2.zero);
-            var collider = button.GetComponent<BoxCollider>();
-            var rect = button.GetComponent<RectTransform>();
-            collider.size = new Vector3(rect.rect.width, rect.rect.height, 8f);
-            var xrInteractable = button.GetComponent<XRSimpleInteractable>();
-            xrInteractable.selectEntered.AddListener(_ =>
-            {
-                if (button.isActiveAndEnabled && button.interactable)
-                {
-                    button.onClick.Invoke();
-                }
-            });
-            return button;
-        }
-
         private static void SetInteractable(Button button, bool interactable)
         {
             button.interactable = interactable;
@@ -417,13 +316,5 @@ namespace Meshup.Game
             }
         }
 
-        private static void SetRect(RectTransform rect, Vector2 anchorMin,
-            Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
-        {
-            rect.anchorMin = anchorMin;
-            rect.anchorMax = anchorMax;
-            rect.offsetMin = offsetMin;
-            rect.offsetMax = offsetMax;
-        }
     }
 }

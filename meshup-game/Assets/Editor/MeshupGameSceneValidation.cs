@@ -4,6 +4,9 @@ using Meshup.Game;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Meshup.EditorTools
 {
@@ -38,7 +41,7 @@ namespace Meshup.EditorTools
             foreach (var field in new[]
             {
                 "gameStart", "localPlayer", "invisibleWall", "mimeZoneDivider",
-                "guesserMonitor",
+                "guesserMonitor", "view",
                 "monitorUiFrontMount", "monitorUiBackMount", "mimeTerminal",
                 "terminalUiMount", "generatorAnchor", "generatorButton", "generatorParticles",
                 "smallSizeButton", "mediumSizeButton", "extraLargeSizeButton"
@@ -80,6 +83,36 @@ namespace Meshup.EditorTools
             {
                 throw new InvalidOperationException(
                     "terminalUiMount must be an authored mount on the terminal.");
+            }
+            var view = (MeshupGameView)serialized.FindProperty("view").objectReferenceValue;
+            var viewData = new SerializedObject(view);
+            foreach (var field in new[] { "monitorCanvas", "terminalCanvas", "leaderboard",
+                "status", "listeningIndicator", "terminalTitle", "terminalStatus",
+                "firstChoice", "secondChoice", "startButton", "firstChoiceLabel",
+                "secondChoiceLabel", "startButtonLabel" })
+            {
+                var component = viewData.FindProperty(field).objectReferenceValue as Component;
+                if (component == null || component.gameObject.scene != scene)
+                    throw new InvalidOperationException($"Assign the game view's {field} in this scene.");
+            }
+            var monitorUi = (Transform)viewData.FindProperty("monitorCanvas").objectReferenceValue;
+            var terminalUi = (Canvas)viewData.FindProperty("terminalCanvas").objectReferenceValue;
+            if (monitorUi.parent != (Transform)serialized.FindProperty("monitorUiFrontMount").objectReferenceValue
+                || terminalUi.transform.parent != terminalMount)
+                throw new InvalidOperationException("The authored game UI must remain on its display mounts.");
+            foreach (var canvas in new[] { monitorUi.GetComponent<Canvas>(), terminalUi })
+            {
+                if (canvas.renderMode != RenderMode.WorldSpace
+                    || canvas.GetComponent<GraphicRaycaster>() == null
+                    || canvas.GetComponent<TrackedDeviceGraphicRaycaster>() == null)
+                    throw new InvalidOperationException("Game UI requires desktop and tracked-device raycasters.");
+            }
+            foreach (var field in new[] { "firstChoice", "secondChoice", "startButton" })
+            {
+                var button = (Button)viewData.FindProperty(field).objectReferenceValue;
+                if (button.GetComponent<BoxCollider>() == null
+                    || button.GetComponent<XRSimpleInteractable>() == null)
+                    throw new InvalidOperationException($"{field} needs its authored XR interaction and collider.");
             }
             var sizeLabels = new[]
             {

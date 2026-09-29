@@ -86,7 +86,7 @@ namespace Meshup.Game
         private MeshupMatchSnapshot snapshot = new();
         private MimeWordService wordService;
         private MeshupGameMessageChannel messageChannel;
-        private MeshupGameView view;
+        [SerializeField] private MeshupGameView view;
         private MeshupVictoryFireworks victoryFireworks;
         private CorrectGuessAudio correctGuessAudio;
         private VoskGuessTranscriber transcriber;
@@ -136,7 +136,7 @@ namespace Meshup.Game
                 || invisibleWall == null || mimeZoneDivider == null
                 || guesserMonitor == null
                 || monitorUiFrontMount == null || monitorUiBackMount == null
-                || mimeTerminal == null || terminalUiMount == null
+                || mimeTerminal == null || terminalUiMount == null || view == null
                 || generatorAnchor == null
                 || generatorButton == null || smallSizeButton == null
                 || mediumSizeButton == null || extraLargeSizeButton == null)
@@ -173,9 +173,8 @@ namespace Meshup.Game
             session.ParticipantsChanged += HandleParticipantsChanged;
             gameStart.Completed += HandleWalkCompleted;
 
-            view = gameObject.AddComponent<MeshupGameView>();
-            view.Build(monitorUiFrontMount, monitorUiBackMount,
-                terminalUiMount, localPlayer.transform, ChooseWord, StartRound);
+            view.Configure(monitorUiFrontMount, monitorUiBackMount,
+                localPlayer.transform, ChooseWord, StartRound);
             victoryFireworks = gameObject.AddComponent<MeshupVictoryFireworks>();
             victoryFireworks.Configure(guesserMonitor);
             correctGuessAudio = guesserMonitor.GetComponent<CorrectGuessAudio>();
