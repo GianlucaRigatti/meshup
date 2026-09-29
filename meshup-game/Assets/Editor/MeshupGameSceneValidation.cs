@@ -44,7 +44,9 @@ namespace Meshup.EditorTools
                 "guesserMonitor", "view",
                 "monitorUiFrontMount", "monitorUiBackMount", "mimeTerminal",
                 "terminalUiMount", "generatorAnchor", "generatorButton", "generatorParticles",
-                "smallSizeButton", "mediumSizeButton", "extraLargeSizeButton"
+                "smallSizeButton", "mediumSizeButton", "extraLargeSizeButton",
+                "victoryFireworks", "correctGuessAudio", "transcriber",
+                "generatorClient", "sizeSelector", "generatorActivityAudio"
             })
             {
                 var reference = serialized.FindProperty(field).objectReferenceValue;
@@ -130,6 +132,21 @@ namespace Meshup.EditorTools
             if (generate.GetComponent<ConsoleButtonFeedback>() == null
                 || generate.GetComponent<Collider>() == null)
                 throw new InvalidOperationException("Generate must reference the physical console button.");
+            foreach (var field in new[] { "victoryFireworks", "transcriber", "sizeSelector",
+                "correctGuessAudio", "generatorClient", "generatorActivityAudio" })
+            {
+                var component = (Behaviour)serialized.FindProperty(field).objectReferenceValue;
+                var expectedOwner = field switch
+                {
+                    "correctGuessAudio" => monitor.gameObject,
+                    "generatorClient" => generate,
+                    "generatorActivityAudio" => ((Transform)serialized.FindProperty("generatorAnchor")
+                        .objectReferenceValue).gameObject,
+                    _ => coordinator.gameObject
+                };
+                if (!component.isActiveAndEnabled || component.gameObject != expectedOwner)
+                    throw new InvalidOperationException($"{field} must be an active authored component on its game object.");
+            }
             Debug.Log("Authored game runtime validation passed.");
         }
     }

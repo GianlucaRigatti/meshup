@@ -12,10 +12,6 @@ namespace Meshup.Game
     public sealed class MeshupGameCoordinator : MonoBehaviour
     {
         private const float PeerDepartureGraceSeconds = 10f;
-        // TODO: Remove this temporary binding after the fireworks are approved.
-        private const KeyCode FireworksTestKey = KeyCode.F8;
-        private const KeyCode GeneratorAudioTestKey = KeyCode.F7;
-        private const KeyCode GeneratorFailureAudioTestKey = KeyCode.F9;
 
         internal enum MessageKind
         {
@@ -85,14 +81,16 @@ namespace Meshup.Game
         private MeshupMatchState hostState;
         private MeshupMatchSnapshot snapshot = new();
         private MimeWordService wordService;
-        private MeshupGameMessageChannel messageChannel;
+        private NetworkContext networkContext;
+
+        [Header("Components")]
         [SerializeField] private MeshupGameView view;
-        private MeshupVictoryFireworks victoryFireworks;
-        private CorrectGuessAudio correctGuessAudio;
-        private VoskGuessTranscriber transcriber;
-        private MeshupAssetGeneratorClient generatorClient;
-        private GeneratedObjectSizeSelector sizeSelector;
-        private GeneratorActivityAudio generatorActivityAudio;
+        [SerializeField] private MeshupVictoryFireworks victoryFireworks;
+        [SerializeField] private CorrectGuessAudio correctGuessAudio;
+        [SerializeField] private VoskGuessTranscriber transcriber;
+        [SerializeField] private MeshupAssetGeneratorClient generatorClient;
+        [SerializeField] private GeneratedObjectSizeSelector sizeSelector;
+        [SerializeField] private GeneratorActivityAudio generatorActivityAudio;
         private MeshupGameSnapshotEffects snapshotEffects;
         private string[] privateWordOptions = Array.Empty<string>();
         private string privateSelectedWord = string.Empty;
@@ -109,7 +107,6 @@ namespace Meshup.Game
         private int crossingSentVersion = -1;
         private bool originalWallEnabled;
         private bool wallStateCaptured;
-        private bool generatorAudioPreview;
 
         public MeshupMatchSnapshot CurrentSnapshot => snapshot;
         public bool CanRecordGeneratorLocally => IsLocalMime
@@ -139,7 +136,10 @@ namespace Meshup.Game
                 || mimeTerminal == null || terminalUiMount == null || view == null
                 || generatorAnchor == null
                 || generatorButton == null || smallSizeButton == null
-                || mediumSizeButton == null || extraLargeSizeButton == null)
+                || mediumSizeButton == null || extraLargeSizeButton == null
+                || victoryFireworks == null || correctGuessAudio == null
+                || transcriber == null || generatorClient == null
+                || sizeSelector == null || generatorActivityAudio == null)
             {
                 enabled = false;
                 Debug.LogError("[MeshUp] Game coordinator references are incomplete.");
@@ -160,13 +160,7 @@ namespace Meshup.Game
                 (instance, state, cancellation) =>
                     instance.Initialize(this, state, cancellation),
                 ReportLocalMessage);
-            messageChannel = new MeshupGameMessageChannel(this, session,
-                IsAuthoritativeInbound,
-                (kind, message) => ProcessAuthoritativeMessage(kind, message),
-                (kind, message) =>
-                {
-                    if (hostState != null) ProcessHostCommand(kind, message);
-                });
+            networkContext = NetworkScene.Register(this);
             originalWallEnabled = invisibleWall.enabled;
             wallStateCaptured = true;
             previousWallSide = WallSide;
@@ -175,21 +169,12 @@ namespace Meshup.Game
 
             view.Configure(monitorUiFrontMount, monitorUiBackMount,
                 localPlayer.transform, ChooseWord, StartRound);
-            victoryFireworks = gameObject.AddComponent<MeshupVictoryFireworks>();
             victoryFireworks.Configure(guesserMonitor);
-            correctGuessAudio = guesserMonitor.GetComponent<CorrectGuessAudio>();
-            transcriber = gameObject.AddComponent<VoskGuessTranscriber>();
             transcriber.Configure(() => CanGuessLocally, wordService.Verbs);
             transcriber.TranscriptionReceived += SubmitGuess;
             transcriber.ErrorOccurred += ReportLocalMessage;
             transcriber.ListeningChanged += HandleListeningChanged;
-            generatorClient = generatorButton.GetComponent<
-                MeshupAssetGeneratorClient>()
-                ?? generatorButton.AddComponent<MeshupAssetGeneratorClient>();
             generatorClient.Configure(this);
-            generatorActivityAudio = generatorAnchor.GetComponent<
-                GeneratorActivityAudio>();
-            sizeSelector = gameObject.AddComponent<GeneratedObjectSizeSelector>();
             sizeSelector.Configure(smallSizeButton, mediumSizeButton,
                 extraLargeSizeButton, () => CanRecordGeneratorLocally, RequestSizeSelection);
             snapshotEffects = new MeshupGameSnapshotEffects(generatedObjects,
@@ -214,21 +199,9 @@ namespace Meshup.Game
 
         private void Update()
         {
-            if (Input.GetKeyDown(GeneratorAudioTestKey))
-            {
-                ToggleGeneratorAudioPreview();
-            }
-            if (Input.GetKeyDown(GeneratorFailureAudioTestKey))
-            {
-                PreviewGeneratorFailure();
-            }
             if (session == null)
             {
                 return;
-            }
-            if (Input.GetKeyDown(FireworksTestKey))
-            {
-                victoryFireworks?.PlayForTesting();
             }
             UpdateWallAndCrossing();
             if (guessFeedbackUntil > 0f
@@ -261,7 +234,22 @@ namespace Meshup.Game
 
         public void ProcessMessage(ReferenceCountedSceneGraphMessage networkMessage)
         {
-            messageChannel?.ProcessMessage(networkMessage);
+            if (session == null) return;
+            var message = networkMessage.FromJson<GameMessage>();
+            if (message == null) return;
+            var kind = (MessageKind)message.kind;
+            if (IsAuthoritativeInbound(kind, message))
+            {
+                if (string.Equals(message.creatorPeerId,
+                    session.CreatorPeerId, StringComparison.Ordinal))
+                {
+                    ProcessAuthoritativeMessage(kind, message);
+                }
+            }
+            else if (session.IsRoomCreator && hostState != null)
+            {
+                ProcessHostCommand(kind, message);
+            }
         }
 
         private static bool IsAuthoritativeInbound(MessageKind kind,
@@ -388,23 +376,12 @@ namespace Meshup.Game
                         activeGenerationSize = GeneratedObjectSizes.Normalize(
                             (GeneratedObjectSize)message.intValue);
                         BroadcastSnapshot();
-                        Send(new GameMessage
+                        Publish(new GameMessage
                         {
                             kind = (int)MessageKind.GenerationAuthorized,
-                            creatorPeerId = session.LocalPeerId,
                             targetPeerId = message.senderPeerId,
                             requestId = message.requestId
                         });
-                        if (message.senderPeerId == session.LocalPeerId)
-                        {
-                            ProcessAuthoritativeMessage(
-                                MessageKind.GenerationAuthorized,
-                                new GameMessage
-                                {
-                                    targetPeerId = session.LocalPeerId,
-                                    requestId = message.requestId
-                                });
-                        }
                     }
                     break;
                 case MessageKind.GenerationComplete:
@@ -518,7 +495,7 @@ namespace Meshup.Game
         }
 
         public void SubmitObjectTransform(string objectId, Vector3 position,
-            Quaternion rotation, Vector3 relativeScale, bool final)
+            Quaternion rotation, Vector3 relativeScale)
         {
             var state = new MeshupGeneratedObjectState
             {
@@ -530,7 +507,6 @@ namespace Meshup.Game
             SendCommand(new GameMessage
             {
                 kind = (int)MessageKind.ObjectTransform,
-                intValue = final ? 1 : 0,
                 generatedObject = state
             });
         }
@@ -604,69 +580,60 @@ namespace Meshup.Game
 
         private void BroadcastSnapshot()
         {
-            var nextSnapshot = hostState.CreateSnapshot(generatedObjects.States);
-            ProcessAuthoritativeMessage(MessageKind.Snapshot,
-                new GameMessage { snapshot = nextSnapshot });
-            Send(new GameMessage
+            Publish(new GameMessage
             {
                 kind = (int)MessageKind.Snapshot,
-                creatorPeerId = session.LocalPeerId,
-                snapshot = snapshot
+                snapshot = hostState.CreateSnapshot(generatedObjects.States)
             });
         }
 
         private void SendPrivateWords(string target, string[] words,
             string selectedWord)
         {
-            var message = new GameMessage
+            Publish(new GameMessage
             {
                 kind = (int)MessageKind.PrivateWords,
-                creatorPeerId = session.LocalPeerId,
                 targetPeerId = target,
                 words = words,
                 text = selectedWord
-            };
-            if (target == session.LocalPeerId)
-            {
-                ProcessAuthoritativeMessage(MessageKind.PrivateWords, message);
-            }
-            Send(message);
+            });
         }
 
         private void SendGuessFeedback(string target, string transcription)
         {
             var heard = MeshupMatchState.NormalizeGuess(transcription);
-            var message = new GameMessage
+            Publish(new GameMessage
             {
                 kind = (int)MessageKind.GuessFeedback,
-                creatorPeerId = session.LocalPeerId,
                 targetPeerId = target,
                 text = string.IsNullOrWhiteSpace(heard)
                     ? "Incorrect guess — try again"
                     : $"{heard} is an incorrect guess — try again"
-            };
-            if (target == session.LocalPeerId)
-            {
-                ProcessAuthoritativeMessage(MessageKind.GuessFeedback, message);
-            }
-            Send(message);
+            });
         }
 
         private void BroadcastObjectTransform(MeshupGeneratedObjectState state)
         {
-            var message = new GameMessage
+            Publish(new GameMessage
             {
                 kind = (int)MessageKind.ObjectTransform,
-                creatorPeerId = session.LocalPeerId,
                 generatedObject = state
-            };
-            ProcessAuthoritativeMessage(MessageKind.ObjectTransform, message);
+            });
+        }
+
+        private void Publish(GameMessage message)
+        {
+            message.creatorPeerId = session.LocalPeerId;
+            ProcessAuthoritativeMessage((MessageKind)message.kind, message);
             Send(message);
         }
 
         private void Send(GameMessage message)
         {
-            messageChannel?.Send(message);
+            if (networkContext.Scene != null)
+            {
+                networkContext.SendJson(message);
+            }
         }
 
         private void HandleParticipantsChanged()
@@ -739,48 +706,6 @@ namespace Meshup.Game
             }
         }
 
-        private void ToggleGeneratorAudioPreview()
-        {
-            if (generatorActivityAudio == null)
-            {
-                return;
-            }
-
-            generatorAudioPreview = !generatorAudioPreview;
-            if (generatorAudioPreview)
-            {
-                SetParticleState(true);
-                generatorActivityAudio.SetGenerating(true);
-            }
-            else
-            {
-                var generationPending = snapshot?.generationPending == true;
-                SetParticleState(generationPending);
-                generatorActivityAudio.SetGenerating(generationPending);
-                if (!generationPending)
-                {
-                    generatorActivityAudio.PlayCompletion();
-                }
-            }
-        }
-
-        private void PreviewGeneratorFailure()
-        {
-            if (generatorActivityAudio == null)
-            {
-                return;
-            }
-
-            generatorAudioPreview = false;
-            var generationPending = snapshot?.generationPending == true;
-            SetParticleState(generationPending);
-            generatorActivityAudio.SetGenerating(generationPending);
-            if (!generationPending)
-            {
-                generatorActivityAudio.PlayFailure();
-            }
-        }
-
         private void Render()
         {
             sizeSelector?.SetInteractable(CanRecordGeneratorLocally);
@@ -834,7 +759,10 @@ namespace Meshup.Game
             {
                 invisibleWall.enabled = originalWallEnabled;
             }
-            messageChannel?.Dispose();
+            if (networkContext.Scene != null)
+            {
+                networkContext.Scene.RemoveProcessor(networkContext.Id, ProcessMessage);
+            }
         }
     }
 }

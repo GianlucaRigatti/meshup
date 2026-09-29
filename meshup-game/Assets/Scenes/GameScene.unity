@@ -4730,6 +4730,10 @@ GameObject:
   - component: {fileID: 122342285}
   - component: {fileID: 122342284}
   - component: {fileID: 122342287}
+  - component: {fileID: 122342291}
+  - component: {fileID: 122342290}
+  - component: {fileID: 122342289}
+  - component: {fileID: 122342288}
   m_Layer: 0
   m_Name: MeshUp Game Runtime
   m_TagString: Untagged
@@ -4747,7 +4751,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 12d892f95f454dc68bfe1b8453d79006, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.MeshupGameCoordinator
   gameStart: {fileID: 390863633}
   localPlayer: {fileID: 656482935}
@@ -4766,6 +4770,12 @@ MonoBehaviour:
   extraLargeSizeButton: {fileID: 1234117144}
   assetServerBaseUrl: http://127.0.0.1:8000
   view: {fileID: 122342287}
+  victoryFireworks: {fileID: 122342291}
+  correctGuessAudio: {fileID: 1815578348}
+  transcriber: {fileID: 122342290}
+  generatorClient: {fileID: 1234117149}
+  sizeSelector: {fileID: 122342289}
+  generatorActivityAudio: {fileID: 1811488901}
 --- !u!114 &122342285
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -43835,7 +43845,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 7021888916335044950, guid: 06fa36614fff147eea3876b796522dcf, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1234117149}
   m_SourcePrefab: {fileID: 100100000, guid: 06fa36614fff147eea3876b796522dcf, type: 3}
 --- !u!1 &1234117144 stripped
 GameObject:
@@ -82828,3 +82841,67 @@ SceneRoots:
   - {fileID: 1040974246}
   - {fileID: 1798035125}
   - {fileID: 122342286}
+--- !u!114 &122342288
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 122342283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4d02a772f504bcb934472729142469b, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.MeshupDevelopmentShortcuts
+  coordinator: {fileID: 122342284}
+  victoryFireworks: {fileID: 122342291}
+  generatorActivityAudio: {fileID: 1811488901}
+  generatorParticles: {fileID: 1811488898}
+--- !u!114 &122342289
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 122342283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 38bc29d28c0e4e5eb815fe42c1cf18bc, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.GeneratedObjectSizeSelector
+--- !u!114 &122342290
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 122342283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b7cb46cd640f4cb2ac43dcab219b9003, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.VoskGuessTranscriber
+--- !u!114 &122342291
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 122342283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7e27dc5fc67b4a4f87d5a7d1e6f1920b, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.MeshupVictoryFireworks
+--- !u!114 &1234117149
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1234117148}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df02d41e734d49059287e1ab7c819004, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.MeshupAssetGeneratorClient

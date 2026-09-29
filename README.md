@@ -8,7 +8,8 @@ lobby, player-rig, and formation rebuild/install scripts have been removed;
 edit the existing scene objects and prefabs in Unity instead.
 
 `GameScene` contains a `MeshUp Game Runtime` root with the game coordinator and
-FPS counter. The coordinator's Scene fields reference the existing player,
+FPS counter, transcriber, size selector, and victory fireworks component. The
+coordinator's Scene and Components fields reference the existing player,
 formation sequence, wall, monitors, generator button, and particles directly.
 Renaming those objects does not break the coordinator's wiring. Keep these
 references assigned when replacing an object. Generated models are created at
@@ -23,6 +24,12 @@ controls directly; edit the prefab instead of reconstructing it at runtime.
 Keep both raycasters on the menu's nested Canvas, its camera reference, and
 the Ubiq keyboard and button sound wiring when editing the menu. The saved
 scene keeps the menu at its original 0.005 world units per UI pixel.
+
+The coordinator registers directly with Ubiq and publishes host responses by
+applying them locally before sending them to peers. Private responses still
+apply only to their target player. Generated-object poses are sent while held
+and immediately on release. F7/F8/F9 previews live in
+`MeshupDevelopmentShortcuts` and run only in the Editor or development builds.
 
 `GeneratedObjectManager` owns generated-object state, local instances, and
 pending imports. The coordinator handles match permissions and network messages.

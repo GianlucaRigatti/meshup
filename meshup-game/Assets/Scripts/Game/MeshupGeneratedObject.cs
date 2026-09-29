@@ -194,7 +194,7 @@ namespace Meshup.Game
             {
                 nextSendTime = Time.unscaledTime + 0.05f;
                 coordinator?.SubmitObjectTransform(objectId, transform.position,
-                    transform.rotation, RelativeScale, false);
+                    transform.rotation, RelativeScale);
             }
         }
 
@@ -216,7 +216,7 @@ namespace Meshup.Game
             }
             held = false;
             coordinator?.SubmitObjectTransform(objectId, transform.position,
-                transform.rotation, RelativeScale, true);
+                transform.rotation, RelativeScale);
         }
 
         private Vector3 RelativeScale => normalizationScale > 0.0001f
