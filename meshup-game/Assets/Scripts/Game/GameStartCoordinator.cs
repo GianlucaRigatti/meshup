@@ -351,39 +351,31 @@ namespace Meshup.Game
 
         private IEnumerator Regroup()
         {
-            var speed = 0f;
             var formationTarget = route.GetSlotPosition(0f, localSlot,
                 roster.Length);
             var joinDistance = regroupRing.GetClosestDistance(
                 player.BodyPosition, out var target);
             var ringDirection = regroupRing.GetShortestDirectionToExit(
                 joinDistance);
-            var previous = player.BodyPosition;
-            var blockedFor = 0f;
-            StatusMessage = "Moving to the waiting-room ring…";
-            while (PlanarDistance(player.BodyPosition, target)
-                > arrivalTolerance)
+
+            // Enumerate the movement inline so stage boundaries add no frames.
+            foreach (var frame in MoveToRegroupTarget(target,
+                "Moving to the waiting-room ring…",
+                "A player could not reach the waiting-room ring."))
             {
-                speed = Mathf.MoveTowards(speed, regroupSpeed,
-                    regroupAcceleration * Time.deltaTime);
-                player.MoveTowards(target, speed * Time.deltaTime);
-                TrackBlocked(previous, target, ref blockedFor);
-                previous = player.BodyPosition;
-                if (blockedFor >= blockedTimeout)
-                {
-                    BroadcastCancel(
-                        "A player could not reach the waiting-room ring.");
-                    yield break;
-                }
-                yield return null;
+                yield return frame;
+            }
+            if (phase == SequencePhase.Idle)
+            {
+                yield break;
             }
 
             var ringDistance = regroupRing.GetDistanceToExit(joinDistance,
                 ringDirection);
             var ringTravelled = 0f;
-            speed = 0f;
-            blockedFor = 0f;
-            previous = player.BodyPosition;
+            var speed = 0f;
+            var blockedFor = 0f;
+            var previous = player.BodyPosition;
             StatusMessage = "Following the waiting-room ring…";
             while (ringTravelled < ringDistance
                 && !IsReadyForFinalApproach(player.BodyPosition,
@@ -411,11 +403,31 @@ namespace Meshup.Game
                 yield return null;
             }
 
-            target = formationTarget;
-            speed = 0f;
-            blockedFor = 0f;
-            previous = player.BodyPosition;
-            StatusMessage = "Moving to assigned place…";
+            foreach (var frame in MoveToRegroupTarget(formationTarget,
+                "Moving to assigned place…",
+                "A player could not reach the lineup."))
+            {
+                yield return frame;
+            }
+            if (phase == SequencePhase.Idle)
+            {
+                yield break;
+            }
+
+            motion = null;
+            AddPeer(alignedPeers, session.LocalPeerId);
+            BroadcastPeer(MessageKind.Aligned);
+            StatusMessage = "Waiting for the group…";
+            TryBeginWalk();
+        }
+
+        private IEnumerable MoveToRegroupTarget(Vector3 target,
+            string status, string blockedMessage)
+        {
+            var speed = 0f;
+            var blockedFor = 0f;
+            var previous = player.BodyPosition;
+            StatusMessage = status;
             // CharacterController ground contact may keep the rig root a skin
             // width above or below the authored marker. Formation readiness is
             // therefore based on the floor plane; movement itself remains 3D
@@ -430,17 +442,11 @@ namespace Meshup.Game
                 previous = player.BodyPosition;
                 if (blockedFor >= blockedTimeout)
                 {
-                    BroadcastCancel("A player could not reach the lineup.");
+                    BroadcastCancel(blockedMessage);
                     yield break;
                 }
                 yield return null;
             }
-
-            motion = null;
-            AddPeer(alignedPeers, session.LocalPeerId);
-            BroadcastPeer(MessageKind.Aligned);
-            StatusMessage = "Waiting for the group…";
-            TryBeginWalk();
         }
 
         public static bool IsReadyForFinalApproach(Vector3 position,
