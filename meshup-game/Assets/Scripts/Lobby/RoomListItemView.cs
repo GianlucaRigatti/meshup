@@ -1,6 +1,5 @@
 using System;
 using Meshup.Multiplayer;
-using Meshup;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -20,45 +19,12 @@ namespace Meshup.Lobby
             ? listing.Uuid
             : listing?.JoinCode ?? string.Empty;
 
-        /// <summary>
-        /// Connects MeshUp's room-list behaviour to the controls authored in
-        /// Ubiq's Browse Menu Control prefab.
-        /// </summary>
-        public void ConfigureFromUbiqSample()
-        {
-            var browseControl = GetComponent<Ubiq.Samples.BrowseMenuControl>();
-            roomNameText = browseControl != null
-                ? browseControl.Name
-                : FindText("NameText");
-            joinCodeText = browseControl != null
-                ? browseControl.SceneName
-                : FindText("SceneText");
-            joinButton = FindChild("Next Button")?.GetComponent<Button>();
-
-            var sampleJoin = GetComponentInChildren<
-                Ubiq.Samples.BrowseMenuControlJoinButton>(true);
-            if (sampleJoin != null)
-            {
-                sampleJoin.enabled = false;
-                Destroy(sampleJoin);
-            }
-            if (browseControl != null)
-            {
-                browseControl.enabled = false;
-            }
-        }
-
         public void Bind(RoomListing room, UbiqRoomSession roomSession,
             Action beforeJoin = null)
         {
             listing = room;
             session = roomSession;
             this.beforeJoin = beforeJoin;
-            if (roomNameText == null || joinCodeText == null
-                || joinButton == null)
-            {
-                ConfigureFromUbiqSample();
-            }
             roomNameText.text = string.IsNullOrWhiteSpace(room.Name)
                 ? "Unnamed Room"
                 : room.Name;
@@ -68,23 +34,6 @@ namespace Meshup.Lobby
             joinButton.onClick.RemoveAllListeners();
             joinButton.onClick.AddListener(Join);
             joinButton.interactable = true;
-        }
-
-        private Text FindText(string childName)
-        {
-            return FindChild(childName)?.GetComponent<Text>();
-        }
-
-        private Transform FindChild(string childName)
-        {
-            foreach (var child in GetComponentsInChildren<Transform>(true))
-            {
-                if (child.name == childName)
-                {
-                    return child;
-                }
-            }
-            return null;
         }
 
         private void Join()

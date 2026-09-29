@@ -14,8 +14,12 @@ Renaming those objects does not break the coordinator's wiring. Keep these
 references assigned when replacing an object. The game still creates its
 dynamic UI and generated models at runtime. The monitor has authored front and
 back UI mounts, and the mime terminal has an authored UI mount; keep these
-references assigned when replacing the display meshes. The lobby uses the
-copied Ubiq menu prefab as its only room-menu implementation.
+references assigned when replacing the display meshes. The lobby contains an
+authored instance of the copied Ubiq menu prefab. `RoomTotemPanel` references its
+controls directly; edit the prefab instead of reconstructing it at runtime.
+Keep both raycasters on the menu's nested Canvas, its camera reference, and
+the Ubiq keyboard and button sound wiring when editing the menu. The saved
+scene keeps the menu at its original 0.005 world units per UI pixel.
 
 `GeneratedObjectManager` owns generated-object state, local instances, and
 pending imports. The coordinator handles match permissions and network messages.

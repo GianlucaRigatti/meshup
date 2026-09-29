@@ -5,6 +5,7 @@ using UnityEngine.UI;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Meshup.EditorTools
 {
@@ -58,26 +59,28 @@ namespace Meshup.EditorTools
             }
 
             var panelData = new SerializedObject(panel);
-            if (panelData.FindProperty("ubiqMenuPrefab").objectReferenceValue == null)
+            var menu = panelData.FindProperty("panelRoot").objectReferenceValue as GameObject;
+            if (menu == null)
             {
-                throw new InvalidOperationException("The Ubiq lobby menu prefab is not assigned.");
+                throw new InvalidOperationException("The authored lobby menu is not assigned.");
             }
-            var menuPrefab = panelData.FindProperty("ubiqMenuPrefab")
-                .objectReferenceValue as GameObject;
-            var menuPath = AssetDatabase.GetAssetPath(menuPrefab);
+            var menuPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(menu);
             if (!menuPath.StartsWith("Assets/Prefabs/Ubiq Sample UI/",
                     StringComparison.Ordinal)
-                || menuPrefab.transform.Find("Canvas/Main Panel/Browse Panel")
-                    == null
-                || menuPrefab.transform.Find(
-                    "Canvas/Main Panel/New Room Panel") == null
-                || menuPrefab.transform.Find(
-                    "Canvas/Main Panel/Join Room Panel") == null
-                || menuPrefab.transform.Find(
-                    "Canvas/Main Panel/Set Name Panel") == null)
+                || !menu.transform.IsChildOf(lobbyUi.transform)
+                || menu.GetComponent<TrackedDeviceGraphicRaycaster>() == null
+                || menu.GetComponent<GraphicRaycaster>() == null)
             {
                 throw new InvalidOperationException(
-                    "The lobby must use the copied Ubiq sample menu prefab.");
+                    "The prepared Ubiq menu must retain its desktop and XR raycasters.");
+            }
+            foreach (var field in new[] { "roomNameEntry", "createButton", "closeButton",
+                "roomListContent", "roomListItemTemplate", "statusText", "noRoomsMessage",
+                "usernameEntry", "joinCodeEntry", "displayedUsernameText", "setNameButton",
+                "joinCodeButton", "panelSwitcher" })
+            {
+                if (panelData.FindProperty(field).objectReferenceValue == null)
+                    throw new InvalidOperationException($"Missing lobby menu reference: {field}");
             }
             if (panelData.FindProperty("allowClose").boolValue
                 || panelData.FindProperty("lockPlayerInputWhenOpen").boolValue)
