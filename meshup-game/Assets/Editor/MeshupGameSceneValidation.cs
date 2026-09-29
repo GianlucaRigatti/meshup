@@ -41,10 +41,7 @@ namespace Meshup.EditorTools
             foreach (var field in new[]
             {
                 "gameStart", "localPlayer", "invisibleWall", "mimeZoneDivider",
-                "guesserMonitor", "view",
-                "monitorUiFrontMount", "monitorUiBackMount", "mimeTerminal",
-                "terminalUiMount", "generatorAnchor", "generatorButton", "generatorParticles",
-                "smallSizeButton", "mediumSizeButton", "extraLargeSizeButton",
+                "view", "generatorAnchor", "generatorParticles",
                 "victoryFireworks", "correctGuessAudio", "transcriber",
                 "generatorClient", "sizeSelector", "generatorActivityAudio"
             })
@@ -65,30 +62,10 @@ namespace Meshup.EditorTools
                 throw new InvalidOperationException(
                     "The visual mime zone divider must not have a collider.");
             }
-            var monitor = (Transform)serialized.FindProperty("guesserMonitor")
-                .objectReferenceValue;
-            var terminal = (Transform)serialized.FindProperty("mimeTerminal")
-                .objectReferenceValue;
-            foreach (var field in new[] { "monitorUiFrontMount", "monitorUiBackMount" })
-            {
-                var mount = (Transform)serialized.FindProperty(field)
-                    .objectReferenceValue;
-                if (!mount.IsChildOf(monitor) || mount.lossyScale.sqrMagnitude < 0.000001f)
-                {
-                    throw new InvalidOperationException($"{field} must be an authored mount on the monitor.");
-                }
-            }
-            var terminalMount = (Transform)serialized.FindProperty("terminalUiMount")
-                .objectReferenceValue;
-            if (!terminalMount.IsChildOf(terminal)
-                || terminalMount.lossyScale.sqrMagnitude < 0.000001f)
-            {
-                throw new InvalidOperationException(
-                    "terminalUiMount must be an authored mount on the terminal.");
-            }
             var view = (MeshupGameView)serialized.FindProperty("view").objectReferenceValue;
             var viewData = new SerializedObject(view);
-            foreach (var field in new[] { "interactionState", "monitorCanvas", "terminalCanvas", "leaderboard",
+            foreach (var field in new[] { "interactionState", "monitorCanvas", "terminalCanvas",
+                "monitorFrontMount", "monitorBackMount", "localViewer", "leaderboard",
                 "status", "listeningIndicator", "terminalTitle", "terminalStatus",
                 "firstChoice", "secondChoice", "startButton", "firstChoiceLabel",
                 "secondChoiceLabel", "startButtonLabel" })
@@ -96,6 +73,30 @@ namespace Meshup.EditorTools
                 var component = viewData.FindProperty(field).objectReferenceValue as Component;
                 if (component == null || component.gameObject.scene != scene)
                     throw new InvalidOperationException($"Assign the game view's {field} in this scene.");
+            }
+            var monitorFront = (Transform)viewData.FindProperty("monitorFrontMount").objectReferenceValue;
+            var fireworks = (MeshupVictoryFireworks)serialized.FindProperty("victoryFireworks").objectReferenceValue;
+            var fireworksData = new SerializedObject(fireworks);
+            var monitor = (Transform)fireworksData.FindProperty("guesserScreen").objectReferenceValue;
+            if (monitor == null || monitor.gameObject.scene != scene)
+                throw new InvalidOperationException("Victory fireworks must reference the authored monitor.");
+            foreach (var field in new[] { "monitorFrontMount", "monitorBackMount" })
+            {
+                var mount = (Transform)viewData.FindProperty(field).objectReferenceValue;
+                if (!mount.IsChildOf(monitor) || mount.lossyScale.sqrMagnitude < 0.000001f)
+                    throw new InvalidOperationException($"{field} must be an authored mount on the monitor.");
+            }
+            var localPlayer = (PlayerMovementAuthority)serialized.FindProperty("localPlayer").objectReferenceValue;
+            if (viewData.FindProperty("localViewer").objectReferenceValue != localPlayer.transform)
+                throw new InvalidOperationException("The game view must reference the local player.");
+            var prefabs = fireworksData.FindProperty("fireworks");
+            if (prefabs.arraySize == 0)
+                throw new InvalidOperationException("Assign the authored firework prefabs.");
+            for (var i = 0; i < prefabs.arraySize; i++)
+            {
+                var particles = prefabs.GetArrayElementAtIndex(i).objectReferenceValue as ParticleSystem;
+                if (particles == null || !PrefabUtility.IsPartOfPrefabAsset(particles))
+                    throw new InvalidOperationException("Victory fireworks must reference saved particle prefabs.");
             }
             var monitorUi = (Transform)viewData.FindProperty("monitorCanvas").objectReferenceValue;
             var interaction = (GameInteractionState)viewData.FindProperty("interactionState").objectReferenceValue;
@@ -120,8 +121,9 @@ namespace Meshup.EditorTools
                     throw new InvalidOperationException("Suppress only authored desktop overlays, keeping menu and world-space raycasters available.");
             }
             var terminalUi = (Canvas)viewData.FindProperty("terminalCanvas").objectReferenceValue;
-            if (monitorUi.parent != (Transform)serialized.FindProperty("monitorUiFrontMount").objectReferenceValue
-                || terminalUi.transform.parent != terminalMount)
+            var terminalMount = terminalUi.transform.parent;
+            if (monitorUi.parent != monitorFront || terminalMount == null
+                || terminalMount.parent == null || terminalMount.lossyScale.sqrMagnitude < 0.000001f)
                 throw new InvalidOperationException("The authored game UI must remain on its display mounts.");
             foreach (var canvas in new[] { monitorUi.GetComponent<Canvas>(), terminalUi })
             {
@@ -137,19 +139,23 @@ namespace Meshup.EditorTools
                     || button.GetComponent<XRSimpleInteractable>() == null)
                     throw new InvalidOperationException($"{field} needs its authored XR interaction and collider.");
             }
+            var selector = (GeneratedObjectSizeSelector)serialized.FindProperty("sizeSelector").objectReferenceValue;
+            var selectorData = new SerializedObject(selector);
             var sizeLabels = new[]
             {
-                "smallSizeButton", "mediumSizeButton", "extraLargeSizeButton"
-            }.Select(field => (GameObject)serialized.FindProperty(field)
+                "smallButton", "mediumButton", "extraLargeButton"
+            }.Select(field => (GameObject)selectorData.FindProperty(field)
                 .objectReferenceValue).ToArray();
-            if (sizeLabels.Any(label => label.GetComponent<ConsoleButtonFeedback>() == null
+            if (sizeLabels.Any(label => label == null || label.scene != scene
+                    || label.GetComponent<ConsoleButtonFeedback>() == null
                     || label.GetComponent<Collider>() == null)
                 || GeneratedObjectSizeSelector.FindPhysicalButtons(sizeLabels).Length != 3)
             {
                 throw new InvalidOperationException(
                     "The size references must resolve to three integrated physical selector buttons.");
             }
-            var generate = (GameObject)serialized.FindProperty("generatorButton").objectReferenceValue;
+            var generate = ((MeshupAssetGeneratorClient)serialized.FindProperty("generatorClient")
+                .objectReferenceValue).gameObject;
             if (generate.GetComponent<ConsoleButtonFeedback>() == null
                 || generate.GetComponent<Collider>() == null)
                 throw new InvalidOperationException("Generate must reference the physical console button.");

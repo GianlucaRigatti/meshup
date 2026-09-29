@@ -4758,17 +4758,8 @@ MonoBehaviour:
   localPlayer: {fileID: 656482935}
   invisibleWall: {fileID: 1537894675}
   mimeZoneDivider: {fileID: 494281029}
-  guesserMonitor: {fileID: 1815578344}
-  monitorUiFrontMount: {fileID: 300938074}
-  monitorUiBackMount: {fileID: 909123831}
-  mimeTerminal: {fileID: 1040974251}
-  terminalUiMount: {fileID: 71374750}
   generatorAnchor: {fileID: 1811488896}
-  generatorButton: {fileID: 1234117148}
   generatorParticles: {fileID: 1811488898}
-  smallSizeButton: {fileID: 1234117147}
-  mediumSizeButton: {fileID: 1234117146}
-  extraLargeSizeButton: {fileID: 1234117144}
   assetServerBaseUrl: http://127.0.0.1:8000
   view: {fileID: 122342287}
   victoryFireworks: {fileID: 122342291}
@@ -73731,6 +73722,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.GeneratorActivityAudio
   activitySource: {fileID: 1811488900}
   cueSource: {fileID: 1811488899}
+  completionClip: {fileID: 8300000, guid: a1651e411a87346a6a8d93c2bfa63909, type: 3}
+  failureClip: {fileID: 8300000, guid: 5ff1b3ef207fd46db9e189e7c986113c, type: 3}
 --- !u!1 &1811785383
 GameObject:
   m_ObjectHideFlags: 0
@@ -82440,6 +82433,9 @@ MonoBehaviour:
   firstChoiceLabel: {fileID: 4931778690698678715}
   secondChoiceLabel: {fileID: 4931778690698678714}
   startButtonLabel: {fileID: 4931778690698678712}
+  monitorFrontMount: {fileID: 300938074}
+  monitorBackMount: {fileID: 909123831}
+  localViewer: {fileID: 656482929}
 --- !u!1001 &4883677071330503093
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -82870,6 +82866,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 38bc29d28c0e4e5eb815fe42c1cf18bc, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.GeneratedObjectSizeSelector
+  smallButton: {fileID: 1234117147}
+  mediumButton: {fileID: 1234117146}
+  extraLargeButton: {fileID: 1234117144}
 --- !u!114 &122342290
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -82894,6 +82893,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7e27dc5fc67b4a4f87d5a7d1e6f1920b, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.MeshupVictoryFireworks
+  guesserScreen: {fileID: 1815578344}
+  explosionClips:
+  - {fileID: 8300000, guid: 08a867194a5c63941a1155c630dbbeaf, type: 3}
+  - {fileID: 8300000, guid: 803841059772b84419951061784d047f, type: 3}
+  - {fileID: 8300000, guid: cfd90b495c4f39341963589379cb1762, type: 3}
+  - {fileID: 8300000, guid: 38ca4503a2c63f04992563c31676d4f4, type: 3}
+  - {fileID: 8300000, guid: c3a0cb1aea6bb4e4fa4665f1528c9c1c, type: 3}
+  fireworks:
+  - {fileID: 3964823080400154673, guid: b061cce46db84400d9ad4b195f6fe6ac, type: 3}
+  - {fileID: 3558381745472192940, guid: f543445baa6404da28a02e4008120c20, type: 3}
+  - {fileID: 1423559752953771761, guid: f9c51cc47d37a429294e7f6c2c4e217a, type: 3}
+  - {fileID: 6139490506102693070, guid: 9773c4359e6c045b8bb98adc77b953e7, type: 3}
 --- !u!114 &1234117149
 MonoBehaviour:
   m_ObjectHideFlags: 0

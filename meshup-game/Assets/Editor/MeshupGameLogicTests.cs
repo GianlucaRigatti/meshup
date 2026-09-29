@@ -335,8 +335,12 @@ namespace Meshup.Editor.Tests
             try
             {
                 var selector = owner.AddComponent<GeneratedObjectSizeSelector>();
-                selector.Configure(small.gameObject, medium.gameObject,
-                    extraLarge.gameObject, () => allowed);
+                var data = new UnityEditor.SerializedObject(selector);
+                data.FindProperty("smallButton").objectReferenceValue = small.gameObject;
+                data.FindProperty("mediumButton").objectReferenceValue = medium.gameObject;
+                data.FindProperty("extraLargeButton").objectReferenceValue = extraLarge.gameObject;
+                data.ApplyModifiedPropertiesWithoutUndo();
+                selector.Configure(() => allowed);
                 selector.SetInteractable(true);
                 Assert.That(selector.SelectedSize,
                     Is.EqualTo(GeneratedObjectSize.Medium));
@@ -469,7 +473,7 @@ namespace Meshup.Editor.Tests
                     + Vector3.right * 0.125f;
                 terminalMount.rotation = Quaternion.LookRotation(Vector3.left);
                 GameUiTests.MountPrefabs(view, monitorFront, terminalMount);
-                view.Configure(monitorFront, monitorBack,
+                GameUiTests.Configure(view, monitorFront, monitorBack,
                     viewer.transform, _ => { }, () => startInvoked = true);
                 view.Render(new MeshupMatchSnapshot
                 {

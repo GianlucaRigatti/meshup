@@ -9,23 +9,16 @@ namespace Meshup.Game
     [DisallowMultipleComponent]
     public sealed class GeneratorActivityAudio : MonoBehaviour
     {
-        private const int SampleRate = 24000;
         private const float ActivityVolume = 0.28f;
         private const float FadeDuration = 1.25f;
 
         [SerializeField] private AudioSource activitySource;
         [SerializeField] private AudioSource cueSource;
-        private AudioClip completionClip;
-        private AudioClip failureClip;
+        [SerializeField] private AudioClip completionClip;
+        [SerializeField] private AudioClip failureClip;
         private Coroutine fadeRoutine;
 
         public bool IsGenerating { get; private set; }
-
-        private void Awake()
-        {
-            completionClip = CreateCompletionCue();
-            failureClip = CreateFailureCue();
-        }
 
         public void SetGenerating(bool active)
         {
@@ -112,85 +105,16 @@ namespace Meshup.Game
 
         private void PlayCue(AudioClip clip)
         {
-            if (clip != null)
+            if (cueSource != null && clip != null)
             {
                 cueSource.pitch = 1f;
                 cueSource.PlayOneShot(clip);
             }
         }
 
-        private static AudioClip CreateCompletionCue()
-        {
-            const float duration = 1.6f;
-            var samples = new float[Mathf.CeilToInt(SampleRate * duration)];
-            for (var index = 0; index < samples.Length; index++)
-            {
-                var time = index / (float)SampleRate;
-                var envelope = Mathf.Sin(Mathf.PI * time / duration);
-                envelope *= envelope * Mathf.Exp(-0.7f * time);
-                var first = Mathf.Sin(2f * Mathf.PI * 392f * time);
-                var secondEnvelope = Mathf.SmoothStep(0f, 1f,
-                    Mathf.InverseLerp(0.28f, 0.72f, time));
-                var second = Mathf.Sin(2f * Mathf.PI * 523.25f * time)
-                    * secondEnvelope;
-                samples[index] = envelope * (first * 0.2f + second * 0.16f);
-            }
-            return CreateClip("Generator Complete", samples);
-        }
-
-        private static AudioClip CreateFailureCue()
-        {
-            const float duration = 1.15f;
-            var samples = new float[Mathf.CeilToInt(SampleRate * duration)];
-            var phase = 0f;
-            for (var index = 0; index < samples.Length; index++)
-            {
-                var time = index / (float)SampleRate;
-                var progress = time / duration;
-                var frequency = Mathf.Lerp(293.66f, 220f, progress);
-                phase += 2f * Mathf.PI * frequency / SampleRate;
-                var envelope = Mathf.Sin(Mathf.PI * progress);
-                envelope *= envelope;
-                samples[index] = Mathf.Sin(phase) * envelope * 0.24f;
-            }
-            return CreateClip("Generator Failed", samples);
-        }
-
-        private static AudioClip CreateClip(string clipName, float[] samples)
-        {
-            var clip = AudioClip.Create(clipName, samples.Length, 1,
-                SampleRate, false);
-            clip.SetData(samples, 0);
-            return clip;
-        }
-
         private void OnDisable()
         {
             SetGenerating(false);
-        }
-
-        private void OnDestroy()
-        {
-            if (completionClip != null)
-            {
-                DestroyClip(completionClip);
-            }
-            if (failureClip != null)
-            {
-                DestroyClip(failureClip);
-            }
-        }
-
-        private static void DestroyClip(AudioClip clip)
-        {
-            if (Application.isPlaying)
-            {
-                Destroy(clip);
-            }
-            else
-            {
-                DestroyImmediate(clip);
-            }
         }
     }
 }

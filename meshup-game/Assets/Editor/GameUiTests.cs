@@ -85,7 +85,7 @@ namespace Meshup.Editor.Tests
             back = view.transform.Find("Back");
             terminalMount = view.transform.Find("Terminal");
             camera = GameObject.Find("Test Camera");
-            view.Configure(front, back, camera.transform, ChooseWord, StartRound);
+            Configure(view, front, back, camera.transform, ChooseWord, StartRound);
             choices = starts = 0;
             Render(view, MeshupGamePhase.ChoosingWord);
             yield return null;
@@ -145,6 +145,17 @@ namespace Meshup.Editor.Tests
         public IEnumerator LeavePlayMode()
         {
             if (Application.isPlaying) yield return new ExitPlayMode();
+        }
+
+        internal static void Configure(MeshupGameView view, Transform front,
+            Transform back, Transform viewer, System.Action<int> chooseWord, System.Action startRound)
+        {
+            var data = new SerializedObject(view);
+            data.FindProperty("monitorFrontMount").objectReferenceValue = front;
+            data.FindProperty("monitorBackMount").objectReferenceValue = back;
+            data.FindProperty("localViewer").objectReferenceValue = viewer;
+            data.ApplyModifiedPropertiesWithoutUndo();
+            view.Configure(chooseWord, startRound);
         }
 
         internal static void MountPrefabs(MeshupGameView view, Transform monitorMount, Transform terminalMount)

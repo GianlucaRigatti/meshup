@@ -11,6 +11,10 @@ namespace Meshup.Game
     [DisallowMultipleComponent]
     public sealed class GeneratedObjectSizeSelector : MonoBehaviour
     {
+        [SerializeField] private GameObject smallButton;
+        [SerializeField] private GameObject mediumButton;
+        [SerializeField] private GameObject extraLargeButton;
+
         private sealed class Binding
         {
             public GeneratedObjectSize Size;
@@ -28,16 +32,15 @@ namespace Meshup.Game
         public GeneratedObjectSize SelectedSize { get; private set; } =
             GeneratedObjectSize.Medium;
 
-        public void Configure(GameObject small, GameObject medium,
-            GameObject extraLarge, Func<bool> selectionAllowed,
+        public void Configure(Func<bool> selectionAllowed,
             Action<GeneratedObjectSize> selectionRequested = null)
         {
             ClearBindings();
             canSelect = selectionAllowed;
             requestSelection = selectionRequested;
-            AddBinding(small, GeneratedObjectSize.Small);
-            AddBinding(medium, GeneratedObjectSize.Medium);
-            AddBinding(extraLarge, GeneratedObjectSize.ExtraLarge);
+            AddBinding(smallButton, GeneratedObjectSize.Small);
+            AddBinding(mediumButton, GeneratedObjectSize.Medium);
+            AddBinding(extraLargeButton, GeneratedObjectSize.ExtraLarge);
             ResetToMedium();
         }
 

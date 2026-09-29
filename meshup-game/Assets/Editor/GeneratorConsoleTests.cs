@@ -95,10 +95,13 @@ namespace Meshup.Editor.Tests
                 {
                     var selector = peer.AddComponent<GeneratedObjectSizeSelector>();
                     var buttons = peer.GetComponentsInChildren<ConsoleButtonFeedback>(true);
-                    selector.Configure(buttons.Single(b => b.name == "Button_Small").gameObject,
-                        buttons.Single(b => b.name == "Button_Medium").gameObject,
-                        buttons.Single(b => b.name == "Button_ExtraLarge").gameObject,
-                        () => index == 0, size => { requests++; host.TrySelectSize(host.MimePeerId, size); });
+                    var data = new SerializedObject(selector);
+                    data.FindProperty("smallButton").objectReferenceValue = buttons.Single(b => b.name == "Button_Small").gameObject;
+                    data.FindProperty("mediumButton").objectReferenceValue = buttons.Single(b => b.name == "Button_Medium").gameObject;
+                    data.FindProperty("extraLargeButton").objectReferenceValue = buttons.Single(b => b.name == "Button_ExtraLarge").gameObject;
+                    data.ApplyModifiedPropertiesWithoutUndo();
+                    selector.Configure(() => index == 0,
+                        size => { requests++; host.TrySelectSize(host.MimePeerId, size); });
                     selector.SetInteractable(index == 0);
                     return selector;
                 }).ToArray();

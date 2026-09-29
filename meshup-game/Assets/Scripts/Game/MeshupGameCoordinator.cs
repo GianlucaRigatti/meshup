@@ -56,17 +56,8 @@ namespace Meshup.Game
         [SerializeField] private PlayerMovementAuthority localPlayer;
         [SerializeField] private Collider invisibleWall;
         [SerializeField] private Transform mimeZoneDivider;
-        [SerializeField] private Transform guesserMonitor;
-        [SerializeField] private Transform monitorUiFrontMount;
-        [SerializeField] private Transform monitorUiBackMount;
-        [SerializeField] private Transform mimeTerminal;
-        [SerializeField] private Transform terminalUiMount;
         [SerializeField] private Transform generatorAnchor;
-        [SerializeField] private GameObject generatorButton;
         [SerializeField] private ParticleSystem generatorParticles;
-        [SerializeField] private GameObject smallSizeButton;
-        [SerializeField] private GameObject mediumSizeButton;
-        [SerializeField] private GameObject extraLargeSizeButton;
 
         [Header("Services")]
         [SerializeField] private string assetServerBaseUrl =
@@ -131,12 +122,7 @@ namespace Meshup.Game
             session = UbiqRoomSession.Instance;
             if (session == null || gameStart == null || localPlayer == null
                 || invisibleWall == null || mimeZoneDivider == null
-                || guesserMonitor == null
-                || monitorUiFrontMount == null || monitorUiBackMount == null
-                || mimeTerminal == null || terminalUiMount == null || view == null
-                || generatorAnchor == null
-                || generatorButton == null || smallSizeButton == null
-                || mediumSizeButton == null || extraLargeSizeButton == null
+                || view == null || generatorAnchor == null
                 || victoryFireworks == null || correctGuessAudio == null
                 || transcriber == null || generatorClient == null
                 || sizeSelector == null || generatorActivityAudio == null)
@@ -167,16 +153,13 @@ namespace Meshup.Game
             session.ParticipantsChanged += HandleParticipantsChanged;
             gameStart.Completed += HandleWalkCompleted;
 
-            view.Configure(monitorUiFrontMount, monitorUiBackMount,
-                localPlayer.transform, ChooseWord, StartRound);
-            victoryFireworks.Configure(guesserMonitor);
+            view.Configure(ChooseWord, StartRound);
             transcriber.Configure(() => CanGuessLocally, wordService.Verbs);
             transcriber.TranscriptionReceived += SubmitGuess;
             transcriber.ErrorOccurred += ReportLocalMessage;
             transcriber.ListeningChanged += HandleListeningChanged;
             generatorClient.Configure(this);
-            sizeSelector.Configure(smallSizeButton, mediumSizeButton,
-                extraLargeSizeButton, () => CanRecordGeneratorLocally, RequestSizeSelection);
+            sizeSelector.Configure(() => CanRecordGeneratorLocally, RequestSizeSelection);
             snapshotEffects = new MeshupGameSnapshotEffects(generatedObjects,
                 sizeSelector, generatorActivityAudio, correctGuessAudio,
                 victoryFireworks, SetParticleState);

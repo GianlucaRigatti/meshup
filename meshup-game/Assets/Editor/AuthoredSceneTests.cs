@@ -8,7 +8,6 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 namespace Meshup.Editor.Tests
@@ -34,12 +33,10 @@ namespace Meshup.Editor.Tests
         public void MonitorUiMountsFitInsideTheAuthoredScreen()
         {
             using var validation = new SceneValidationScope(GameScenePath);
-            var coordinator = validation.Scene.GetRootGameObjects()
-                .SelectMany(root => root.GetComponentsInChildren<
-                    MeshupGameCoordinator>(true)).Single();
-            var serialized = new SerializedObject(coordinator);
-            foreach (var field in new[] { "monitorUiFrontMount",
-                "monitorUiBackMount" })
+            var view = validation.Scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<MeshupGameView>(true)).Single();
+            var serialized = new SerializedObject(view);
+            foreach (var field in new[] { "monitorFrontMount", "monitorBackMount" })
             {
                 var mount = (Transform)serialized.FindProperty(field)
                     .objectReferenceValue;
@@ -70,14 +67,8 @@ namespace Meshup.Editor.Tests
                 ("localPlayer", "Ubiq Demo Player"),
                 ("invisibleWall", "Invisible_wall_game_area"),
                 ("mimeZoneDivider", "Mime_zone_divisor"),
-                ("guesserMonitor", "guesser_monitor"),
-                ("mimeTerminal", "mime_terminal"),
                 ("generatorAnchor", "generator_particle_system"),
-                ("generatorButton", "Button_Generate"),
                 ("generatorParticles", "generator_particle_system"),
-                ("smallSizeButton", "Button_Small"),
-                ("mediumSizeButton", "Button_Medium"),
-                ("extraLargeSizeButton", "Button_ExtraLarge")
             };
             foreach (var (field, objectName) in references)
             {
@@ -88,14 +79,15 @@ namespace Meshup.Editor.Tests
                     item.name == objectName).gameObject), field);
             }
 
-            var monitor = (Transform)serialized.FindProperty("guesserMonitor")
-                .objectReferenceValue;
+            var fireworks = (MeshupVictoryFireworks)serialized.FindProperty("victoryFireworks").objectReferenceValue;
+            var fireworksData = new SerializedObject(fireworks);
+            var monitor = (Transform)fireworksData.FindProperty("guesserScreen").objectReferenceValue;
             var originalName = monitor.name;
             try
             {
                 monitor.name = "Manually renamed monitor";
                 MeshupGameSceneValidation.Validate(scene);
-                Assert.That(serialized.FindProperty("guesserMonitor")
+                Assert.That(fireworksData.FindProperty("guesserScreen")
                     .objectReferenceValue, Is.SameAs(monitor));
             }
             finally
@@ -114,9 +106,7 @@ namespace Meshup.Editor.Tests
                 .ToArray();
 
             Assert.That(fireworks, Is.Empty,
-                "Victory fireworks are spawned from the Resources prefab at runtime.");
-            Assert.That(Resources.Load<GameObject>("Game/FireworkSpawner"),
-                Is.Not.Null);
+                "Victory fireworks are spawned from saved particle prefabs at runtime.");
         }
 
         [Test]
@@ -146,16 +136,6 @@ namespace Meshup.Editor.Tests
 
             Assert.That(counters, Has.Length.EqualTo(1));
             Assert.That(counters[0].isActiveAndEnabled, Is.True);
-        }
-
-        [Test]
-        public void QuestBuildUsesVulkanRequiredByVictoryVfx()
-        {
-            var graphicsApis = PlayerSettings.GetGraphicsAPIs(BuildTarget.Android);
-
-            Assert.That(graphicsApis, Is.EqualTo(new[] { GraphicsDeviceType.Vulkan }),
-                "The authored VFX Graph fireworks require Vulkan on Quest. "
-                + "OpenGL ES does not provide the compute/SSBO path they use.");
         }
 
         [Test]

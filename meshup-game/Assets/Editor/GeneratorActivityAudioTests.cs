@@ -57,6 +57,14 @@ namespace Meshup.Editor.Tests
             Assert.That(sources.All(source =>
                 Mathf.Approximately(source.maxDistance, 14f)), Is.True);
             Assert.That(activitySource.loop && activitySource.clip != null, Is.True);
+            foreach (var field in new[] { "completionClip", "failureClip" })
+            {
+                var clip = serialized.FindProperty(field).objectReferenceValue as AudioClip;
+                Assert.That(clip, Is.Not.Null, field);
+                Assert.That(AssetDatabase.Contains(clip), Is.True, "Cues must be saved assets.");
+                Assert.That(clip.channels, Is.EqualTo(1));
+                Assert.That(clip.frequency, Is.EqualTo(24000));
+            }
             Assert.That(cueSource.loop, Is.False);
             Assert.That(cueSource.volume, Is.GreaterThan(0.4f));
             Assert.That(cueSource.minDistance, Is.EqualTo(2.5f));

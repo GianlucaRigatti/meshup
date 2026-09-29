@@ -1,5 +1,12 @@
 # Third-party notices
 
+## Firework audio
+
+The five explosion recordings under `Assets/Sounds/Fireworks` are retained from
+OccaSoftware Fireworks, copyright © 2023 OccaSoftware LLC. They are licensed under
+the Unity Asset Store EULA; the original notice is stored in that directory's
+`LICENSE.md`. The game's firework visuals use its own saved ParticleSystem prefabs.
+
 ## Ubiq sample UI
 
 The menu, room-browser, keyboard, and key prefabs under

@@ -16,6 +16,9 @@ namespace Meshup.Game
         [SerializeField] private Text status;
         [SerializeField] private Text listeningIndicator;
         [SerializeField] private Transform monitorCanvas;
+        [SerializeField] private Transform monitorFrontMount;
+        [SerializeField] private Transform monitorBackMount;
+        [SerializeField] private Transform localViewer;
         [SerializeField] private Canvas terminalCanvas;
         [SerializeField] private Text terminalTitle;
         [SerializeField] private Text terminalStatus;
@@ -30,20 +33,12 @@ namespace Meshup.Game
         private Action startRound;
         private int lastChoiceInteractionFrame = -1;
         private int lastStartInteractionFrame = -1;
-        private Transform monitorFrontMount;
-        private Transform monitorBackMount;
-        private Transform localViewer;
-
-        public void Configure(Transform monitorFront, Transform monitorBack,
-            Transform viewer, Action<int> onChooseWord, Action onStartRound)
+        public void Configure(Action<int> onChooseWord, Action onStartRound)
         {
             chooseWord = onChooseWord;
             startRound = onStartRound;
-            monitorFrontMount = monitorFront;
-            monitorBackMount = monitorBack;
-            localViewer = viewer;
-            var camera = viewer != null
-                ? viewer.GetComponentInChildren<Camera>(true) : Camera.main;
+            var camera = localViewer != null
+                ? localViewer.GetComponentInChildren<Camera>(true) : Camera.main;
             monitorCanvas.GetComponent<Canvas>().worldCamera = camera;
             terminalCanvas.worldCamera = camera;
             BindButton(firstChoice, SelectFirstWord);

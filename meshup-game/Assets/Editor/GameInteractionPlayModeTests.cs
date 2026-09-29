@@ -71,7 +71,7 @@ namespace Meshup.Editor.Tests
             GameInteractionTests.Set(desktopInput, "traditionalController", traditional);
             GameInteractionTests.Set(interaction, "movementAuthority", movement);
             GameInteractionTests.Set(interaction, "desktopInput", desktopInput);
-            view.Configure(owner.transform.Find("Front"), owner.transform.Find("Back"),
+            GameUiTests.Configure(view, owner.transform.Find("Front"), owner.transform.Find("Back"),
                 camera.transform, Choose, StartRound);
             yield return null;
             choices = 0;

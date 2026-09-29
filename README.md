@@ -10,20 +10,29 @@ edit the existing scene objects and prefabs in Unity instead.
 `GameScene` contains a `MeshUp Game Runtime` root with the game coordinator and
 FPS counter, transcriber, size selector, and victory fireworks component. The
 coordinator's Scene and Components fields reference the existing player,
-formation sequence, wall, monitors, generator button, and particles directly.
-Renaming those objects does not break the coordinator's wiring. Keep these
-references assigned when replacing an object. Generated models are created at
-runtime. The monitor and mime terminal use authored UI prefabs in
-`Assets/Prefabs/Game UI`, with their controls assigned on `MeshupGameView`.
-The monitor moves its Canvas between the authored front and back mounts; the
-terminal stays on its authored mount. Keep these references, both Canvas
-raycasters, and the terminal buttons' XR interactables, colliders, and click
+formation sequence, wall, generator anchor, particles, and gameplay components.
+`MeshupGameView` owns the monitor mounts, local viewer, and authored UI controls;
+`GeneratedObjectSizeSelector` owns its three physical buttons. Renaming these
+objects does not break their wiring. Keep each component's Inspector references
+assigned when replacing an object. Generated models are created at runtime.
+The monitor and mime terminal use authored UI prefabs in
+`Assets/Prefabs/Game UI`. The monitor moves its Canvas between the view's authored
+front and back mounts; the terminal stays on its authored mount. Keep these
+references, both Canvas raycasters, and the terminal buttons' XR interactables, colliders, and click
 sounds when editing the displays. The lobby contains an
 authored instance of the copied Ubiq menu prefab. `RoomTotemPanel` references its
 controls directly; edit the prefab instead of reconstructing it at runtime.
 Keep both raycasters on the menu's nested Canvas, its camera reference, and
 the Ubiq keyboard and button sound wiring when editing the menu. The saved
 scene keeps the menu at its original 0.005 world units per UI pixel.
+
+Victory fireworks use the same saved ParticleSystem prefabs on desktop and Quest,
+under `Assets/Prefabs/Fireworks`, with their shared material in
+`Assets/Art/Fireworks`. `MeshupVictoryFireworks` references these prefabs, its monitor,
+and explosion clips directly. Edit the burst on each prefab's root and the rocket
+trail beneath it in Unity. The old desktop VFX Graph fireworks package has been
+removed. Generator completion and failure cues are saved WAV clips in
+`Assets/Sounds/Generator`, assigned on `GeneratorActivityAudio`.
 
 The coordinator registers directly with Ubiq and publishes host responses by
 applying them locally before sending them to peers. Private responses still
