@@ -202,7 +202,10 @@ namespace Meshup.Game
             startRound?.Invoke();
         }
 
-        private void OnDisable() => interactionState?.SetTerminalActive(false);
+        private void OnDisable()
+        {
+            if (interactionState != null) interactionState.SetTerminalActive(false);
+        }
 
         private void OnDestroy()
         {

@@ -22,6 +22,51 @@ namespace Meshup.Editor.Tests
         private static int roomClicks;
 
         [Test]
+        public void LobbyValidationAllowsVisualChangesButRejectsMissingRevealReferences()
+        {
+            using var scope = new SceneValidationScope("Assets/Scenes/SampleScene.unity");
+            var roots = scope.Scene.GetRootGameObjects();
+            var environment = roots.Single(go => go.name == "Bedroom Environment");
+            var camera = roots.Single(go => go.name == "Lobby Player").GetComponentInChildren<Camera>(true);
+            var reveal = new SerializedObject(roots.Single(go => go.name == "Room Totem")
+                .GetComponent<FallingBookReveal>());
+            var flightBook = (GameObject)reveal.FindProperty("flightBook").objectReferenceValue;
+            var flightBookName = flightBook.name;
+            var cameraPosition = camera.transform.localPosition;
+            var fieldOfView = camera.fieldOfView;
+            var shelf = reveal.FindProperty("shelfPosition").vector3Value;
+            var landing = reveal.FindProperty("landingPosition").vector3Value;
+            try
+            {
+                environment.name = "Redesigned bedroom";
+                flightBook.name = "Redesigned book";
+                camera.transform.localPosition = Vector3.up * 1.7f;
+                camera.fieldOfView = 70f;
+                reveal.FindProperty("shelfPosition").vector3Value = Vector3.up * 0.5f;
+                reveal.FindProperty("landingPosition").vector3Value = Vector3.up * 0.3f;
+                reveal.ApplyModifiedPropertiesWithoutUndo();
+                LobbyBedroomValidation.ValidateLobby();
+                LobbyTokenExperienceValidation.ValidateExperience();
+                LobbyDualModePlayerValidation.Validate();
+
+                reveal.FindProperty("flightBook").objectReferenceValue = null;
+                reveal.ApplyModifiedPropertiesWithoutUndo();
+                Assert.Throws<System.InvalidOperationException>(() => LobbyTokenExperienceValidation.ValidateExperience());
+            }
+            finally
+            {
+                environment.name = "Bedroom Environment";
+                flightBook.name = flightBookName;
+                camera.transform.localPosition = cameraPosition;
+                camera.fieldOfView = fieldOfView;
+                reveal.FindProperty("flightBook").objectReferenceValue = flightBook;
+                reveal.FindProperty("shelfPosition").vector3Value = shelf;
+                reveal.FindProperty("landingPosition").vector3Value = landing;
+                reveal.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        [Test]
         public void AuthoredMenuKeepsItsPhysicalScaleCameraAndInteractionWiring()
         {
             using var scope = new SceneValidationScope("Assets/Scenes/SampleScene.unity");

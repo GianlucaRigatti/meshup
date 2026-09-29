@@ -33,29 +33,22 @@ namespace Meshup.EditorTools
             {
                 throw new InvalidOperationException("The falling-book hologram runtime is incomplete.");
             }
-            if (totem.transform.Find("Magic Storybook/Flight Book") == null
-                || totem.transform.Find("Magic Storybook/Open Book") == null
-                || totem.transform.Find("Magic Storybook/Open Book/Hologram Effects") == null
-                || totem.transform.Find("Magic Storybook/Hologram Anchor") == null)
-            {
-                throw new InvalidOperationException("The animated book geometry is incomplete.");
-            }
-            if (lobbyUi.transform.Find("Hologram Idle") == null
-                || lobbyUi.transform.Find("Room Totem Panel") != null
-                || lobbyUi.transform.Find("Interaction Prompt") != null)
-            {
-                throw new InvalidOperationException("The automatic VR hologram UI still contains the old panel or E prompt.");
-            }
-
             var revealData = new SerializedObject(reveal);
-            var landing = revealData.FindProperty("landingPosition").vector3Value;
-            var shelf = revealData.FindProperty("shelfPosition").vector3Value;
-            if (shelf.y < 1f || landing.y > 0.2f || Vector3.Distance(shelf, landing) < 1.5f
-                || revealData.FindProperty("panel").objectReferenceValue != panel
-                || revealData.FindProperty("lobbyPlayer").objectReferenceValue
-                    != player.GetComponent<LobbyFirstPersonController>())
+            foreach (var field in new[] { "flightBook", "openBook", "leftCoverPivot",
+                "rightCoverPivot", "leftPagesPivot", "rightPagesPivot", "impactRing",
+                "projectorEffects", "hologramCanvas", "hologramCanvasGroup", "projectorLight",
+                "interactionTrigger" })
             {
-                throw new InvalidOperationException("The automatic reveal trajectory or menu opening is not configured.");
+                if (revealData.FindProperty(field).objectReferenceValue == null)
+                    throw new InvalidOperationException($"Missing book reveal reference: {field}");
+            }
+            var lobbyPlayer = player.GetComponent<LobbyFirstPersonController>();
+            if (lobbyPlayer == null
+                || revealData.FindProperty("interaction").objectReferenceValue != interaction
+                || revealData.FindProperty("panel").objectReferenceValue != panel
+                || revealData.FindProperty("lobbyPlayer").objectReferenceValue != lobbyPlayer)
+            {
+                throw new InvalidOperationException("The automatic reveal interaction or menu opening is not configured.");
             }
 
             var panelData = new SerializedObject(panel);

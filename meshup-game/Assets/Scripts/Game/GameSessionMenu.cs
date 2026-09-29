@@ -273,7 +273,10 @@ namespace Meshup.Game
             }
         }
 
-        private void OnDisable() => interactionState?.SetPauseMenuOpen(false);
+        private void OnDisable()
+        {
+            if (interactionState != null) interactionState.SetPauseMenuOpen(false);
+        }
 
         private void OnDestroy()
         {

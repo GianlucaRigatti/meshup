@@ -133,7 +133,6 @@ namespace Meshup.Editor.Tests
                 Assert.That(collider.size.sqrMagnitude, Is.GreaterThan(0));
                 var feedback = new SerializedObject(control);
                 Assert.That(feedback.FindProperty("indicator").objectReferenceValue, Is.Not.Null);
-                Assert.That(feedback.FindProperty("pressOffset").vector3Value.magnitude, Is.EqualTo(.014f).Within(1e-6));
             }
             Assert.That(prefab.GetComponentsInChildren<Animator>(true).All(a => !a.enabled), Is.True);
             Assert.That(prefab.GetComponentsInChildren<Animation>(true).All(a => !a.enabled && !a.playAutomatically), Is.True);
@@ -151,11 +150,13 @@ namespace Meshup.Editor.Tests
             {
                 var control = peer.GetComponentsInChildren<ConsoleButtonFeedback>().Single(b => b.name == "Button_Small");
                 var rest = control.transform.localPosition;
+                var travel = new Vector3(0.02f, -0.03f, 0.01f);
+                control.Configure(control.transform.Find("Lit_Small"), travel);
                 control.SetSelected(true);
                 control.SetHeld(true);
                 typeof(ConsoleButtonFeedback).GetField("amount", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(control, 1f);
                 typeof(ConsoleButtonFeedback).GetMethod("ApplyVisuals", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(control, new object[] { 1f });
-                Assert.That(Vector3.Distance(rest, control.transform.localPosition), Is.EqualTo(.014f).Within(1e-6));
+                Assert.That(Vector3.Distance(rest + travel, control.transform.localPosition), Is.LessThan(1e-6));
                 typeof(ConsoleButtonFeedback).GetMethod("OnDisable", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(control, null);
                 Assert.That(control.transform.localPosition, Is.EqualTo(rest));
                 Assert.That(control.transform.Find("Lit_Small").localScale, Is.EqualTo(Vector3.one));

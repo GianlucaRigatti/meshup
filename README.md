@@ -48,9 +48,11 @@ replacement objects or display errors from a previous round.
 The `Meshup/Lobby/Validate …` and `Meshup/Game/Validate …` editor commands check
 the authored scenes without rebuilding or saving them. They inspect the current
 in-memory scene if it is already open, preserving unsaved edits; otherwise they
-open it temporarily and close only that scene. Some checks enforce the existing
-layout and interaction requirements, so review them when intentionally changing
-the design. Lighting baking and model-import processing remain available.
+open it temporarily and close only that scene. Validation focuses on required
+runtime references, scene-reload safety, and desktop/XR interaction wiring.
+Furniture, book counts, lighting, and the book reveal trajectory can be edited
+without updating validators. Lighting baking and model-import processing remain
+available.
 
 Before testing on headsets, edit
 `meshup-game/Assets/Resources/Game/meshup_game_config.json` so

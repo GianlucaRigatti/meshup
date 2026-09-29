@@ -60,7 +60,7 @@ namespace Meshup.Editor.Tests
         [TearDown]
         public void TearDown()
         {
-            Invoke(interaction, "OnDisable");
+            if (interaction != null) Invoke(interaction, "OnDisable");
             Object.DestroyImmediate(root);
             Cursor.lockState = originalCursorLock;
             Cursor.visible = originalCursorVisible;
@@ -158,6 +158,23 @@ namespace Meshup.Editor.Tests
             Assert.That(disabledOverlay.enabled, Is.False);
             Assert.That(desktopInput.enabled, Is.True);
             Assert.That(movement.ActiveLocks, Is.EqualTo(MovementLockReason.GameStartSequence));
+        }
+
+        [Test]
+        public void InterfacesCanDisableAfterTheInteractionOwnerIsDestroyed()
+        {
+            var view = Child("View").AddComponent<MeshupGameView>();
+            Set(view, "interactionState", interaction);
+            interaction.SetTerminalActive(true);
+            menu.Open();
+            Invoke(interaction, "OnDisable");
+            Object.DestroyImmediate(interaction);
+
+            Assert.DoesNotThrow(() => Invoke(menu, "OnDisable"));
+            Assert.DoesNotThrow(() => Invoke(view, "OnDisable"));
+            Assert.That(overlay.enabled, Is.True);
+            Assert.That(desktopInput.enabled, Is.True);
+            Assert.That(movement.ActiveLocks, Is.EqualTo(MovementLockReason.None));
         }
 
         private GameObject Child(string name, params System.Type[] components)

@@ -11,17 +11,7 @@ namespace Meshup.EditorTools
     public static class LobbyBedroomValidation
     {
         private const string ScenePath = "Assets/Scenes/SampleScene.unity";
-        private const string EnvironmentName = "Bedroom Environment";
-        private static readonly (string Collider, string Model)[] FurnitureColliderPairs =
-        {
-            ("Bed Collision", "Kenney Child Bed"),
-            ("Bedside Collision", "Kenney Bedside Table"),
-            ("Desk Collision", "Kenney Drawing Desk"),
-            ("Bookcase Collision", "Kenney Bookcase"),
-            ("Toy Box Collision", "Kenney Toy Box")
-        };
-
-        [MenuItem("Meshup/Lobby/Validate Cozy Bedroom")]
+        [MenuItem("Meshup/Lobby/Validate Lobby Interaction")]
         public static void ValidateLobby()
         {
             using var validation = new SceneValidationScope(ScenePath);
@@ -29,32 +19,15 @@ namespace Meshup.EditorTools
             var player = RequireRoot(scene, "Lobby Player");
             var camera = player.GetComponentInChildren<Camera>(true);
             var totem = RequireRoot(scene, "Room Totem");
-            var environment = RequireRoot(scene, EnvironmentName);
             var lobbyUi = RequireRoot(scene, "Lobby UI");
             var networkScene = RequireRoot(scene, "Ubiq Network Scene");
             ValidateNetworkSceneForReload(networkScene);
 
-            if (camera == null || camera.transform.localPosition != new Vector3(0f, 1.6f, 0f))
-            {
-                throw new InvalidOperationException("The existing lobby camera hierarchy or height changed.");
-            }
-
-            if (Mathf.Abs(camera.fieldOfView - 65f) > 0.001f)
-            {
-                throw new InvalidOperationException("The existing lobby camera FOV changed.");
-            }
-
             var characterController = player.GetComponent<CharacterController>();
             var firstPersonController = player.GetComponent<LobbyFirstPersonController>();
-            if (characterController == null || firstPersonController == null)
+            if (camera == null || characterController == null || firstPersonController == null)
             {
                 throw new InvalidOperationException("The lobby player implementation is incomplete.");
-            }
-
-            if (Mathf.Abs(characterController.height - 1.8f) > 0.001f
-                || Mathf.Abs(characterController.radius - 0.35f) > 0.001f)
-            {
-                throw new InvalidOperationException("The existing CharacterController dimensions changed.");
             }
 
             var controllerData = new SerializedObject(firstPersonController);
@@ -67,8 +40,7 @@ namespace Meshup.EditorTools
             var trigger = totem.GetComponent<SphereCollider>();
             var rigidbody = totem.GetComponent<Rigidbody>();
             if (interaction == null || trigger == null || !trigger.isTrigger
-                || rigidbody == null || !rigidbody.isKinematic
-                || totem.transform.Find("Magic Storybook") == null)
+                || rigidbody == null || !rigidbody.isKinematic)
             {
                 throw new InvalidOperationException("The existing token interaction is incomplete.");
             }
@@ -81,24 +53,7 @@ namespace Meshup.EditorTools
                 throw new InvalidOperationException("The token lost one or more existing menu references.");
             }
 
-            var importedModels = environment.GetComponentsInChildren<MeshRenderer>(true)
-                .Count(renderer => renderer.gameObject.name.StartsWith("Kenney ", StringComparison.Ordinal));
-            if (importedModels < 10)
-            {
-                throw new InvalidOperationException("Expected bedroom furniture was not created.");
-            }
-
-            foreach (var pair in FurnitureColliderPairs)
-            {
-                var colliderPosition = FindTransform(environment.transform, pair.Collider).position;
-                var modelCenter = CalculateBounds(FindTransform(environment.transform, pair.Model).gameObject).center;
-                if (Vector3.Distance(colliderPosition, modelCenter) > 0.001f)
-                {
-                    throw new InvalidOperationException($"{pair.Collider} is not aligned with {pair.Model}.");
-                }
-            }
-
-            Debug.Log($"Lobby validation passed with {importedModels} imported model renderers.");
+            Debug.Log("Lobby interaction validation passed.");
         }
 
         private static void ValidateNetworkSceneForReload(GameObject networkScene)
@@ -108,21 +63,6 @@ namespace Meshup.EditorTools
                 throw new InvalidOperationException(
                     "The lobby Spawn Manager must remain inactive for safe scene reloads.");
             }
-        }
-
-        private static Bounds CalculateBounds(GameObject instance)
-        {
-            var renderers = instance.GetComponentsInChildren<Renderer>(true);
-            if (renderers.Length == 0)
-            {
-                return new Bounds(instance.transform.position, Vector3.zero);
-            }
-            var bounds = renderers[0].bounds;
-            for (var i = 1; i < renderers.Length; i++)
-            {
-                bounds.Encapsulate(renderers[i].bounds);
-            }
-            return bounds;
         }
 
         private static GameObject RequireRoot(Scene scene, string name)
@@ -140,7 +80,7 @@ namespace Meshup.EditorTools
         {
             return root.GetComponentsInChildren<Transform>(true)
                        .FirstOrDefault(item => item.name == name)
-                   ?? throw new InvalidOperationException($"Required bedroom object was not found: {name}");
+                   ?? throw new InvalidOperationException($"Required lobby object was not found: {name}");
         }
     }
 }
