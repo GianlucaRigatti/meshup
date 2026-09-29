@@ -88,7 +88,7 @@ namespace Meshup.EditorTools
             }
             var view = (MeshupGameView)serialized.FindProperty("view").objectReferenceValue;
             var viewData = new SerializedObject(view);
-            foreach (var field in new[] { "monitorCanvas", "terminalCanvas", "leaderboard",
+            foreach (var field in new[] { "interactionState", "monitorCanvas", "terminalCanvas", "leaderboard",
                 "status", "listeningIndicator", "terminalTitle", "terminalStatus",
                 "firstChoice", "secondChoice", "startButton", "firstChoiceLabel",
                 "secondChoiceLabel", "startButtonLabel" })
@@ -98,6 +98,27 @@ namespace Meshup.EditorTools
                     throw new InvalidOperationException($"Assign the game view's {field} in this scene.");
             }
             var monitorUi = (Transform)viewData.FindProperty("monitorCanvas").objectReferenceValue;
+            var interaction = (GameInteractionState)viewData.FindProperty("interactionState").objectReferenceValue;
+            var menu = scene.GetRootGameObjects().SelectMany(root =>
+                root.GetComponentsInChildren<GameSessionMenu>(true)).Single();
+            var interactionData = new SerializedObject(interaction);
+            if (!interaction.isActiveAndEnabled || interaction.gameObject != coordinator.gameObject
+                || new SerializedObject(menu).FindProperty("interactionState").objectReferenceValue != interaction
+                || interactionData.FindProperty("movementAuthority").objectReferenceValue
+                    != serialized.FindProperty("localPlayer").objectReferenceValue
+                || interactionData.FindProperty("desktopInput").objectReferenceValue
+                    != ((Component)serialized.FindProperty("localPlayer").objectReferenceValue)
+                        .GetComponent<UbiqDemoPlayerInputGate>())
+                throw new InvalidOperationException("The terminal and menu must share the authored player interaction state.");
+            var overlays = interactionData.FindProperty("desktopOverlays");
+            for (var i = 0; i < overlays.arraySize; i++)
+            {
+                var raycaster = overlays.GetArrayElementAtIndex(i).objectReferenceValue as GraphicRaycaster;
+                if (raycaster == null || raycaster.gameObject.scene != scene
+                    || raycaster.GetComponent<Canvas>().renderMode != RenderMode.ScreenSpaceOverlay
+                    || raycaster.GetComponent<GameSessionMenu>() != null)
+                    throw new InvalidOperationException("Suppress only authored desktop overlays, keeping menu and world-space raycasters available.");
+            }
             var terminalUi = (Canvas)viewData.FindProperty("terminalCanvas").objectReferenceValue;
             if (monitorUi.parent != (Transform)serialized.FindProperty("monitorUiFrontMount").objectReferenceValue
                 || terminalUi.transform.parent != terminalMount)

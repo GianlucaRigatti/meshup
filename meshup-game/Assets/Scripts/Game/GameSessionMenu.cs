@@ -14,8 +14,7 @@ namespace Meshup.Game
         private const float DesktopMaximumHeightFraction = 0.62f;
 
         [SerializeField] private GameObject panelRoot;
-        [SerializeField] private Behaviour playerMovement;
-        [SerializeField] private PlayerMovementAuthority movementAuthority;
+        [SerializeField] private GameInteractionState interactionState;
         [SerializeField] private Button resumeButton;
         [SerializeField] private Button leaveButton;
         [SerializeField] private Button voiceButton;
@@ -79,17 +78,11 @@ namespace Meshup.Game
             PositionXrCanvas();
             panelRoot.SetActive(true);
             FitPanelToCanvas();
-            movementAuthority?.SetLock(MovementLockReason.PauseMenu, true);
-            if (playerMovement != null)
-            {
-                playerMovement.enabled = false;
-            }
+            interactionState.SetPauseMenuOpen(true);
             resumeButton.interactable = true;
             leaveButton.interactable = session != null
                 && session.State == RoomSessionState.InGame;
             statusText.text = "";
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
         }
 
         private bool ReadXrMenuButton()
@@ -195,13 +188,7 @@ namespace Meshup.Game
         public void Resume()
         {
             panelRoot.SetActive(false);
-            if (playerMovement != null)
-            {
-                playerMovement.enabled = true;
-            }
-            movementAuthority?.SetLock(MovementLockReason.PauseMenu, false);
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            interactionState.SetPauseMenuOpen(false);
         }
 
         private void LeaveRoom()
@@ -221,8 +208,7 @@ namespace Meshup.Game
         {
             if (state == RoomSessionState.Leaving)
             {
-                panelRoot.SetActive(true);
-                FitPanelToCanvas();
+                Open();
                 resumeButton.interactable = false;
                 leaveButton.interactable = false;
                 statusText.text = "Leaving room…";
@@ -231,8 +217,7 @@ namespace Meshup.Game
 
         private void HandleError(string message)
         {
-            panelRoot.SetActive(true);
-            FitPanelToCanvas();
+            Open();
             statusText.text = message;
         }
 
@@ -287,6 +272,8 @@ namespace Meshup.Game
                 voiceButtonLabel.text = "Mute Voice" + desktopShortcut;
             }
         }
+
+        private void OnDisable() => interactionState?.SetPauseMenuOpen(false);
 
         private void OnDestroy()
         {

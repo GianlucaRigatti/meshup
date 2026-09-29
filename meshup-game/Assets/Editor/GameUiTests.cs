@@ -157,6 +157,17 @@ namespace Meshup.Editor.Tests
             terminal.name = "MeshUp Mime Terminal UI";
             var data = new SerializedObject(view);
             void Set(string field, Object value) => data.FindProperty(field).objectReferenceValue = value;
+            var interaction = view.GetComponent<GameInteractionState>()
+                ?? view.gameObject.AddComponent<GameInteractionState>();
+            var interactionData = new SerializedObject(interaction);
+            var overlays = Object.FindObjectsByType<GraphicRaycaster>(FindObjectsInactive.Include)
+                .Where(ray => ray.GetComponent<Canvas>().renderMode == RenderMode.ScreenSpaceOverlay
+                    && ray.GetComponent<GameSessionMenu>() == null).ToArray();
+            var array = interactionData.FindProperty("desktopOverlays");
+            array.arraySize = overlays.Length;
+            for (var i = 0; i < overlays.Length; i++) array.GetArrayElementAtIndex(i).objectReferenceValue = overlays[i];
+            interactionData.ApplyModifiedPropertiesWithoutUndo();
+            Set("interactionState", interaction);
             Set("monitorCanvas", monitor.transform);
             Set("terminalCanvas", terminal.GetComponent<Canvas>());
             Set("leaderboard", monitor.transform.Find("Background/Leaderboard/Scores").GetComponent<Text>());
@@ -205,7 +216,7 @@ namespace Meshup.Editor.Tests
             xr.selectEntered.Invoke(new SelectEnterEventArgs { interactableObject = xr });
         }
 
-        private static void Click(Button button, Canvas canvas, bool tracked)
+        internal static void Click(Button button, Canvas canvas, bool tracked)
         {
             Canvas.ForceUpdateCanvases();
             var rect = button.GetComponent<RectTransform>();
@@ -216,7 +227,9 @@ namespace Meshup.Editor.Tests
                 rayPoints = new List<Vector3> { center - canvas.transform.forward, center + canvas.transform.forward }
             } : new PointerEventData(EventSystem.current);
             data.button = PointerEventData.InputButton.Left;
-            data.position = canvas.worldCamera.WorldToScreenPoint(center);
+            data.position = canvas.renderMode == RenderMode.ScreenSpaceOverlay
+                ? new Vector2(center.x, center.y)
+                : (Vector2)canvas.worldCamera.WorldToScreenPoint(center);
             var hits = new List<RaycastResult>();
             if (tracked) canvas.GetComponent<TrackedDeviceGraphicRaycaster>().Raycast(data, hits);
             else canvas.GetComponent<GraphicRaycaster>().Raycast(data, hits);

@@ -539,11 +539,7 @@ namespace Meshup.Editor.Tests
                 var start = buttons.Single(button => button.name == "Start");
                 Assert.That(start.gameObject.activeSelf, Is.True);
                 Assert.That(start.interactable, Is.True);
-                var cursorField = typeof(MeshupGameView).GetField(
-                    "cursorReleasedForTerminal",
-                    System.Reflection.BindingFlags.Instance
-                    | System.Reflection.BindingFlags.NonPublic);
-                Assert.That(cursorField?.GetValue(view), Is.True,
+                Assert.That(Cursor.visible, Is.True,
                     "Desktop interaction must remain active for Start.");
                 Assert.That(desktopOverlay.GetComponent<GraphicRaycaster>().enabled,
                     Is.False, "Decorative desktop hints must not consume clicks.");

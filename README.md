@@ -31,6 +31,13 @@ apply only to their target player. Generated-object poses are sent while held
 and immediately on release. F7/F8/F9 previews live in
 `MeshupDevelopmentShortcuts` and run only in the Editor or development builds.
 
+`GameInteractionState` owns cursor state and the pause movement lock for both
+the terminal and session menu. Both interfaces reference the same scene
+component. Closing either interface keeps the cursor available if the other
+still needs it. Its authored desktop overlay list excludes the pause menu and
+world-space UI; XR raycasters stay available. Terminal interaction keeps player
+movement available during preparation.
+
 `GeneratedObjectManager` owns generated-object state, local instances, and
 pending imports. The coordinator handles match permissions and network messages.
 Round cleanup hides retired objects immediately and cancels their imports;

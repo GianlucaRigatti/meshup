@@ -4734,6 +4734,7 @@ GameObject:
   - component: {fileID: 122342290}
   - component: {fileID: 122342289}
   - component: {fileID: 122342288}
+  - component: {fileID: 122342292}
   m_Layer: 0
   m_Name: MeshUp Game Runtime
   m_TagString: Untagged
@@ -5514,8 +5515,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.GameSessionMenu
   panelRoot: {fileID: 1089205470}
-  playerMovement: {fileID: 656482928}
-  movementAuthority: {fileID: 656482935}
+  interactionState: {fileID: 122342292}
   resumeButton: {fileID: 863216043}
   leaveButton: {fileID: 1084476782}
   voiceButton: {fileID: 74344684}
@@ -82426,6 +82426,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b861dcc036594cf68c9ee3770d6a9002, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.MeshupGameView
+  interactionState: {fileID: 122342292}
   leaderboard: {fileID: 4883677071330503097}
   status: {fileID: 4883677071330503096}
   listeningIndicator: {fileID: 4883677071330503095}
@@ -82905,3 +82906,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: df02d41e734d49059287e1ab7c819004, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.MeshupAssetGeneratorClient
+--- !u!114 &122342292
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 122342283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4ece22635b7480fa53c97b797926acf, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.GameInteractionState
+  movementAuthority: {fileID: 656482935}
+  desktopInput: {fileID: 656482928}
+  desktopOverlays:
+  - {fileID: 1301151723}

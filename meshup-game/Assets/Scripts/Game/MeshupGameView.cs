@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Events;
@@ -12,6 +11,7 @@ namespace Meshup.Game
     [DisallowMultipleComponent]
     public sealed class MeshupGameView : MonoBehaviour
     {
+        [SerializeField] private GameInteractionState interactionState;
         [SerializeField] private Text leaderboard;
         [SerializeField] private Text status;
         [SerializeField] private Text listeningIndicator;
@@ -30,11 +30,6 @@ namespace Meshup.Game
         private Action startRound;
         private int lastChoiceInteractionFrame = -1;
         private int lastStartInteractionFrame = -1;
-        private bool cursorReleasedForTerminal;
-        private CursorLockMode previousCursorLockMode;
-        private bool previousCursorVisible;
-        private readonly Dictionary<GraphicRaycaster, bool>
-            desktopOverlayRaycasterStates = new();
         private Transform monitorFrontMount;
         private Transform monitorBackMount;
         private Transform localViewer;
@@ -118,7 +113,7 @@ namespace Meshup.Game
             SetInteractable(secondChoice, choicesVisible);
 
             var preparation = isMime && phase == MeshupGamePhase.Preparation;
-            SetDesktopTerminalCursor(choicesVisible || preparation);
+            interactionState.SetTerminalActive(choicesVisible || preparation);
             startButton.gameObject.SetActive(preparation);
             SetInteractable(startButton,
                 preparation && !snapshot.generationPending);
@@ -207,78 +202,10 @@ namespace Meshup.Game
             startRound?.Invoke();
         }
 
-        private void SetDesktopTerminalCursor(bool terminalInteractionActive)
-        {
-            if (Application.isMobilePlatform)
-            {
-                return;
-            }
-
-            if (terminalInteractionActive && !cursorReleasedForTerminal)
-            {
-                previousCursorLockMode = Cursor.lockState;
-                previousCursorVisible = Cursor.visible;
-                cursorReleasedForTerminal = true;
-                Cursor.lockState = CursorLockMode.None;
-                Cursor.visible = true;
-            }
-            if (terminalInteractionActive)
-            {
-                SuppressDesktopOverlayRaycasters();
-            }
-            else if (!terminalInteractionActive && cursorReleasedForTerminal)
-            {
-                RestoreDesktopCursor();
-            }
-        }
-
-        private void RestoreDesktopCursor()
-        {
-            if (!cursorReleasedForTerminal)
-            {
-                return;
-            }
-            cursorReleasedForTerminal = false;
-            Cursor.lockState = previousCursorLockMode;
-            Cursor.visible = previousCursorVisible;
-            RestoreDesktopOverlayRaycasters();
-        }
-
-        private void SuppressDesktopOverlayRaycasters()
-        {
-            foreach (var raycaster in FindObjectsByType<GraphicRaycaster>(
-                FindObjectsInactive.Include))
-            {
-                var canvas = raycaster.GetComponent<Canvas>();
-                if (canvas == null || canvas.renderMode != RenderMode.ScreenSpaceOverlay
-                    || raycaster.GetComponent<GameSessionMenu>() != null)
-                {
-                    continue;
-                }
-                if (!desktopOverlayRaycasterStates.ContainsKey(raycaster))
-                {
-                    desktopOverlayRaycasterStates.Add(raycaster,
-                        raycaster.enabled);
-                }
-                raycaster.enabled = false;
-            }
-        }
-
-        private void RestoreDesktopOverlayRaycasters()
-        {
-            foreach (var item in desktopOverlayRaycasterStates)
-            {
-                if (item.Key != null)
-                {
-                    item.Key.enabled = item.Value;
-                }
-            }
-            desktopOverlayRaycasterStates.Clear();
-        }
+        private void OnDisable() => interactionState?.SetTerminalActive(false);
 
         private void OnDestroy()
         {
-            RestoreDesktopCursor();
             UnbindButton(firstChoice, SelectFirstWord);
             UnbindButton(secondChoice, SelectSecondWord);
             UnbindButton(startButton, StartRound);
