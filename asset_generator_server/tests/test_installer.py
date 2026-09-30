@@ -30,13 +30,13 @@ def test_license_acceptance_is_required() -> None:
 
 
 def test_validate_host_rejects_unsupported_system(monkeypatch) -> None:
-    monkeypatch.setattr(install_models, "is_wsl", lambda: False)
+    monkeypatch.setattr(install_models, "is_supported_host", lambda: False)
     with pytest.raises(RuntimeError, match="WSL 2"):
         install_models.validate_host()
 
 
 def test_validate_host_uses_nvidia_tools_without_torch(monkeypatch) -> None:
-    monkeypatch.setattr(install_models, "is_wsl", lambda: True)
+    monkeypatch.setattr(install_models, "is_supported_host", lambda: True)
     monkeypatch.setattr(install_models.platform, "machine", lambda: "x86_64")
     monkeypatch.setattr(install_models.shutil, "which", lambda tool: f"/usr/bin/{tool}")
 
@@ -229,7 +229,7 @@ def test_readiness_detects_revision_marker_mismatch(
     settings.flux_model_path.joinpath(".model-revision").write_text(
         "wrong\n", encoding="utf-8"
     )
-    monkeypatch.setattr("app.pipeline.is_wsl", lambda: True)
+    monkeypatch.setattr("app.pipeline.is_supported_host", lambda: True)
     monkeypatch.setattr("app.pipeline._require_git_revision", lambda *args: None)
     monkeypatch.setattr("app.pipeline._check_help", lambda *args: None)
 

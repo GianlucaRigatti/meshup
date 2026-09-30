@@ -1,0 +1,15 @@
+*
+!Dockerfile
+!.python-version
+!pyproject.toml
+!uv.lock
+!package.json
+!package-lock.json
+!app/
+!app/**
+!scripts/
+!scripts/**
+!README.md
+!THIRD_PARTY_NOTICES.md
+**/__pycache__/
+**/*.pyc

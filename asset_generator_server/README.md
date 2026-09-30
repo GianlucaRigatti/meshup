@@ -19,6 +19,61 @@ their original behavior and skip both stages.
 The former cross-platform/model-comparison implementation is preserved in
 [`../model_experiments`](../model_experiments). It is not part of this server.
 
+## Run with Docker Compose
+
+From the repository root, use Docker Compose 2.24 or newer with NVIDIA GPU
+access enabled. On Windows, use Docker Desktop's WSL 2 backend and a current
+NVIDIA Windows driver. On Linux, install the NVIDIA driver and configure the
+[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+for Docker. See [Docker's GPU setup](https://docs.docker.com/compose/how-tos/gpu-support/).
+The container requires an x86-64 host and one Ampere-or-newer NVIDIA GPU with
+at least 10 GiB VRAM; Docker Desktop on macOS cannot run this GPU pipeline.
+CUDA 12.8, Python 3.11, Node.js, and the native build tools are included in the
+image, so they do not need to be installed on the host.
+
+Build the image and optionally configure the server:
+
+```bash
+docker compose build asset-generator
+cp asset_generator_server/.env.example asset_generator_server/.env
+```
+
+Read [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), including the FLUX.2 Klein
+9B non-commercial terms. Then install the pinned models and compile the native
+runtimes once, explicitly accepting their licenses:
+
+```bash
+docker compose run --rm asset-generator python scripts/install_models.py --accept-licenses
+```
+
+This first installation downloads large checkpoints and can take a while.
+The named `asset-models` volume retains weights, native builds, and the isolated
+Qwen3.5 runtime across container replacements. This volume is separate from
+any existing host `.model_sources` installation, whose native builds and Python
+paths may be incompatible with the image. To limit compiler memory usage, add
+`-e MAX_JOBS=1` after `run --rm`. Rerun the installation command after updating
+model pins or the image's Python dependencies; use `--force` after changing GPUs
+or when native builds need to be rebuilt.
+
+Start the server:
+
+```bash
+docker compose up -d asset-generator
+docker compose logs -f asset-generator
+curl --fail http://127.0.0.1:8000/readyz
+```
+
+The API listens on port 8000, and the container health check uses `/readyz`.
+Generated files remain in `asset_generator_server/generated_assets` on the
+host. Server settings are read from `asset_generator_server/.env`; Compose
+fixes `MODEL_CACHE_DIR` and `ASSET_OUTPUT_DIR` to the mounted container paths.
+Set `PUBLIC_BASE_URL` to the host's LAN-reachable URL for headset clients.
+To publish another port or select another GPU, export `ASSET_SERVER_PORT` or
+`NVIDIA_GPU_ID` before invoking Compose (defaults: `8000` and `0`).
+
+Stop with `docker compose down`. The model volume is retained unless you run
+`docker compose down --volumes`, which deletes it and requires reinstalling models.
+
 ## Supported system
 
 The supported runtime is Ubuntu 24.04 under WSL 2 on x86-64, with exactly one
@@ -95,7 +150,7 @@ Hugging Face token is required for the pinned repositories.
 uv run python -m app.cli --host 127.0.0.1 --port 8000
 ```
 
-The launcher deliberately rejects non-WSL hosts. Windows normally forwards the
+The native launcher requires WSL 2; the Docker image also supports Linux containers. Windows normally forwards the
 WSL service to `127.0.0.1:8000`.
 
 Check liveness and readiness:

@@ -52,7 +52,7 @@ from app.config import (
     TRELLIS_MODEL_ID,
     TRELLIS_MODEL_REVISION,
     Settings,
-    is_wsl,
+    is_supported_host,
 )
 from app.run_prompt_enhancer import sanitize_subject_prompt
 
@@ -432,8 +432,10 @@ class AssetGenerator:
         return int(legacy_asset_id[:16], 16) % (2**31)
 
     def _validate_installation(self) -> None:
-        if not is_wsl():
-            raise RuntimeError("The asset generator requires WSL 2.")
+        if not is_supported_host():
+            raise RuntimeError(
+                "The asset generator requires x86-64 WSL 2 or a Linux Docker container."
+            )
         missing_tools = [
             tool for tool in ("ffmpeg", "ffprobe") if shutil.which(tool) is None
         ]

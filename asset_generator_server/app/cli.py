@@ -11,7 +11,7 @@ from app.config import (
     PROMPT_ENHANCER_MODEL,
     SPEECH_TO_TEXT_MODEL,
     Settings,
-    is_wsl,
+    is_supported_host,
 )
 from app.main import create_app
 
@@ -20,7 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="asset-generator-server",
         description=(
-            f"Run the fixed WSL CUDA {SPEECH_TO_TEXT_MODEL} / "
+            f"Run the fixed CUDA {SPEECH_TO_TEXT_MODEL} / "
             f"{PROMPT_ENHANCER_MODEL} / {IMAGE_GENERATOR} / {MODEL_3D} server."
         ),
     )
@@ -47,8 +47,10 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if not 1 <= args.port <= 65535:
         parser.error("--port must be between 1 and 65535")
-    if not is_wsl():
-        parser.error("the asset generator server requires WSL 2")
+    if not is_supported_host():
+        parser.error(
+            "the asset generator server requires x86-64 WSL 2 or a Linux Docker container"
+        )
     try:
         settings = Settings.from_env()
     except ValueError as exc:

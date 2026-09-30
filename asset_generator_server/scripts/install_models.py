@@ -40,7 +40,7 @@ from app.config import (
     TRELLIS_MODEL_ID,
     TRELLIS_MODEL_REVISION,
     Settings,
-    is_wsl,
+    is_supported_host,
 )
 
 CUDA_HOME = Path("/usr/local/cuda-12.8")
@@ -72,8 +72,10 @@ def run(
 
 
 def validate_host() -> str:
-    if not is_wsl() or platform.machine().lower() not in {"amd64", "x86_64"}:
-        raise RuntimeError("The installer requires x86-64 WSL 2.")
+    if not is_supported_host() or platform.machine().lower() not in {"amd64", "x86_64"}:
+        raise RuntimeError(
+            "The installer requires x86-64 WSL 2 or a Linux Docker container."
+        )
     required = (
         "git",
         "cmake",

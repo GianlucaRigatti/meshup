@@ -1,5 +1,12 @@
 # meshup
 
+## Asset generation server
+
+Run the GPU asset generation server with the root `compose.yaml`. Build and
+install its models once, then start it with `docker compose up -d asset-generator`.
+See the [Docker setup instructions](asset_generator_server/README.md#run-with-docker-compose)
+for prerequisites and the initial installation command.
+
 ## Game runtime configuration
 
 `Assets/Scenes/SampleScene.unity` and `Assets/Scenes/GameScene.unity` in

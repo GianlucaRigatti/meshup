@@ -367,6 +367,15 @@ def is_wsl() -> bool:
     return "microsoft" in release.lower()
 
 
+def is_supported_host() -> bool:
+    """Allow the native WSL runtime and the Linux amd64 Docker image."""
+    return (
+        platform.system() == "Linux"
+        and platform.machine().lower() in {"amd64", "x86_64"}
+        and (is_wsl() or Path("/.dockerenv").is_file())
+    )
+
+
 def _read_env_file(path: Path) -> dict[str, str]:
     if not path.is_file():
         return {}

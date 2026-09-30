@@ -318,13 +318,13 @@ def test_busy_error_preserves_public_contract(client) -> None:
     assert response.json()["error"]["code"] == "generator_busy"
 
 
-def test_cli_has_no_model_selection_and_rejects_non_wsl(monkeypatch) -> None:
+def test_cli_has_no_model_selection_and_rejects_unsupported_host(monkeypatch) -> None:
     help_text = cli.build_parser().format_help()
     assert "--image-generator" not in help_text
     assert "--model-3d" not in help_text
     assert "--list-models" not in help_text
     assert "--no-mesh-simplification" in help_text
     assert "--no-texture-simplification" in help_text
-    monkeypatch.setattr(cli, "is_wsl", lambda: False)
+    monkeypatch.setattr(cli, "is_supported_host", lambda: False)
     with pytest.raises(SystemExit):
         cli.main([])
