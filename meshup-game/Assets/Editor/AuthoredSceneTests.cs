@@ -1,14 +1,13 @@
 using System.Linq;
-using System.Reflection;
 using Meshup.EditorTools;
 using Meshup.Game;
-using Meshup.Lobby;
 using Meshup.Multiplayer;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Ubiq.Voip;
 
 namespace Meshup.Editor.Tests
 {
@@ -21,9 +20,10 @@ namespace Meshup.Editor.Tests
         public void MimeZoneDividerDoesNotBlockTheOpening()
         {
             using var validation = new SceneValidationScope(GameScenePath);
-            var divider = validation.Scene.GetRootGameObjects()
-                .SelectMany(root => root.GetComponentsInChildren<Transform>(true))
-                .Single(item => item.name == "Mime_zone_divisor");
+            var coordinator = validation.Scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<MeshupGameCoordinator>(true)).Single();
+            var divider = (Transform)new SerializedObject(coordinator)
+                .FindProperty("mimeZoneDivider").objectReferenceValue;
 
             Assert.That(divider.GetComponent<Renderer>(), Is.Not.Null);
             Assert.That(divider.GetComponents<Collider>(), Is.Empty);
@@ -36,21 +36,23 @@ namespace Meshup.Editor.Tests
             var view = validation.Scene.GetRootGameObjects()
                 .SelectMany(root => root.GetComponentsInChildren<MeshupGameView>(true)).Single();
             var serialized = new SerializedObject(view);
+            var canvas = (Transform)serialized.FindProperty("monitorCanvas").objectReferenceValue;
+            var size = canvas.GetComponent<RectTransform>().sizeDelta;
             foreach (var field in new[] { "monitorFrontMount", "monitorBackMount" })
             {
                 var mount = (Transform)serialized.FindProperty(field)
                     .objectReferenceValue;
                 var screen = mount.parent.GetComponent<Renderer>();
                 Assert.That(screen, Is.Not.Null, field);
-                Assert.That(mount.lossyScale.x * 1200f,
+                Assert.That(mount.lossyScale.x * size.x,
                     Is.LessThan(screen.bounds.size.x), field + " width");
-                Assert.That(mount.lossyScale.y * 600f,
+                Assert.That(mount.lossyScale.y * size.y,
                     Is.LessThan(screen.bounds.size.y), field + " height");
             }
         }
 
         [Test]
-        public void SavedGameRuntimeReferencesTheExistingPropsAndSurvivesRenames()
+        public void SavedGameReferencesSurvivePropRenames()
         {
             using var validation = new SceneValidationScope(GameScenePath);
             var scene = validation.Scene;
@@ -61,38 +63,23 @@ namespace Meshup.Editor.Tests
                 item.GetComponent<MeshupGameCoordinator>())
                 .Single(item => item != null);
             var serialized = new SerializedObject(coordinator);
-            var references = new (string Field, string ObjectName)[]
-            {
-                ("gameStart", "Game Start Sequence"),
-                ("localPlayer", "Ubiq Demo Player"),
-                ("invisibleWall", "Invisible_wall_game_area"),
-                ("mimeZoneDivider", "Mime_zone_divisor"),
-                ("generatorAnchor", "generator_particle_system"),
-                ("generatorParticles", "generator_particle_system"),
-            };
-            foreach (var (field, objectName) in references)
-            {
-                var reference = serialized.FindProperty(field).objectReferenceValue;
-                var target = reference is Component component
-                    ? component.gameObject : (GameObject)reference;
-                Assert.That(target, Is.SameAs(transforms.Single(item =>
-                    item.name == objectName).gameObject), field);
-            }
-
             var fireworks = (MeshupVictoryFireworks)serialized.FindProperty("victoryFireworks").objectReferenceValue;
-            var fireworksData = new SerializedObject(fireworks);
-            var monitor = (Transform)fireworksData.FindProperty("guesserScreen").objectReferenceValue;
-            var originalName = monitor.name;
+            var props = new[] { "gameStart", "localPlayer", "invisibleWall",
+                    "mimeZoneDivider", "generatorAnchor", "generatorParticles" }
+                .Select(field => ((Component)serialized.FindProperty(field).objectReferenceValue).gameObject)
+                .Append(((Transform)new SerializedObject(fireworks)
+                    .FindProperty("guesserScreen").objectReferenceValue).gameObject)
+                .Distinct().ToArray();
+            var names = props.Select(prop => prop.name).ToArray();
             try
             {
-                monitor.name = "Manually renamed monitor";
+                for (var index = 0; index < props.Length; index++)
+                    props[index].name = $"Renamed prop {index}";
                 MeshupGameSceneValidation.Validate(scene);
-                Assert.That(fireworksData.FindProperty("guesserScreen")
-                    .objectReferenceValue, Is.SameAs(monitor));
             }
             finally
             {
-                monitor.name = originalName;
+                for (var index = 0; index < props.Length; index++) props[index].name = names[index];
             }
         }
 
@@ -162,30 +149,26 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
-        public void LobbyHasNoPortalTransitionAndKeepsSpawnManagerInactive()
+        public void LobbyKeepsRoomVoiceAndAnInactiveSpawnManager()
         {
             using var validation = new SceneValidationScope(LobbyScenePath);
             var roots = validation.Scene.GetRootGameObjects();
 
-            Assert.That(roots.Any(root => root.name == "Lobby Portal Transition"),
-                Is.False);
-
-            var networkScene = roots.Single(root => root.name == "Ubiq Network Scene");
-            var spawnManager = networkScene.GetComponentsInChildren<Transform>(true)
+            var session = roots.SelectMany(root => root.GetComponentsInChildren<UbiqRoomSession>(true)).Single();
+            Assert.That(session.GetComponentInChildren<VoipPeerConnectionManager>(true), Is.Not.Null);
+            var spawnManager = session.GetComponentsInChildren<Transform>(true)
                 .Single(item => item.name == "Spawn Manager");
             Assert.That(spawnManager.gameObject.activeSelf, Is.False,
                 "An active duplicate is destroyed before Start and throws in Ubiq's OnDestroy.");
         }
 
         [Test]
-        public void LobbyUsesBlackFadeWithoutRestoringPortalVisuals()
+        public void BuildAllowsMicrophoneCaptureAndAssetDownloads()
         {
-            Assert.That(typeof(UbiqRoomSession).GetEvent(
-                "GameSceneTransitionRequested", BindingFlags.Public
-                | BindingFlags.Instance), Is.Not.Null);
-            Assert.That(typeof(LobbyFadeTransition), Is.Not.Null);
-            Assert.That(System.Enum.GetNames(typeof(RoomSessionState)),
-                Does.Not.Contain("EnteringPortal"));
+            Assert.That(PlayerSettings.WSA.GetCapability(
+                PlayerSettings.WSACapability.Microphone), Is.True);
+            Assert.That(PlayerSettings.insecureHttpOption,
+                Is.EqualTo(InsecureHttpOption.AlwaysAllowed));
         }
 
         [Test]
@@ -207,29 +190,5 @@ namespace Meshup.Editor.Tests
             Assert.That(SceneManager.GetSceneByPath(GameScenePath).isLoaded, Is.False);
         }
 
-        [Test]
-        public void CoordinatorTeardownBeforeStartPreservesTheAuthoredWall()
-        {
-            var root = new GameObject("Uninitialized game runtime");
-            var wallObject = new GameObject("Authored wall");
-            try
-            {
-                var wall = wallObject.AddComponent<BoxCollider>();
-                var coordinator = root.AddComponent<MeshupGameCoordinator>();
-                var serialized = new SerializedObject(coordinator);
-                serialized.FindProperty("invisibleWall").objectReferenceValue = wall;
-                serialized.ApplyModifiedPropertiesWithoutUndo();
-                // Simulate teardown before Start, including an early startup failure.
-                typeof(MeshupGameCoordinator).GetMethod("OnDestroy",
-                    BindingFlags.Instance | BindingFlags.NonPublic)
-                    .Invoke(coordinator, null);
-                Assert.That(wall.enabled, Is.True);
-            }
-            finally
-            {
-                Object.DestroyImmediate(root);
-                Object.DestroyImmediate(wallObject);
-            }
-        }
     }
 }

@@ -181,6 +181,22 @@ namespace Meshup.Editor.Tests
             Assert.That(imports, Is.Empty);
         }
 
+        [Test]
+        public void AddedObjectsSpawnAboveTheGeneratorWithoutStartingImports()
+        {
+            anchor.transform.SetPositionAndRotation(new Vector3(4f, 1f, -3f),
+                Quaternion.Euler(90f, 35f, 20f));
+            var first = objects.Add("https://example.test/first.glb");
+            var second = objects.Add("https://example.test/second.glb");
+
+            Assert.That(first.position, Is.EqualTo(new Vector3(4f, 3.5f, -3f)));
+            Assert.That(second.position, Is.EqualTo(first.position));
+            Assert.That(first.rotation, Is.EqualTo(Quaternion.identity));
+            Assert.That(first.scale, Is.EqualTo(Vector3.one));
+            Assert.That(second.objectId, Is.Not.EqualTo(first.objectId));
+            Assert.That(imports, Is.Empty);
+        }
+
         [TestCase(GeneratedObjectSize.Small,
             GeneratedObjectSizes.SmallMaxWidth,
             GeneratedObjectSizes.SmallMaxHeight)]
@@ -216,6 +232,30 @@ namespace Meshup.Editor.Tests
             Assert.That(GeneratedObjectSizes.TargetMaxHeight(
                 (GeneratedObjectSize)(-5)),
                 Is.EqualTo(GeneratedObjectSizes.MediumMaxHeight));
+        }
+
+        [TestCase(4f, 10f, 2f, 1f, 0.5f, 2f)]
+        [TestCase(10f, 4f, 0.5f, 2f, 1f, 2f)]
+        [TestCase(4f, 10f, 0.5f, 1f, 2f, 2f)]
+        public void GeneratedObjectNormalizationStopsAtFirstDimensionLimit(
+            float maxWidth, float maxHeight, float width, float height,
+            float depth, float expectedScale)
+        {
+            Assert.That(MeshupGeneratedObject.CalculateNormalizationScale(
+                maxWidth, maxHeight, new Vector3(width, height, depth)),
+                Is.EqualTo(expectedScale)
+                .Within(0.0001f));
+        }
+
+        [TestCase(0f, 0f, 0f)]
+        [TestCase(-1f, -2f, -3f)]
+        public void GeneratedObjectNormalizationFallsBackForInvalidBounds(
+            float width, float height, float depth)
+        {
+            Assert.That(MeshupGeneratedObject.CalculateNormalizationScale(
+                GeneratedObjectSizes.MediumMaxWidth,
+                GeneratedObjectSizes.MediumMaxHeight,
+                new Vector3(width, height, depth)), Is.EqualTo(1f));
         }
 
         private static MeshupGeneratedObjectState State(string id, Vector3 position = default)

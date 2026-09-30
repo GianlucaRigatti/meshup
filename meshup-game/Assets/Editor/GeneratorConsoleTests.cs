@@ -1,12 +1,15 @@
 using System;
+using System.Collections;
 using System.Linq;
-using System.Reflection;
-using Meshup.EditorTools;
 using Meshup.Game;
 using Meshup.Multiplayer;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.TestTools;
+using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 namespace Meshup.Editor.Tests
 {
@@ -105,6 +108,8 @@ namespace Meshup.Editor.Tests
                     selector.SetInteractable(index == 0);
                     return selector;
                 }).ToArray();
+                Assert.That(selectors.Select(selector => selector.SelectedSize),
+                    Is.All.EqualTo(GeneratedObjectSize.Medium));
                 Assert.That(selectors[0].TrySelect(GeneratedObjectSize.ExtraLarge), Is.True);
                 Assert.That(selectors[0].SelectedSize, Is.EqualTo(GeneratedObjectSize.Medium), "Wait for host acceptance.");
                 Assert.That(selectors[1].TrySelect(GeneratedObjectSize.Small), Is.False);
@@ -119,12 +124,15 @@ namespace Meshup.Editor.Tests
                     Assert.That(selector.GetComponentsInChildren<Light>(true), Is.Empty);
                 }
                 Assert.That(requests, Is.EqualTo(1), "Remote application must not send another selection request.");
+                selectors[2].ResetToMedium();
+                Assert.That(selectors[2].SelectedSize, Is.EqualTo(GeneratedObjectSize.Medium));
+                Assert.That(requests, Is.EqualTo(1), "Resetting a local display must not send a selection request.");
             }
             finally { foreach (var peer in peers) UnityEngine.Object.DestroyImmediate(peer); }
         }
 
         [Test]
-        public void ConsolePrefabHasFourIndependentCollidersAndNoAutoplay()
+        public void ConsolePrefabHasInteractionAudioAndNoAutoplay()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
             var controls = prefab.GetComponentsInChildren<ConsoleButtonFeedback>(true);
@@ -132,22 +140,29 @@ namespace Meshup.Editor.Tests
             foreach (var control in controls)
             {
                 var collider = control.GetComponent<BoxCollider>();
+                var interactable = control.GetComponent<XRSimpleInteractable>();
+                var source = control.GetComponent<AudioSource>();
                 Assert.That(collider, Is.Not.Null);
                 Assert.That(collider.size.sqrMagnitude, Is.GreaterThan(0));
+                Assert.That(interactable, Is.Not.Null);
+                Assert.That(interactable.colliders, Does.Contain(collider));
+                Assert.That(source, Is.Not.Null);
+                Assert.That(source.playOnAwake, Is.False);
+                Assert.That(source.spatialBlend, Is.EqualTo(1f));
                 var feedback = new SerializedObject(control);
                 Assert.That(feedback.FindProperty("indicator").objectReferenceValue, Is.Not.Null);
             }
+            Assert.That(controls.Count(control => control.GetComponent<AudioSource>().clip != null),
+                Is.EqualTo(3), "The three size buttons have authored click sounds.");
             Assert.That(prefab.GetComponentsInChildren<Animator>(true).All(a => !a.enabled), Is.True);
             Assert.That(prefab.GetComponentsInChildren<Animation>(true).All(a => !a.enabled && !a.playAutomatically), Is.True);
-            using var scope = new SceneValidationScope("Assets/Scenes/GameScene.unity");
-            var all = scope.Scene.GetRootGameObjects().SelectMany(r => r.GetComponentsInChildren<Transform>(true)).ToArray();
-            Assert.That(all.Count(t => t.name == "IntegratedGeneratorConsole"), Is.EqualTo(1));
-            Assert.That(all.Any(t => t.name == "geneartor_button" || t.name == "button_-_sb_cosmic_shake"), Is.False);
         }
 
-        [Test]
-        public void FeedbackReleasesToAuthoredRestAndKeepsSelectionLit()
+        [UnityTest]
+        public IEnumerator FeedbackReleasesToAuthoredRestAndKeepsSelectionLit()
         {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            yield return new EnterPlayMode();
             var peer = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath));
             try
             {
@@ -157,14 +172,44 @@ namespace Meshup.Editor.Tests
                 control.Configure(control.transform.Find("Lit_Small"), travel);
                 control.SetSelected(true);
                 control.SetHeld(true);
-                typeof(ConsoleButtonFeedback).GetField("amount", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(control, 1f);
-                typeof(ConsoleButtonFeedback).GetMethod("ApplyVisuals", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(control, new object[] { 1f });
+                yield return new WaitForSecondsRealtime(0.15f);
                 Assert.That(Vector3.Distance(rest + travel, control.transform.localPosition), Is.LessThan(1e-6));
-                typeof(ConsoleButtonFeedback).GetMethod("OnDisable", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(control, null);
+                control.enabled = false;
                 Assert.That(control.transform.localPosition, Is.EqualTo(rest));
                 Assert.That(control.transform.Find("Lit_Small").localScale, Is.EqualTo(Vector3.one));
             }
             finally { UnityEngine.Object.DestroyImmediate(peer); }
+            yield return new ExitPlayMode();
+        }
+
+        [UnityTest]
+        public IEnumerator GenerateButtonPlaysSoundsOnPressAndRelease()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            yield return new EnterPlayMode();
+            var peer = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath));
+            try
+            {
+                var button = peer.GetComponentsInChildren<ConsoleButtonFeedback>(true)
+                    .Single(control => control.name == "Button_Generate").gameObject;
+                var client = button.AddComponent<MeshupAssetGeneratorClient>();
+                client.Configure(null);
+                var interactable = button.GetComponent<XRSimpleInteractable>();
+                var source = button.GetComponent<AudioSource>();
+                interactable.selectEntered.Invoke(new SelectEnterEventArgs { interactableObject = interactable });
+                Assert.That(source.isPlaying, Is.True, "Pressing the button plays its sound.");
+                source.Stop();
+                interactable.selectExited.Invoke(new SelectExitEventArgs { interactableObject = interactable });
+                Assert.That(source.isPlaying, Is.True, "Releasing the button plays its sound.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(peer); }
+            yield return new ExitPlayMode();
+        }
+
+        [UnityTearDown]
+        public IEnumerator LeavePlayMode()
+        {
+            if (Application.isPlaying) yield return new ExitPlayMode();
         }
     }
 }

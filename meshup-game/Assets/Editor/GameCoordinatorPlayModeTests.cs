@@ -4,6 +4,7 @@ using System.Reflection;
 using Meshup.Game;
 using NUnit.Framework;
 using Ubiq.Messaging;
+using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -41,6 +42,33 @@ namespace Meshup.Editor.Tests
         public IEnumerator LeavePlayMode()
         {
             if (Application.isPlaying) yield return new ExitPlayMode();
+        }
+
+        [UnityTest]
+        public IEnumerator DestroyingUnstartedCoordinatorPreservesTheAuthoredWall()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            yield return new EnterPlayMode();
+            foreach (var initiallyEnabled in new[] { true, false })
+            {
+                var root = new GameObject("Uninitialized game runtime");
+                var wallObject = new GameObject("Authored wall");
+                wallObject.transform.SetParent(root.transform);
+                var wall = wallObject.AddComponent<BoxCollider>();
+                wall.enabled = initiallyEnabled;
+                var coordinator = root.AddComponent<MeshupGameCoordinator>();
+                coordinator.enabled = false;
+                var data = new SerializedObject(coordinator);
+                data.FindProperty("invisibleWall").objectReferenceValue = wall;
+                data.ApplyModifiedPropertiesWithoutUndo();
+
+                Object.Destroy(coordinator);
+                yield return null;
+                Assert.That(wall.enabled, Is.EqualTo(initiallyEnabled));
+                Object.Destroy(root);
+                yield return null;
+            }
+            yield return new ExitPlayMode();
         }
     }
 }

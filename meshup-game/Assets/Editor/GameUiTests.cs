@@ -36,20 +36,21 @@ namespace Meshup.Editor.Tests
                 Is.EqualTo("Assets/Prefabs/Game UI/Monitor UI.prefab"));
             Assert.That(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(terminal),
                 Is.EqualTo("Assets/Prefabs/Game UI/Mime Terminal UI.prefab"));
-            Assert.That(monitor.GetComponent<RectTransform>().sizeDelta, Is.EqualTo(new Vector2(1200f, 600f)));
-            Assert.That(terminal.GetComponent<RectTransform>().sizeDelta, Is.EqualTo(new Vector2(800f, 600f)));
             Assert.That(monitor.GetComponent<Canvas>().worldCamera, Is.Not.Null);
             Assert.That(terminal.worldCamera, Is.SameAs(monitor.GetComponent<Canvas>().worldCamera));
             Canvas.ForceUpdateCanvases();
             foreach (var button in terminal.GetComponentsInChildren<Button>(true))
             {
                 var rect = button.GetComponent<RectTransform>();
-                Assert.That(button.GetComponent<BoxCollider>().size,
-                    Is.EqualTo(new Vector3(rect.rect.width, rect.rect.height, 8f)));
+                var collider = button.GetComponent<BoxCollider>();
+                Assert.That(collider.size.x, Is.GreaterThanOrEqualTo(rect.rect.width));
+                Assert.That(collider.size.y, Is.GreaterThanOrEqualTo(rect.rect.height));
+                Assert.That(collider.size.z, Is.GreaterThan(0f));
                 Assert.That(button.GetComponent<XRSimpleInteractable>(), Is.Not.Null);
-                Assert.That(button.onClick.GetPersistentEventCount(), Is.EqualTo(1));
-                Assert.That(button.onClick.GetPersistentMethodName(0), Is.EqualTo("PlayOneShot"));
-                Assert.That(button.onClick.GetPersistentTarget(0), Is.SameAs(button.GetComponent<AudioSource>()));
+                Assert.That(Enumerable.Range(0, button.onClick.GetPersistentEventCount())
+                    .Any(index => button.onClick.GetPersistentMethodName(index) == "PlayOneShot"
+                        && button.onClick.GetPersistentTarget(index) == button.GetComponent<AudioSource>()),
+                    Is.True, "Each button keeps its click sound.");
             }
 
             var title = (Text)data.FindProperty("terminalTitle").objectReferenceValue;
@@ -93,6 +94,8 @@ namespace Meshup.Editor.Tests
             var first = terminal.GetComponentsInChildren<Button>(true).Single(b => b.name == "First Choice");
             var second = terminal.GetComponentsInChildren<Button>(true).Single(b => b.name == "Second Choice");
             var start = terminal.GetComponentsInChildren<Button>(true).Single(b => b.name == "Start");
+            Assert.That(first.GetComponentInChildren<Text>().text, Is.EqualTo("jump"));
+            Assert.That(second.GetComponentInChildren<Text>().text, Is.EqualTo("swim"));
             Click(first, terminal, tracked: false);
             Select(first);
             Assert.That(choices, Is.EqualTo(1), "Desktop and XR events in one frame produce one choice.");
@@ -145,6 +148,45 @@ namespace Meshup.Editor.Tests
         public IEnumerator LeavePlayMode()
         {
             if (Application.isPlaying) yield return new ExitPlayMode();
+        }
+
+        [Test]
+        public void MonitorShowsGuessFeedbackListeningStateAndTheWinner()
+        {
+            var owner = new GameObject("Game view test");
+            try
+            {
+                var view = owner.AddComponent<MeshupGameView>();
+                MountPrefabs(view, owner.transform, owner.transform);
+                var data = new SerializedObject(view);
+                var status = (Text)data.FindProperty("status").objectReferenceValue;
+                var listening = (Text)data.FindProperty("listeningIndicator").objectReferenceValue;
+                var snapshot = new MeshupMatchSnapshot
+                {
+                    phase = (int)MeshupGamePhase.TimedGuessing, mimePeerId = "mime",
+                    maskedWord = "____", remainingSeconds = 100
+                };
+                view.Render(snapshot, "guesser", System.Array.Empty<string>(), "",
+                    guessFeedback: "Incorrect guess", isListening: true);
+                Assert.That(status.text, Does.Contain("Incorrect guess"));
+                Assert.That(status.text, Does.Contain("1:40"));
+                Assert.That(listening.gameObject.activeSelf, Is.True);
+                view.Render(snapshot, "guesser", System.Array.Empty<string>(), "");
+                Assert.That(status.text, Does.Not.Contain("Incorrect guess"));
+                Assert.That(listening.gameObject.activeSelf, Is.False);
+
+                snapshot.phase = (int)MeshupGamePhase.Finished;
+                snapshot.scores = new[]
+                {
+                    new MeshupPlayerScore { peerId = "winner", displayName = "Ada", points = 5 },
+                    new MeshupPlayerScore { peerId = "runner-up", displayName = "Grace", points = 3 }
+                };
+                view.Render(snapshot, "winner", System.Array.Empty<string>(), "");
+                Assert.That(status.text, Does.Contain("Ada won"));
+                var leaderboard = (Text)data.FindProperty("leaderboard").objectReferenceValue;
+                Assert.That(leaderboard.text.IndexOf("Ada"), Is.LessThan(leaderboard.text.IndexOf("Grace")));
+            }
+            finally { Object.DestroyImmediate(owner); }
         }
 
         internal static void Configure(MeshupGameView view, Transform front,

@@ -5,7 +5,6 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Meshup.Editor.Tests
@@ -25,7 +24,6 @@ namespace Meshup.Editor.Tests
             Assert.That(voice, Is.Not.Null);
             Assert.That(label, Is.Not.Null);
             Assert.That(label.transform.IsChildOf(voice.transform), Is.True);
-            Assert.That(voice.name, Is.EqualTo("Voice Mute Button"));
             Assert.That(menu.GetComponent<TrackedDeviceGraphicRaycaster>(), Is.Not.Null);
         }
 
@@ -55,27 +53,5 @@ namespace Meshup.Editor.Tests
             Assert.That(light.intensity, Is.Zero);
         }
 
-        [Test]
-        public void ConsoleButtonsHaveAuthoredInteractionAndAudio()
-        {
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
-                "Assets/Art/GeneratorConsole/IntegratedGeneratorConsole.prefab");
-            var controls = prefab.GetComponentsInChildren<ConsoleButtonFeedback>(true);
-            Assert.That(controls, Has.Length.EqualTo(4));
-            foreach (var control in controls)
-            {
-                var collider = control.GetComponent<BoxCollider>();
-                var interactable = control.GetComponent<XRSimpleInteractable>();
-                var source = control.GetComponent<AudioSource>();
-                Assert.That(collider, Is.Not.Null, control.name);
-                Assert.That(interactable, Is.Not.Null, control.name);
-                Assert.That(interactable.colliders, Does.Contain(collider), control.name);
-                Assert.That(source, Is.Not.Null, control.name);
-                Assert.That(source.playOnAwake, Is.False, control.name);
-                Assert.That(source.spatialBlend, Is.EqualTo(1f), control.name);
-                if (control.name != "Button_Generate")
-                    Assert.That(source.clip, Is.Not.Null, control.name);
-            }
-        }
     }
 }

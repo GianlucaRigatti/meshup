@@ -8,6 +8,16 @@ namespace Meshup.Game.Editor.Tests
     public sealed class AudioEncodingTests
     {
         [Test]
+        public void SharedVoiceCaptureReportsFramesAndDuration()
+        {
+            var capture = new VoiceCapture(new float[32000], 2, 16000);
+
+            Assert.That(capture.SampleFrames, Is.EqualTo(16000));
+            Assert.That(capture.DurationSeconds, Is.EqualTo(1f));
+            Assert.That(capture.HasAudio, Is.True);
+        }
+
+        [Test]
         public void AudioConversionDownmixesAndResamples()
         {
             var result = AudioEncoding.ConvertToMonoPcm(new[]
@@ -57,6 +67,8 @@ namespace Meshup.Game.Editor.Tests
             var pcm = AudioEncoding.ConvertToMonoPcm(samples, 2, 48000, 16000);
             var wav = AudioEncoding.EncodeWav(pcm, 16000);
 
+            Assert.That(System.Text.Encoding.ASCII.GetString(wav, 0, 4), Is.EqualTo("RIFF"));
+            Assert.That(System.Text.Encoding.ASCII.GetString(wav, 8, 4), Is.EqualTo("WAVE"));
             Assert.That(pcm, Has.Length.EqualTo(16000));
             Assert.That(wav, Has.Length.EqualTo(44 + 32000));
             Assert.That(BitConverter.ToInt32(wav, 4), Is.EqualTo(wav.Length - 8));
