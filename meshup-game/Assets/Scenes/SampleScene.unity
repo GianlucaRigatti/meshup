@@ -50650,7 +50650,7 @@ MonoBehaviour:
   roomClient: {fileID: 1975545557}
   avatarManager: {fileID: 1975545556}
   applicationId: meshup-game
-  protocolVersion: 1
+  protocolVersion: 2
   lobbySceneName: SampleScene
   gameSceneName: GameScene
   discoveryTimeout: 10

@@ -40,6 +40,13 @@ apply only to their target player. Generated-object poses are sent while held
 and immediately on release. F7/F8/F9 previews live in
 `MeshupDevelopmentShortcuts` and run only in the Editor or development builds.
 
+Gameplay player IDs are advertised in the `meshup.player` peer property and
+survive Ubiq connection UUID changes. Automatic room rejoining resynchronizes
+the existing match and private mime word without reloading the scene. Players
+retain their scores; a mime turn already skipped after the ten-second departure
+grace period is not replayed. Room protocol version 2 prevents mixing these
+identities with older builds.
+
 `GameInteractionState` owns cursor state and the pause movement lock for both
 the terminal and session menu. Both interfaces reference the same scene
 component. Closing either interface keeps the cursor available if the other

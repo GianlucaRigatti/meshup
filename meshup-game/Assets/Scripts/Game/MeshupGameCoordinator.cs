@@ -151,6 +151,7 @@ namespace Meshup.Game
             wallStateCaptured = true;
             previousWallSide = WallSide;
             session.ParticipantsChanged += HandleParticipantsChanged;
+            session.GameRoomRejoined += HandleGameRoomRejoined;
             gameStart.Completed += HandleWalkCompleted;
 
             view.Configure(ChooseWord, StartRound);
@@ -619,6 +620,25 @@ namespace Meshup.Game
             }
         }
 
+        private void HandleGameRoomRejoined()
+        {
+            if (session.IsRoomCreator)
+            {
+                if (hostState == null)
+                {
+                    if (gameStart.IsComplete) HandleWalkCompleted();
+                    return;
+                }
+                BroadcastSnapshot();
+                SendPrivateWords(hostState.MimePeerId, hostState.WordOptions,
+                    hostState.SelectedWord);
+            }
+            else
+            {
+                SendCommand(new GameMessage { kind = (int)MessageKind.RequestSnapshot });
+            }
+        }
+
         private void HandleParticipantsChanged()
         {
             if (!session.IsRoomCreator || hostState == null)
@@ -627,6 +647,11 @@ namespace Meshup.Game
             }
             var connected = new HashSet<string>(session.GetParticipantIds(),
                 StringComparer.Ordinal);
+            var restored = false;
+            foreach (var peerId in connected)
+            {
+                restored |= hostState.Reconnect(peerId);
+            }
             foreach (var peerId in pendingDepartures.Keys
                 .Where(connected.Contains).ToArray())
             {
@@ -642,6 +667,7 @@ namespace Meshup.Game
                         ConfirmDeparture(player.peerId));
                 }
             }
+            if (restored) BroadcastSnapshot();
         }
 
         private IEnumerator ConfirmDeparture(string peerId)
@@ -727,6 +753,7 @@ namespace Meshup.Game
             if (session != null)
             {
                 session.ParticipantsChanged -= HandleParticipantsChanged;
+                session.GameRoomRejoined -= HandleGameRoomRejoined;
             }
             if (gameStart != null)
             {

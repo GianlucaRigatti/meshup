@@ -232,6 +232,46 @@ namespace Meshup.Editor.Tests
         }
 
         [Test]
+        public void ReconnectedGuesserRetainsScoreAndFutureMimeTurn()
+        {
+            var state = CreateState();
+            var guesser = state.Players.First(player => player.peerId != state.MimePeerId);
+            guesser.points = 2;
+            var round = state.RoundNumber;
+            Assert.That(state.Disconnect(guesser.peerId), Is.True);
+            Assert.That(state.Reconnect(guesser.peerId), Is.True);
+            Assert.That(guesser.connected, Is.True);
+            Assert.That(guesser.points, Is.EqualTo(2));
+            Assert.That(guesser.hasMimed, Is.False);
+            Assert.That(state.RoundNumber, Is.EqualTo(round));
+
+            BeginTimedRound(state, "jump");
+            Assert.That(state.SubmitGuess(guesser.peerId, "jump"), Is.True);
+            Assert.That(guesser.points, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void ReconnectDoesNotAddPlayersOrReplayASkippedMimeTurn()
+        {
+            var state = CreateState();
+            var previousMime = state.MimePeerId;
+            state.Disconnect(previousMime);
+            var currentMime = state.MimePeerId;
+            var round = state.RoundNumber;
+
+            Assert.That(state.Reconnect(previousMime), Is.True);
+            Assert.That(state.Players.Single(player => player.peerId == previousMime).hasMimed,
+                Is.True);
+            Assert.That(state.MimePeerId, Is.EqualTo(currentMime));
+            Assert.That(state.RoundNumber, Is.EqualTo(round));
+            var version = state.Version;
+            Assert.That(state.Reconnect(previousMime), Is.False);
+            Assert.That(state.Reconnect("unknown-player"), Is.False);
+            Assert.That(state.Version, Is.EqualTo(version));
+            Assert.That(state.Players.Count(), Is.EqualTo(3));
+        }
+
+        [Test]
         public void MimeWordServiceReturnsDistinctVerbs()
         {
             var service = MimeWordService.LoadDefault();

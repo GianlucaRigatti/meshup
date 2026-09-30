@@ -1,9 +1,12 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using Meshup.Game;
 using Meshup.Multiplayer;
 using NUnit.Framework;
+using Ubiq.Dictionaries;
 using Ubiq.Messaging;
 using Ubiq.Networking;
 using Ubiq.Rooms;
@@ -14,6 +17,13 @@ namespace Meshup.Editor.Tests
 {
     public sealed class RoomSessionTests
     {
+        [Serializable]
+        private sealed class RoomPacket
+        {
+            public string type;
+            public string args;
+        }
+
         private sealed class TestRoom : Dictionary<string, string>, IRoom
         {
             public string Name => "Test room";
@@ -167,6 +177,116 @@ namespace Meshup.Editor.Tests
             Assert.That(session.State, Is.EqualTo(RoomSessionState.LobbyReady));
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void AutomaticRejoinKeepsPlayerIdentityAndHostAuthority(bool isHost)
+        {
+            var playerId = session.LocalPeerId;
+            var creator = isHost ? playerId : "remote-host";
+            var properties = (PropertyCollection)Get(Get(client, "room"), "properties");
+            client.Room.GetType().GetProperty("UUID").SetValue(client.Room, "game-room");
+            properties.Set("meshup.creator", creator);
+            properties.Set("meshup.game.started", "true");
+            typeof(UbiqRoomSession).GetProperty("CurrentRoom").SetValue(session,
+                new RoomListing("Game room", "game-room", "TEST"));
+            Invoke(session, "SetState", RoomSessionState.InGame);
+            var rejoins = 0;
+            session.GameRoomRejoined += () => rejoins++;
+
+            client.Reconnect();
+
+            Assert.That(client.Me.uuid, Is.Not.EqualTo(playerId));
+            Assert.That(client.Me["meshup.player"], Is.EqualTo(playerId));
+            Assert.That(session.LocalPeerId, Is.EqualTo(playerId));
+            Assert.That(session.GetParticipantIds(), Is.EqualTo(new[] { playerId }));
+            Assert.That(rejoins, Is.Zero, "Resetting the connection is not a completed rejoin.");
+            client.OnJoinedRoom.Invoke(new TestRoom { UUID = "another-room" });
+            Assert.That(rejoins, Is.Zero, "A different room cannot resume this match.");
+
+            client.Room.GetType().GetProperty("UUID").SetValue(client.Room, "game-room");
+            properties.Set("meshup.creator", creator);
+            properties.Set("meshup.game.started", "true");
+            client.OnJoinedRoom.Invoke(client.Room);
+            client.OnJoinedRoom.Invoke(client.Room);
+
+            Assert.That(rejoins, Is.EqualTo(1));
+            Assert.That(session.State, Is.EqualTo(RoomSessionState.InGame));
+            Assert.That(session.CurrentRoom.Uuid, Is.EqualTo("game-room"));
+            Assert.That(session.GameStarted, Is.True);
+            Assert.That(session.IsRoomCreator, Is.EqualTo(isHost));
+        }
+
+        [Test]
+        public void GuestReconnectRetainsTheRosterScoreAndGuessPermission()
+        {
+            AddPeer(client, "wire-old", "guest", "Guest");
+            var roster = session.GetParticipantIds().ToArray();
+            var match = new MeshupMatchState(new System.Random(0));
+            match.Begin(session.GetParticipants(), new[] { session.LocalPeerId, "guest" });
+            Assert.That(match.MimePeerId, Is.EqualTo(session.LocalPeerId));
+            match.MimeEntered(match.MimePeerId, new[] { "jump", "swim" });
+            match.SelectWord(match.MimePeerId, 0);
+            match.StartTimer(match.MimePeerId);
+            match.Players.Single(player => player.peerId == "guest").points = 2;
+
+            RemovePeer(client, "wire-old");
+            AddPeer(client, "wire-new", "guest", "Guest");
+
+            Assert.That(session.GetParticipantIds(), Is.EqualTo(roster));
+            var guest = session.GetParticipants().Single(player => player.DisplayName == "Guest");
+            Assert.That(guest.PeerId, Is.EqualTo("guest"));
+            Assert.That(match.SubmitGuess(guest.PeerId, "jump"), Is.True);
+            Assert.That(match.Players.Single(player => player.peerId == "guest").points,
+                Is.EqualTo(3));
+        }
+
+        [Test]
+        public void OverlappingOldAndNewConnectionsCountAsOnePlayer()
+        {
+            AddPeer(client, "wire-old", "guest", "Guest");
+            AddPeer(client, "wire-new", "guest", "Guest");
+
+            Assert.That(session.ParticipantCount, Is.EqualTo(2));
+            Assert.That(session.GetParticipantIds().Count, Is.EqualTo(2));
+            Assert.That(session.GetParticipants().Count, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void RoomsUsingConnectionIdsAreNotCompatibleWithStablePlayerIds()
+        {
+            var room = new TestRoom
+            {
+                ["meshup.application"] = "meshup-game",
+                ["meshup.scene"] = "GameScene",
+                ["meshup.protocol"] = "1"
+            };
+            Assert.That(Invoke(session, "IsCompatible", room), Is.False);
+            room["meshup.protocol"] = "2";
+            Assert.That(Invoke(session, "IsCompatible", room), Is.True);
+        }
+
+        internal static void AddPeer(RoomClient target, string connectionId,
+            string playerId, string displayName)
+        {
+            ReceiveRoomPacket(target, "PeerAdded", "{\"peer\":{\"uuid\":\""
+                + connectionId + "\",\"keys\":[\"meshup.player\",\""
+                + Ubiq.DisplayNameManager.KEY + "\"],\"values\":[\""
+                + playerId + "\",\"" + displayName + "\"]}}");
+        }
+
+        internal static void RemovePeer(RoomClient target, string connectionId)
+        {
+            ReceiveRoomPacket(target, "PeerRemoved", "{\"uuid\":\"" + connectionId + "\"}");
+        }
+
+        private static void ReceiveRoomPacket(RoomClient target, string kind, string args)
+        {
+            var message = ReferenceCountedSceneGraphMessage.Rent(
+                JsonUtility.ToJson(new RoomPacket { type = kind, args = args }));
+            try { Invoke(target, "ProcessMessage", message); }
+            finally { message.Release(); }
+        }
+
         private void Prepare(string operation, RoomSessionState state)
         {
             var type = typeof(UbiqRoomSession).GetNestedType("PendingOperation", BindingFlags.NonPublic);
@@ -188,7 +308,7 @@ namespace Meshup.Editor.Tests
         }
 
         private static object Get(object target, string field) =>
-            target.GetType().GetField(field, Private).GetValue(target);
+            target.GetType().GetField(field, Private | BindingFlags.Public).GetValue(target);
 
         private static void Set(object target, string field, object value) =>
             target.GetType().GetField(field, Private).SetValue(target, value);

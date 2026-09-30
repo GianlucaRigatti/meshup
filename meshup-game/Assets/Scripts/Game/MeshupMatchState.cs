@@ -346,6 +346,19 @@ namespace Meshup.Game
             return true;
         }
 
+        public bool Reconnect(string peerId)
+        {
+            if (!players.TryGetValue(peerId, out var player) || player.connected)
+            {
+                return false;
+            }
+            player.connected = true;
+            // Keep points and turn history. A turn already skipped after the
+            // departure grace period must not interrupt the current round.
+            Touch();
+            return true;
+        }
+
         public MeshupMatchSnapshot CreateSnapshot(
             IEnumerable<MeshupGeneratedObjectState> generatedObjects = null)
         {

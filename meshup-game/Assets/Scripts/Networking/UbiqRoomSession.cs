@@ -79,6 +79,7 @@ namespace Meshup.Multiplayer
         private const string ProtocolProperty = "meshup.protocol";
         private const string SceneProperty = "meshup.scene";
         private const string CreatorProperty = "meshup.creator";
+        private const string PlayerIdProperty = "meshup.player";
         private const string GameStartedProperty = "meshup.game.started";
         private const string DisplayNamePreference = "meshup.displayname";
         private const int DisplayNameCharacterLimit = 24;
@@ -101,7 +102,7 @@ namespace Meshup.Multiplayer
 
         [Header("Compatibility")]
         [SerializeField] private string applicationId = "meshup-game";
-        [SerializeField] private int protocolVersion = 1;
+        [SerializeField] private int protocolVersion = 2;
 
         [Header("Scenes")]
         [SerializeField] private string lobbySceneName = "SampleScene";
@@ -122,25 +123,27 @@ namespace Meshup.Multiplayer
         private string recoveryMessage = string.Empty;
         private int operationVersion;
         private bool subscribed;
+        private bool awaitingGameRoomRejoin;
 
         public RoomSessionState State { get; private set; } = RoomSessionState.Connecting;
         public IReadOnlyList<RoomListing> Rooms => readOnlyRooms ??= rooms.AsReadOnly();
         public RoomListing CurrentRoom { get; private set; }
         public string LastError { get; private set; } = string.Empty;
-        public string LocalPeerId => roomClient?.Me?.uuid ?? string.Empty;
+        // Gameplay uses a stable identity advertised in peer properties. Ubiq's
+        // connection UUID changes on Reconnect(), but those properties survive.
+        public string LocalPeerId => GetGameplayPeerId(roomClient?.Me);
         public string LocalDisplayName { get; private set; } = string.Empty;
         public string CreatorPeerId => roomClient?.Room?[CreatorProperty] ?? string.Empty;
         public bool IsRoomCreator => !string.IsNullOrEmpty(LocalPeerId)
             && string.Equals(LocalPeerId, CreatorPeerId, StringComparison.Ordinal);
         public bool GameStarted => IsGameStarted(roomClient?.Room);
-        public int ParticipantCount => (string.IsNullOrEmpty(LocalPeerId) ? 0 : 1)
-            + (roomClient?.Peers?.Count(peer =>
-                !string.IsNullOrEmpty(peer.uuid)) ?? 0);
+        public int ParticipantCount => GetParticipantIds().Count;
 
         public event Action<RoomSessionState> StateChanged;
         public event Action<IReadOnlyList<RoomListing>> RoomsChanged;
         public event Action<string> ErrorOccurred;
         public event Action ParticipantsChanged;
+        public event Action GameRoomRejoined;
 
         /// <summary>
         /// Lets a comfort transition cover the view before the game scene loads.
@@ -375,13 +378,31 @@ namespace Meshup.Multiplayer
                 return;
             }
 
+            InitializePlayerIdentity();
             roomClient.OnJoinedRoom.AddListener(HandleJoinedRoom);
             roomClient.OnRoomUpdated.AddListener(HandleRoomUpdated);
             roomClient.OnJoinRejected.AddListener(HandleJoinRejected);
             roomClient.OnRooms.AddListener(HandleRoomsDiscovered);
             roomClient.OnPeerAdded.AddListener(HandlePeerChanged);
             roomClient.OnPeerRemoved.AddListener(HandlePeerChanged);
+            roomClient.OnPeerUpdated.AddListener(HandlePeerChanged);
             subscribed = true;
+        }
+
+        private void InitializePlayerIdentity()
+        {
+            if (roomClient?.Me != null
+                && string.IsNullOrEmpty(roomClient.Me[PlayerIdProperty]))
+            {
+                roomClient.Me[PlayerIdProperty] = roomClient.Me.uuid;
+            }
+        }
+
+        private static string GetGameplayPeerId(IPeer peer)
+        {
+            if (peer == null) return string.Empty;
+            var playerId = peer[PlayerIdProperty];
+            return string.IsNullOrEmpty(playerId) ? peer.uuid ?? string.Empty : playerId;
         }
 
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -409,6 +430,7 @@ namespace Meshup.Multiplayer
             roomClient.OnRooms.RemoveListener(HandleRoomsDiscovered);
             roomClient.OnPeerAdded.RemoveListener(HandlePeerChanged);
             roomClient.OnPeerRemoved.RemoveListener(HandlePeerChanged);
+            roomClient.OnPeerUpdated.RemoveListener(HandlePeerChanged);
             subscribed = false;
         }
 
@@ -423,12 +445,12 @@ namespace Meshup.Multiplayer
             if (roomClient != null)
             {
                 result.AddRange(roomClient.Peers
-                    .Select(peer => peer.uuid)
+                    .Select(GetGameplayPeerId)
                     .Where(uuid => !string.IsNullOrEmpty(uuid)));
             }
 
-            result.Sort(StringComparer.Ordinal);
-            return result;
+            return result.Distinct(StringComparer.Ordinal)
+                .OrderBy(peerId => peerId, StringComparer.Ordinal).ToArray();
         }
 
         public IReadOnlyList<ParticipantInfo> GetParticipants()
@@ -443,14 +465,16 @@ namespace Meshup.Multiplayer
             if (roomClient != null)
             {
                 result.AddRange(roomClient.Peers
-                    .Where(peer => !string.IsNullOrEmpty(peer.uuid))
-                    .Select(peer => new ParticipantInfo(peer.uuid,
-                        peer[Ubiq.DisplayNameManager.KEY], true)));
+                    .Select(peer => new ParticipantInfo(GetGameplayPeerId(peer),
+                        peer[Ubiq.DisplayNameManager.KEY], true))
+                    .Where(participant => !string.IsNullOrEmpty(participant.PeerId)));
             }
 
-            result.Sort((first, second) => string.Compare(first.PeerId,
-                second.PeerId, StringComparison.Ordinal));
-            return result;
+            return result.GroupBy(participant => participant.PeerId,
+                    StringComparer.Ordinal)
+                .Select(group => group.Last())
+                .OrderBy(participant => participant.PeerId, StringComparer.Ordinal)
+                .ToArray();
         }
 
         public bool TrySetGameStarted(bool started)
@@ -470,6 +494,7 @@ namespace Meshup.Multiplayer
             pendingOperation = operation;
             pendingRoom = room;
             pendingRoomName = roomName;
+            awaitingGameRoomRejoin = false;
             roomBeforeOperation = roomClient.Room?.UUID ?? string.Empty;
             SetState(state);
         }
@@ -500,6 +525,27 @@ namespace Meshup.Multiplayer
         {
             if (room == null)
             {
+                return;
+            }
+
+            // Automatic Ubiq reconnects reset the room, then rejoin it without
+            // a user operation. Resume the existing scene, including a started
+            // match, and let gameplay request the state missed while offline.
+            if (pendingOperation == PendingOperation.None
+                && State == RoomSessionState.InGame && CurrentRoom != null)
+            {
+                if (string.IsNullOrEmpty(room.UUID))
+                {
+                    awaitingGameRoomRejoin = true;
+                }
+                else if (awaitingGameRoomRejoin
+                    && string.Equals(room.UUID, CurrentRoom.Uuid,
+                        StringComparison.Ordinal))
+                {
+                    awaitingGameRoomRejoin = false;
+                    ParticipantsChanged?.Invoke();
+                    GameRoomRejoined?.Invoke();
+                }
                 return;
             }
 

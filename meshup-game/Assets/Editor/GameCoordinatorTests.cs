@@ -274,6 +274,76 @@ namespace Meshup.Editor.Tests
             Assert.That(audio.IsGenerating, Is.False);
         }
 
+        [Test]
+        public void RejoinedClientRequestsAMatchSnapshotWithItsStableIdentity()
+        {
+            Invoke(session, "InitializePlayerIdentity");
+            var playerId = Local;
+            SetCreator("host");
+            roomClient.Me.GetType().GetProperty("uuid").SetValue(roomClient.Me, "new-connection");
+
+            Invoke(coordinator, "HandleGameRoomRejoined");
+
+            Assert.That(connection.Packets, Has.Count.EqualTo(1));
+            Assert.That(connection.Packets[0].kind, Is.EqualTo(Kind("RequestSnapshot")));
+            Assert.That(connection.Packets[0].senderPeerId, Is.EqualTo(playerId));
+        }
+
+        [Test]
+        public void RejoinedHostRepublishesTheExistingRoundAndRetainsMimeAuthority()
+        {
+            Invoke(session, "InitializePlayerIdentity");
+            var playerId = Local;
+            host = new MeshupMatchState(new System.Random(0));
+            host.Begin(new[] { new ParticipantInfo(Local, "Local", true),
+                new ParticipantInfo("peer", "Peer", true) }, new[] { Local, "peer" });
+            host.MimeEntered(Local, new[] { "jump", "swim" });
+            host.SelectWord(Local, 0);
+            host.Players.Single(player => player.peerId == Local).points = 2;
+            Set(coordinator, "hostState", host);
+            roomClient.Me.GetType().GetProperty("uuid").SetValue(roomClient.Me, "new-connection");
+
+            Invoke(coordinator, "HandleGameRoomRejoined");
+
+            Assert.That(session.IsRoomCreator, Is.True);
+            Assert.That(host.MimePeerId, Is.EqualTo(playerId));
+            Assert.That(host.Phase, Is.EqualTo(MeshupGamePhase.Preparation));
+            Assert.That(host.RoundNumber, Is.EqualTo(1));
+            Assert.That(host.Players.Single(player => player.peerId == playerId).points, Is.EqualTo(2));
+            Assert.That(connection.Packets.Select(packet => packet.kind),
+                Is.EqualTo(new[] { Kind("Snapshot"), Kind("PrivateWords") }));
+            Assert.That(connection.Packets.All(packet => packet.creatorPeerId == playerId), Is.True);
+            Assert.That(connection.Packets.Last().targetPeerId, Is.EqualTo(playerId));
+            Assert.That(connection.Packets.Last().text, Is.EqualTo("jump"));
+            Assert.That(Get(coordinator, "privateSelectedWord"), Is.EqualTo("jump"));
+
+            Invoke(coordinator, "StartRound");
+            Assert.That(host.Phase, Is.EqualTo(MeshupGamePhase.TimedGuessing));
+        }
+
+        [Test]
+        public void ReturningRosterPlayerCanGuessAfterDepartureWasConfirmed()
+        {
+            host = new MeshupMatchState(new System.Random(0));
+            host.Begin(new[] { new ParticipantInfo(Local, "Local", true),
+                new ParticipantInfo("peer", "Peer", true) }, new[] { Local, "peer" });
+            host.MimeEntered(Local, new[] { "jump", "swim" });
+            host.SelectWord(Local, 0);
+            host.StartTimer(Local);
+            host.Players.Single(player => player.peerId == "peer").points = 2;
+            host.Disconnect("peer");
+            Set(coordinator, "hostState", host);
+
+            RoomSessionTests.AddPeer(roomClient, "new-connection", "peer", "Peer");
+            Invoke(coordinator, "HandleParticipantsChanged");
+            Assert.That(coordinator.CurrentSnapshot.scores.Single(player => player.peerId == "peer").connected,
+                Is.True);
+            Receive(new Packet { kind = Kind("Guess"), senderPeerId = "peer", text = "jump" });
+
+            Assert.That(host.Phase, Is.EqualTo(MeshupGamePhase.Result));
+            Assert.That(host.Players.Single(player => player.peerId == "peer").points, Is.EqualTo(3));
+        }
+
         private void SetCreator(string creator) => ((PropertyCollection)Get(Get(roomClient, "room"), "properties"))
             .Set("meshup.creator", creator);
 
