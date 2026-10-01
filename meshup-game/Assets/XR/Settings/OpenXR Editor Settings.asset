@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.XR.OpenXR.Editor::UnityEditor.XR.OpenXR.OpenXREditorSettings
   Keys: 
   Values: []
-  m_vulkanAdditionalGraphicsQueue: 0
+  m_vulkanAdditionalGraphicsQueue: 1
   m_vulkanOffscreenSwapchainNoMainDisplay: 1
