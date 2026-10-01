@@ -1184,7 +1184,7 @@ MonoBehaviour:
   openxrExtensionStrings: XR_FB_foveation XR_FB_foveation_configuration XR_FB_swapchain_update_state
     XR_FB_foveation_vulkan
   company: Meshup
-  priority: 0
+  priority: -100
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
