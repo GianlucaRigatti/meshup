@@ -28,8 +28,22 @@ namespace Meshup.Game
             if (camera == null || !camera.stereoEnabled)
                 return;
 
-            SpaceWarpFeature.SetAppSpacePosition(camera.transform.position);
-            SpaceWarpFeature.SetAppSpaceRotation(camera.transform.rotation);
+            var appSpace = GetAppSpacePose(camera);
+            SpaceWarpFeature.SetAppSpacePosition(appSpace.position);
+            SpaceWarpFeature.SetAppSpaceRotation(appSpace.rotation);
+        }
+
+        internal static Pose GetAppSpacePose(Camera camera)
+        {
+            // OpenXR app-space deltas describe artificial locomotion, not the
+            // tracked head pose. Including the camera's local tracking motion
+            // compensates for head movement twice and makes the world slide.
+            // In our XRI rigs the camera parent is Camera Offset: its world pose
+            // includes both the XR Origin's locomotion and the floor offset.
+            var trackingSpace = camera.transform.parent;
+            return trackingSpace != null
+                ? new Pose(trackingSpace.position, trackingSpace.rotation)
+                : Pose.identity;
         }
     }
 }
