@@ -41,17 +41,8 @@ namespace Meshup.Game
                     display.foveatedRenderingFlags =
                         XRDisplaySubsystem.FoveatedRenderingFlags.None;
                     display.foveatedRenderingLevel = FoveationLevel;
-                    var offsetFeature = OpenXRSettings.Instance?.GetFeature<QuestFoveationOffsetFeature>();
-                    if (offsetFeature == null || !offsetFeature.enabled)
-                    {
-                        Debug.LogWarning("[QuestFoveation] Vertical offset feature is missing or disabled; offset application is NOT confirmed.");
-                        yield break;
-                    }
-
-                    // Let Unity create and attach its rendering profiles before checking
-                    // the actual OpenXR calls, rather than assuming a setter succeeded.
-                    for (var frame = 0; frame < 120; frame++) yield return null;
-                    offsetFeature.LogStatus();
+                    OpenXRSettings.Instance?.GetFeature<QuestFoveationOffsetFeature>()
+                        ?.ApplyVerticalOffset();
                     yield break;
                 }
 
