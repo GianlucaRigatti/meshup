@@ -33,6 +33,11 @@ Keep both raycasters on the menu's nested Canvas, its camera reference, and
 the Ubiq keyboard and button sound wiring when editing the menu. The saved
 scene keeps the menu at its original 0.005 world units per UI pixel.
 
+The lobby rig's `LobbyTrackedSpawn` waits for a valid headset position, then
+places the tracked body at the rig's saved spawn point. Keep this component on
+the lobby XR Origin so room-scale offsets cannot place players outside the room
+on entry or when returning from a game.
+
 Victory fireworks use the same saved ParticleSystem prefabs on desktop and Quest,
 under `Assets/Prefabs/Fireworks`, with their shared material in
 `Assets/Art/Fireworks`. `MeshupVictoryFireworks` references these prefabs, its monitor,

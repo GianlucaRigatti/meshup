@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Meshup.Lobby;
 using UnityEngine.EventSystems;
 using UnityEngine.XR.Interaction.Toolkit.UI;
 using UnityEditor;
@@ -32,7 +33,8 @@ namespace Meshup.EditorTools
                 throw new InvalidOperationException("The Ubiq rig is not the sole active lobby player.");
             }
 
-            if (!HasComponentNamed(ubiqPlayer, "XROrigin")
+            if (ubiqPlayer.GetComponent<LobbyTrackedSpawn>() == null
+                || !HasComponentNamed(ubiqPlayer, "XROrigin")
                 || ubiqPlayer.GetComponentInChildren<Camera>(true) == null
                 || ubiqPlayer.GetComponentsInChildren<Transform>(true)
                     .All(item => item.name != "Traditional Controller")
