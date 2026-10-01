@@ -1165,6 +1165,29 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+--- !u!114 &7302469184413950191
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 42cc4d252a6a462fa2d624a4c8ce8c65, type: 3}
+  m_Name: QuestFoveationOffsetFeature Android
+  m_EditorClassIdentifier: Assembly-CSharp::Meshup.Game.QuestFoveationOffsetFeature
+  m_enabled: 1
+  nameUi: Quest Foveation Vertical Offset
+  version: 1.0.0
+  featureIdInternal: com.meshup.openxr.questfoveationoffset
+  openxrExtensionStrings: XR_FB_foveation XR_FB_foveation_configuration XR_FB_swapchain_update_state
+    XR_FB_foveation_vulkan
+  company: Meshup
+  priority: 0
+  targetOpenXRApiVersion:
+  required: 0
+  customRuntimeLoaderName:
 --- !u!114 &7741198622246121781
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1186,6 +1209,7 @@ MonoBehaviour:
   - {fileID: 5201720508124994385}
   - {fileID: 3115510365034484574}
   - {fileID: -8153475430924442647}
+  - {fileID: 7302469184413950191}
   - {fileID: 6899000703208274447}
   - {fileID: 7088727821769862}
   - {fileID: -6029447920056556356}

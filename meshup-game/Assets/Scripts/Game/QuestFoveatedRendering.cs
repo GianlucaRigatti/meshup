@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR;
+using UnityEngine.XR.OpenXR;
 
 namespace Meshup.Game
 {
@@ -40,6 +41,8 @@ namespace Meshup.Game
                     display.foveatedRenderingFlags =
                         XRDisplaySubsystem.FoveatedRenderingFlags.None;
                     display.foveatedRenderingLevel = FoveationLevel;
+                    OpenXRSettings.Instance?.GetFeature<QuestFoveationOffsetFeature>()
+                        ?.ApplyVerticalOffset();
                     yield break;
                 }
 
