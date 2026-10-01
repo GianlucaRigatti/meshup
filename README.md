@@ -82,10 +82,14 @@ Furniture, book counts, lighting, and the book reveal trajectory can be edited
 without updating validators. Lighting baking and model-import processing remain
 available.
 
-Before testing on headsets, edit
-`meshup-game/Assets/Resources/Game/meshup_game_config.json` so
-`assetServerBaseUrl` is the LAN-reachable address of the machine running
-`asset_generator_server`. Start that server with the same address in
+Use **Asset server** in the lobby menu to set the server IP address and port.
+The settings are saved on each device and override the default
+`assetServerBaseUrl` in
+`meshup-game/Assets/Resources/Game/meshup_game_config.json`.
+The dot on the button is amber while checking, green when `/readyz` succeeds,
+and red when the server is unavailable or not ready. It refreshes every ten
+seconds while the lobby menu is open. Use the LAN-reachable address of the
+machine running `asset_generator_server`. Start that server with the same address in
 `PUBLIC_BASE_URL`; URLs containing `127.0.0.1` are only suitable for a local
 Editor client.
 

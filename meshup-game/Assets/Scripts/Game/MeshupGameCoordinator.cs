@@ -45,12 +45,6 @@ namespace Meshup.Game
             public MeshupGeneratedObjectState generatedObject;
         }
 
-        [Serializable]
-        private sealed class RuntimeConfiguration
-        {
-            public string assetServerBaseUrl;
-        }
-
         [Header("Scene")]
         [SerializeField] private GameStartCoordinator gameStart;
         [SerializeField] private PlayerMovementAuthority localPlayer;
@@ -725,26 +719,7 @@ namespace Meshup.Game
 
         private void LoadRuntimeConfiguration()
         {
-            var configuration = Resources.Load<TextAsset>(
-                "Game/meshup_game_config");
-            if (configuration == null)
-            {
-                return;
-            }
-            try
-            {
-                var parsed = JsonUtility.FromJson<RuntimeConfiguration>(
-                    configuration.text);
-                if (!string.IsNullOrWhiteSpace(parsed?.assetServerBaseUrl))
-                {
-                    assetServerBaseUrl = parsed.assetServerBaseUrl.Trim();
-                }
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning($"[MeshUp] Invalid game configuration: "
-                    + exception.Message);
-            }
+            assetServerBaseUrl = AssetServerSettings.Resolve(assetServerBaseUrl);
         }
 
         private void OnDestroy()

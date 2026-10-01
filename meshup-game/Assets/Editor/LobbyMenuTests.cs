@@ -181,6 +181,46 @@ namespace Meshup.Editor.Tests
             Click(joinPanel.Find("Title/Back Button").GetComponent<Button>(), canvas);
             yield return null;
 
+            var savedEndpoint = PlayerPrefs.GetString(Meshup.Game.AssetServerSettings.PreferenceKey);
+            var hadSavedEndpoint = PlayerPrefs.HasKey(Meshup.Game.AssetServerSettings.PreferenceKey);
+            try
+            {
+                Click(main.Find("Menu Panel/User Panel/User Customization Buttons /Asset Server").GetComponent<Button>(), canvas);
+                yield return null;
+                var ipPanel = main.Find("Asset Server IP Panel");
+                ClickKey(ipPanel, "1", canvas);
+                ClickKey(ipPanel, "period", canvas);
+                ClickKey(ipPanel, "2", canvas);
+                ClickKey(ipPanel, "period", canvas);
+                ClickKey(ipPanel, "3", canvas);
+                ClickKey(ipPanel, "period", canvas);
+                ClickKey(ipPanel, "4", canvas);
+                Assert.That(ipPanel.Find("Content/Text Input Area/Text").GetComponent<TextEntry>().text.text,
+                    Is.EqualTo("1.2.3.4"));
+                Click(ipPanel.Find("Content/Text Input Area/Next Button").GetComponent<Button>(), canvas);
+                yield return null;
+                var portPanel = main.Find("Asset Server Port Panel");
+                Assert.That(portPanel.gameObject.activeSelf, Is.True);
+                ClickKey(portPanel, "0", canvas);
+                Click(portPanel.Find("Content/Text Input Area/Next Button").GetComponent<Button>(), canvas);
+                Assert.That(portPanel.gameObject.activeSelf, Is.True, "Invalid ports keep settings open.");
+                ClickKey(portPanel, "backspace", canvas);
+                ClickKey(portPanel, "9", canvas);
+                ClickKey(portPanel, "0", canvas);
+                ClickKey(portPanel, "0", canvas);
+                ClickKey(portPanel, "0", canvas);
+                Click(portPanel.Find("Content/Text Input Area/Next Button").GetComponent<Button>(), canvas);
+                Assert.That(Meshup.Game.AssetServerSettings.Resolve(), Does.EndWith(":9000"));
+                Assert.That(main.Find("Menu Panel").gameObject.activeSelf, Is.True);
+            }
+            finally
+            {
+                if (hadSavedEndpoint) PlayerPrefs.SetString(Meshup.Game.AssetServerSettings.PreferenceKey, savedEndpoint);
+                else PlayerPrefs.DeleteKey(Meshup.Game.AssetServerSettings.PreferenceKey);
+                PlayerPrefs.Save();
+            }
+
+            yield return null;
             Click(main.Find("Menu Panel/Current Room Panel/Not In Room/Buttons/Browse").GetComponent<Button>(), canvas);
             yield return null;
             var browse = main.Find("Browse Panel");
