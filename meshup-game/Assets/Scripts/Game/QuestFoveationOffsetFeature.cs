@@ -24,7 +24,7 @@ namespace Meshup.Game
         public const string FeatureId = "com.meshup.openxr.questfoveationoffset";
 
         // Degrees. A positive offset moves the full-resolution center upward.
-        private const float VerticalOffsetDegrees = 10f;
+        private const float VerticalOffsetDegrees = 15f;
         private const uint MediumFoveationLevel = 2;
         private ulong session;
 
