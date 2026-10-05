@@ -37147,11 +37147,11 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_text: "\u2022 A mime is selected each turn. Move to the terminal and choose a
-    word.\n\u2022 Hold \"[BUTTON]\" on the generator and describe the object you
-    want. You can generate up to 3 objects per turn.\n\u2022 When you are ready,
-    press \"Start\" to begin the timer. The hidden word will then appear to the guessers.\n\u2022
-    Mime your word using the objects and your movements to help the others guess
-    to receive a point.\n"
+    word.\n\u2022 Choose the preferred size using \"[GRIP]\", then hold \"[GRIP]\"
+    on the generator button and describe the object you want. You can generate up
+    to 3 objects per turn.\n\u2022 When you are ready, press \"START\" on the screen
+    to begin the timer. \n\u2022 Mime your word using the objects and your movements
+    to help the others guess.\n"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ae9aefb89bf802748890c1d03c9a8ec9, type: 2}
   m_sharedMaterial: {fileID: 3164999757049742318, guid: ae9aefb89bf802748890c1d03c9a8ec9, type: 2}
@@ -38329,9 +38329,9 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\u2022 Once the word appears on screen hold \"[BUTTON]\" and say your
-    guess before the timer runs out.\n\u2022 Hint letters will appear during the
-    round.\n\u2022 Only the first player to guess correctly receives a point.\n\u2022
+  m_text: "\u2022 Once the word appears on screen hold \"[A]\" or \"[X]\" and say
+    your guess before the timer runs out.\n\u2022 Hint letters will appear during
+    the round.\n\u2022 Only the first player to guess correctly receives a point.\n\u2022
     The player with the most points at the end of the game wins."
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ae9aefb89bf802748890c1d03c9a8ec9, type: 2}
