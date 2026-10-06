@@ -11,3 +11,6 @@
 /builds
 /.workbuddy-ai/
 /docs/
+
+# Local report draft
+/output/reports/meshup_implementation_draft.md

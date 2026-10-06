@@ -86,7 +86,7 @@ public sealed class FishSchoolController : MonoBehaviour
             return;
         }
 
-        if (fishPrefab.GetComponent<FishSchoolController>() != null || fishPrefab.GetComponent<NVBoids>() != null)
+        if (fishPrefab.GetComponent<FishSchoolController>() != null)
         {
             Debug.LogError("The fish prefab must be a fish model, not another flock controller.", this);
             enabled = false;
