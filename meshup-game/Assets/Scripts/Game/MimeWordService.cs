@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using UnityEngine;
 
 namespace Meshup.Game
@@ -10,8 +9,6 @@ namespace Meshup.Game
     /// </summary>
     public sealed class MimeWordService
     {
-        private const string DefaultResourcePath = "Game/mime_verbs";       // at the moment this is inactive... 
-
         private readonly IReadOnlyList<string> verbs;
         private readonly IReadOnlyList<string> adjectives;
 
@@ -51,14 +48,13 @@ namespace Meshup.Game
 
         public static MimeWordService LoadDefault()
         {
-            var path = Path.Combine(Application.dataPath, "Config", "Game", "mime_verbs.json");
-            var text = File.ReadAllText(path);
-            TextAsset wordFile = new TextAsset(text);
+            var assets = MeshupRuntimeAssets.LoadDefault();
+            var wordFile = assets != null ? assets.MimeWords : null;
 
             if (wordFile == null)
             {
                 throw new InvalidOperationException(
-                    $"Could not load the mime word file from {path}.json.");
+                    "The runtime asset catalog is missing its mime word file.");
             }
 
             return new MimeWordService(wordFile);

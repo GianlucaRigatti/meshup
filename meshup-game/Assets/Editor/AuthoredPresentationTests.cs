@@ -12,6 +12,43 @@ namespace Meshup.Editor.Tests
     public sealed class AuthoredPresentationTests
     {
         [Test]
+        public void RuntimeCatalogIncludesTheAuthoredConfigurationWordsAndSounds()
+        {
+            var assets = MeshupRuntimeAssets.LoadDefault();
+            Assert.That(assets, Is.Not.Null);
+            Assert.That(assets.MimeWords, Is.SameAs(AssetDatabase.LoadAssetAtPath<TextAsset>(
+                "Assets/Config/Game/mime_verbs.json")));
+            Assert.That(assets.GameConfiguration, Is.SameAs(AssetDatabase.LoadAssetAtPath<TextAsset>(
+                "Assets/Config/Game/meshup_game_config.json")));
+            foreach (var clip in new[] { assets.GenerateButtonPress,
+                assets.GenerateButtonRelease, assets.UnderwaterAmbience })
+            {
+                Assert.That(clip, Is.Not.Null);
+                Assert.That(clip.length, Is.GreaterThan(0));
+            }
+        }
+
+        [Test]
+        public void PlaylistStartsTheBundledUnderwaterAmbience()
+        {
+            var root = new GameObject("Ambience test");
+            try
+            {
+                var playlist = root.AddComponent<PlaylistManager>();
+                typeof(PlaylistManager).GetMethod("StartUnderwaterAmbience",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    .Invoke(playlist, null);
+                var source = root.GetComponent<AudioSource>();
+                Assert.That(source, Is.Not.Null);
+                Assert.That(source.clip, Is.SameAs(MeshupRuntimeAssets.LoadDefault().UnderwaterAmbience));
+                Assert.That(source.loop, Is.True);
+                Assert.That(source.spatialBlend, Is.Zero);
+                Assert.That(source.volume, Is.GreaterThan(0));
+            }
+            finally { Object.DestroyImmediate(root); }
+        }
+
+        [Test]
         public void SessionMenuHasAuthoredVoiceControlAndXrRaycaster()
         {
             using var scope = new SceneValidationScope("Assets/Scenes/GameScene.unity");

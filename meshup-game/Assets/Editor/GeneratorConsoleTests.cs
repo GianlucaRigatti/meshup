@@ -15,7 +15,7 @@ namespace Meshup.Editor.Tests
 {
     public sealed class GeneratorConsoleTests
     {
-        private const string PrefabPath = "Assets/Art/GeneratorConsole/IntegratedGeneratorConsole.prefab";
+        private const string PrefabPath = "Assets/EXTRA_Resources/Art/GeneratorConsole/IntegratedGeneratorConsole.prefab";
         private static MeshupMatchState PreparedState()
         {
             var host = new MeshupMatchState(new System.Random(7));

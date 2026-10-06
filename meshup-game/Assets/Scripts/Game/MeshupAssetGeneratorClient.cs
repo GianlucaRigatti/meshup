@@ -15,8 +15,6 @@ namespace Meshup.Game
         private const float MaximumRecordingSeconds = 60f;
         private const float MinimumRecordingSeconds = 0.1f;
         private const int UploadSampleRate = 16000;
-        private const string PressClipResourcePath = "GenerateButtonPress";
-        private const string ReleaseClipResourcePath = "GenerateButtonRelease";
 
         [Serializable]
         private sealed class GenerateResponse
@@ -59,12 +57,13 @@ namespace Meshup.Game
                     + "interaction and audio components.", this);
                 return;
             }
-            pressClip = Resources.Load<AudioClip>(PressClipResourcePath);
-            releaseClip = Resources.Load<AudioClip>(ReleaseClipResourcePath);
+            var assets = MeshupRuntimeAssets.LoadDefault();
+            pressClip = assets != null ? assets.GenerateButtonPress : null;
+            releaseClip = assets != null ? assets.GenerateButtonRelease : null;
             if (pressClip == null || releaseClip == null)
             {
                 Debug.LogWarning("[MeshUp] Generate button press/release "
-                    + "sounds could not be loaded from Resources.");
+                    + "sounds are missing from the runtime asset catalog.");
             }
             interactable.selectEntered.AddListener(HandlePressed);
             interactable.selectExited.AddListener(HandleReleased);

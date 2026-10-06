@@ -1,9 +1,9 @@
 using UnityEngine;
 using System.Collections;
+using Meshup.Game;
 
 public class PlaylistManager : MonoBehaviour
 {
-    private const string UnderwaterAmbienceResource = "UnderwaterAmbience";
     private const float UnderwaterAmbienceVolume = 0.025f;
 
     public AudioSource audioSource;
@@ -23,8 +23,8 @@ public class PlaylistManager : MonoBehaviour
 
     private void StartUnderwaterAmbience()
     {
-        var ambience = Resources.Load<AudioClip>(
-            UnderwaterAmbienceResource);
+        var assets = MeshupRuntimeAssets.LoadDefault();
+        var ambience = assets != null ? assets.UnderwaterAmbience : null;
         if (ambience == null)
         {
             Debug.LogWarning("[MeshUp] Underwater ambience clip is missing.",

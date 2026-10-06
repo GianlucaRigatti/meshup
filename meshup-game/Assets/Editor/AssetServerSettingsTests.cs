@@ -9,6 +9,12 @@ namespace Meshup.Editor.Tests
 {
     public sealed class AssetServerSettingsTests
     {
+        [System.Serializable]
+        private sealed class Configuration
+        {
+            public string assetServerBaseUrl;
+        }
+
         [TestCase("192.168.1.42", "8000", "http", "http://192.168.1.42:8000")]
         [TestCase("127.0.0.1", "65535", "https", "https://127.0.0.1:65535")]
         [TestCase("::1", "8000", "http", "http://[::1]:8000")]
@@ -28,6 +34,30 @@ namespace Meshup.Editor.Tests
             Assert.That(AssetServerSettings.TryBuildUrl(ip, port, "http",
                 out _, out var error), Is.False);
             Assert.That(error, Is.Not.Empty);
+        }
+
+        [Test]
+        public void BuildConfigurationIsUsedWithoutASavedEndpoint()
+        {
+            var existed = PlayerPrefs.HasKey(AssetServerSettings.PreferenceKey);
+            var original = PlayerPrefs.GetString(AssetServerSettings.PreferenceKey);
+            var configuration = AssetDatabase.LoadAssetAtPath<TextAsset>(
+                "Assets/Config/Game/meshup_game_config.json");
+            Assert.That(configuration, Is.Not.Null);
+            var expected = JsonUtility.FromJson<Configuration>(configuration.text)
+                .assetServerBaseUrl.Trim();
+            try
+            {
+                PlayerPrefs.DeleteKey(AssetServerSettings.PreferenceKey);
+                Assert.That(AssetServerSettings.Resolve("http://fallback.invalid:8000"),
+                    Is.EqualTo(expected));
+            }
+            finally
+            {
+                if (existed) PlayerPrefs.SetString(AssetServerSettings.PreferenceKey, original);
+                else PlayerPrefs.DeleteKey(AssetServerSettings.PreferenceKey);
+                PlayerPrefs.Save();
+            }
         }
 
         [Test]

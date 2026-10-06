@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85821fd03e2e48fcba1fd91dbc5a7fec, type: 3}
+  m_Name: MeshupRuntimeAssets
+  m_EditorClassIdentifier: 
+  mimeWords: {fileID: 4900000, guid: a7db0f46f197477ca46cbc95e00eb46c, type: 3}
+  gameConfiguration: {fileID: 4900000, guid: c85aeb3ce6bc48e49eaa5c877fa49009, type: 3}
+  generateButtonPress: {fileID: 8300000, guid: 1e427f46e1bd4b46b96075322015b2b0, type: 3}
+  generateButtonRelease: {fileID: 8300000, guid: d590f331251b4b5c9222c430f4ffc582, type: 3}
+  underwaterAmbience: {fileID: 8300000, guid: 36652c5b942c4160b8d98f302a8be3c2, type: 3}

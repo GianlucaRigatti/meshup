@@ -19,7 +19,8 @@ namespace Meshup.Game
         {
             var saved = PlayerPrefs.GetString(PreferenceKey, string.Empty);
             if (!string.IsNullOrWhiteSpace(saved)) return saved;
-            var config = Resources.Load<TextAsset>("Game/meshup_game_config");
+            var assets = MeshupRuntimeAssets.LoadDefault();
+            var config = assets != null ? assets.GameConfiguration : null;
             if (config == null) return fallback;
             try
             {

@@ -40,7 +40,7 @@ on entry or when returning from a game.
 
 Victory fireworks use the same saved ParticleSystem prefabs on desktop and Quest,
 under `Assets/Prefabs/Fireworks`, with their shared material in
-`Assets/Art/Fireworks`. `MeshupVictoryFireworks` references these prefabs, its monitor,
+`Assets/EXTRA_Resources/Art/Fireworks`. `MeshupVictoryFireworks` references these prefabs, its monitor,
 and explosion clips directly. Edit the burst on each prefab's root and the rocket
 trail beneath it in Unity. The old desktop VFX Graph fireworks package has been
 removed. Generator completion and failure cues are saved WAV clips in
@@ -85,7 +85,12 @@ available.
 Use **Asset server** in the lobby menu to set the server IP address and port.
 The settings are saved on each device and override the default
 `assetServerBaseUrl` in
-`meshup-game/Assets/Resources/Game/meshup_game_config.json`.
+`meshup-game/Assets/Config/Game/meshup_game_config.json`.
+`Assets/Config/Resources/MeshupRuntimeAssets.asset` references this configuration,
+the mime word list, generator button sounds, and underwater ambience. Keep its
+Inspector references assigned: Unity includes these assets in player builds even
+when they live outside a `Resources` folder. Runtime loaders use this catalog
+instead of reading files from the Editor's `Assets` directory.
 The dot on the button is amber while checking, green when `/readyz` succeeds,
 and red when the server is unavailable or not ready. It refreshes every ten
 seconds while the lobby menu is open. Use the LAN-reachable address of the

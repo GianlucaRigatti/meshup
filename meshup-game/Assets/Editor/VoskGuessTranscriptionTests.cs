@@ -20,7 +20,8 @@ namespace Meshup.Game.Editor.Tests
 
             var grammar = VoskGuessTranscriber.BuildGrammar(words.Verbs);
 
-            Assert.That(words.VerbCount, Is.EqualTo(200));
+            Assert.That(words.Verbs, Is.Not.Empty);
+            Assert.That(words.Verbs.Distinct().Count(), Is.EqualTo(words.VerbCount));
             foreach (var verb in words.Verbs)
             {
                 var spoken = verb == "high-five" ? "high five" : verb;
