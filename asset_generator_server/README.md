@@ -17,45 +17,41 @@ cp asset_generator_server/.env.example asset_generator_server/.env
 
 Set `PUBLIC_BASE_URL` in that file to the server's LAN URL
 (e.g. `http://192.168.1.10:8000`) for Quest or remote clients.
-Read the [model licenses](THIRD_PARTY_NOTICES.md), including FLUX.2 Klein's
-non-commercial terms, before installing:
+
+### Build the image
 
 ```bash
 docker compose build asset-generator
-docker compose run --rm asset-generator python scripts/install_models.py --accept-licenses
+```
+
+### Install the models
+
+Read the [model licenses](THIRD_PARTY_NOTICES.md), including FLUX.2 Klein's
+non-commercial terms, before installing. Replace `<n_cpu_threads>` with the
+number of CPU threads to use for compilation (for example, `2`):
+
+```bash
+docker compose run --rm -e MAX_JOBS=<n_cpu_threads> asset-generator python scripts/install_models.py --accept-licenses
+```
+
+The first install downloads large checkpoints and compiles native runtimes.
+Reduce `MAX_JOBS` to `1` if compilation runs out of memory.
+Models persist in the `asset-models` volume; outputs are saved in
+`asset_generator_server/generated_assets`.
+
+### Start the service
+
+```bash
 docker compose up -d asset-generator
 curl --fail http://127.0.0.1:8000/readyz
 ```
 
-The first install downloads large checkpoints and compiles native runtimes.
-Models persist in the `asset-models` volume; outputs are saved in
-`asset_generator_server/generated_assets`.
+View logs or stop the service from the repository root:
 
 ```bash
 docker compose logs -f asset-generator
 docker compose down
 ```
-
-## Run directly in WSL 2
-
-Requires Ubuntu 24.04 on x86-64, the same GPU, CUDA Toolkit **12.8**
-(`nvcc` on `PATH`), Node.js **20.9+**, and [uv](https://docs.astral.sh/uv/).
-Install the NVIDIA display driver on Windows and the CUDA toolkit inside WSL.
-
-```bash
-sudo apt-get update
-sudo apt-get install -y build-essential cmake ffmpeg git ninja-build
-cd asset_generator_server
-uv python install 3.11
-uv sync
-cp .env.example .env
-MAX_JOBS=2 uv run python scripts/install_models.py --accept-licenses
-uv run python -m app.cli --host 0.0.0.0 --port 8000
-```
-
-Set `PUBLIC_BASE_URL` in `.env` for remote clients and make port 8000 reachable
-through Windows/WSL networking. Use `MAX_JOBS=1` if compilation runs out of memory.
-The installer also installs the JavaScript dependencies.
 
 ## Generate
 
@@ -71,10 +67,9 @@ curl --fail http://127.0.0.1:8000/generate_asset_from_audio \
 The response includes the GLB download `url`. Audio accepts WAV, MP3, FLAC,
 OGG/Vorbis, or M4A/AAC, up to **10 MiB / 60 seconds**.
 
-Settings are in [.env.example](.env.example). For CLI options and tests,
-run from `asset_generator_server`:
+Settings are in [.env.example](.env.example). For CLI options, run from the
+repository root:
 
 ```bash
-uv run python -m app.cli --help
-uv run pytest
+docker compose run --rm asset-generator python -m app.cli --help
 ```
