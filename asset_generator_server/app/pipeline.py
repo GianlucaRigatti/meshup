@@ -307,8 +307,9 @@ class AssetGenerator:
     ) -> GenerationResult:
         self._remove_artifacts(asset_id)
         seed = self.generation_seed(prompt)
+        # Keep final replacements on the same filesystem, including Docker mounts.
         with tempfile.TemporaryDirectory(
-            dir=self.output_dir.parent, prefix="asset-generator-"
+            dir=self.output_dir, prefix="asset-generator-"
         ) as temporary_dir:
             temporary = Path(temporary_dir)
             prompt_path = temporary / "prompt.txt"

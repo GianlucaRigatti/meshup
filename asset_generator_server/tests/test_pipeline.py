@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import errno
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -562,6 +564,47 @@ def test_complete_cache_skips_native_processes(
         "total_ms": 0,
     }
     assert runner.calls == []
+
+
+@pytest.mark.parametrize("input_type", ["text", "audio"])
+def test_generation_with_output_on_a_separate_filesystem(
+    input_type: str,
+    tmp_path: Path,
+    settings: Settings,
+    generator: tuple[AssetGenerator, FakeRunner],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, _ = generator
+    replace = os.replace
+    output_dir = settings.asset_output_dir
+
+    def replace_on_same_filesystem(source: Path, destination: Path) -> None:
+        if Path(source).is_relative_to(output_dir) != Path(destination).is_relative_to(
+            output_dir
+        ):
+            raise OSError(errno.EXDEV, "Invalid cross-device link")
+        replace(source, destination)
+
+    monkeypatch.setattr("app.pipeline.os.replace", replace_on_same_filesystem)
+
+    if input_type == "audio":
+        audio = tmp_path / "sample.wav"
+        audio.write_bytes(b"audio")
+        result = service.generate_from_audio(audio)
+    else:
+        result = service.generate("an object on a mounted output directory")
+
+    assert result.cached is False
+    assert (output_dir / f"{result.asset_id}.original.glb").read_bytes().startswith(
+        b"glTF"
+    )
+    assert (output_dir / f"{result.asset_id}.glb").read_bytes().startswith(b"glTF")
+    assert (output_dir / f"{result.asset_id}.png").read_bytes().startswith(PNG_SIGNATURE)
+    assert json.loads((output_dir / f"{result.asset_id}.json").read_text())["asset_id"] == (
+        result.asset_id
+    )
+    assert not list(output_dir.glob("asset-generator-*"))
+    assert not list(tmp_path.glob("asset-generator-*"))
 
 
 def test_partial_cache_is_removed_and_regenerated(
