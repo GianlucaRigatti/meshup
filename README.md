@@ -22,11 +22,9 @@
 
 ---
 
-## In the arena
+## The game
 
 ![A generated tree appearing in the arena](readme-assets/prop-generation.gif)
-
-*A generated prop comes to life in the arena.*
 
 ![Generated prop in the multiplayer arena](readme-assets/multiplayer.jpg)
 
