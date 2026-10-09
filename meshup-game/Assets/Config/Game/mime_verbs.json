@@ -1,16 +1,17 @@
 {
   "verbs": [
-    "act", "aim", "ask", "beg", "box", "buy", "cry", "cut", "dig", "eat", "fix", "fly", "fry", "hit", "hop", "hug", "jog", "mix", "mop", "nod", "pay", "rob", "row", "run", "saw", "sew", "sit", "ski", "zip",
-    "bake", "bend", "bite", "boil", "bowl", "call", "camp", "chew", "chop", "clap", "comb", "cook", "dive", "drag", "draw", "fall", "feed", "film", "find", "fish", "fold", "give", "golf", "grow", "help", "hide", "hike", "hunt", "iron", "jump", "kick", "kiss", "knit", "lift", "load", "lock", "look", "melt", "open", "pack", "peel", "pick", "play", "pour", "pray", "pull", "push", "race", "rake", "read", "ride", "roll", "sail", "save", "sell", "shop", "sing", "skip", "spin", "stir", "surf", "swim", "take", "talk", "text", "trip", "turn", "type", "wake", "walk", "wash", "wave", "wink", "work", "wrap", "yawn",
-    "argue", "break", "bribe", "bring", "brush", "build", "bully", "carry", "catch", "chase", "cheat", "cheer", "clean", "climb", "close", "cough", "count", "crawl", "cycle", "dance", "dodge", "dream", "dress", "drill", "drink", "drive", "faint", "fight", "flirt", "float", "frown", "greet", "grill", "kneel", "laugh", "marry", "mimic", "order", "paint", "phone", "plant", "point", "punch", "relax", "scold", "serve", "shake", "shave", "shoot", "shout", "shrug", "skate", "sleep", "smell", "smile", "sneak", "snore", "stand", "stare", "steal", "study", "sweat", "sweep", "swing", "taste", "teach", "throw", "watch", "water", "weigh", "write",
-    "accuse", "answer", "arrest", "borrow", "bounce", "button", "crouch", "detect", "escape", "follow", "forget", "gamble", "gossip", "hammer", "inject", "invent", "juggle", "kidnap", "launch", "listen", "mumble", "parade", "repair", "rescue", "salute", "scream", "search", "shovel", "shower", "sneeze", "sprint", "tickle", "tiptoe", "unload", "unlock", "unpack", "vacuum",
-    "applaud", "balance", "capture", "collect", "compete", "conduct", "confess", "deliver", "descend", "disobey", "examine", "explore", "flutter", "gesture", "imagine", "imitate", "inspect", "massage", "measure", "observe", "operate", "perform", "pretend", "propose", "protect", "scratch", "skydive", "squeeze", "stretch", "swallow", "tremble", "whisper", "whistle", "wrestle",
-    "assemble", "barbecue", "collapse", "complain", "decorate", "detonate", "discover", "disguise", "distract", "evacuate", "exercise", "handcuff", "meditate", "moonwalk", "navigate", "practice", "sabotage", "serenade", "teleport",
-    "advertise", "apologize", "blindfold", "calculate", "celebrate", "challenge", "construct", "cooperate", "eavesdrop", "eliminate", "evaporate", "hypnotize", "interrupt", "interview", "negotiate", "parachute", "sleepwalk", "snowboard", "spacewalk", "surrender", "volunteer",
-    "extinguish", "illuminate", "intertwine", "manipulate", "masquerade", "photograph", "skateboard",
-    "choreograph", "communicate", "contemplate", "demonstrate", "disassemble", "electrocute", "hallucinate", "impersonate", "interrogate", "investigate", "orchestrate", "reconstruct", "resuscitate",
+    "aim", "box", "buy", "cry", "cut", "dig", "eat", "fix", "fly", "hit", "hug", "pay", "rob", "run", "sit", "ski", 
+    "bake", "bite", "boil", "call", "camp", "clap", "cook", "dive", "draw", "fall", "feed", "film", "fish", "fold", "golf", "hide", "hunt", "kick", "kiss", "lift", "lock", "melt", "pack", "play", "pray", "race", "read", "ride", "sail", "save", "sell", "shop", "sing", "surf", "swim", "type", "wake", "wash", "work",
+    "break", "brush", "build", "carry", "catch", "chase", "cheat", "cheer", "clean", "climb", "close", "cycle", "dance", "dress", "drill", "drink", "drive", "fight", "grill", "kneel", "marry", "paint", "phone", "punch", "relax", "shave", "shoot", "skate", "sleep", "smell", "steal", "study", "swing", "taste", "teach", "throw", "watch", "weigh", "write",
+    "arrest", "bounce", "escape", "gamble", "hammer", "inject", "invent", "launch", "repair", "search", "shovel", "shower", "unpack", "vacuum",
+    "collect", "compete", "conduct", "confess", "deliver", "massage", "measure", "observe", "operate", "propose", "protect", "scratch", "skydive", "whisper", "wrestle",
+    "assemble", "barbecue", "decorate", "detonate", "evacuate", "exercise", "handcuff", "meditate", "moonwalk", "navigate", "sabotage", "serenade", 
+    "blindfold", "calculate", "construct", "eliminate", "evaporate", "parachute", "snowboard",
+    "extinguish", "illuminate", "photograph", "skateboard",
+    "interrogate", "investigate", "resuscitate",
     "congratulate",
-    "decontaminate"
+    "decontaminate",
+    "dead", "fast", "bald", "hungry", "rich"
   ],
   "adjectives": [
     "big", "dry", "hot", "new", "old", "sad", "shy", "wet",
