@@ -11,8 +11,7 @@
 This project investigates whether it is possible to integrate generative artificial intelligence into real-time virtual reality experiences and whether communication and enjoyment can benefit by on-demand generated objects in social environments.
 </p>
 <p align="center">
-MeshUp is designed as a social VR game in which players have to communicate an action through mimicking and manipulation of 3D objects. Our solution integrates a local gen-
-eration pipeline combining speech recognition, prompt optimisation, text-to-image, and image-to-3D designed to integrate with Unity and the Ubiq framework and able to return
+MeshUp is designed as a social VR game in which players have to communicate an action through mimicking and manipulation of 3D objects. Our solution integrates a local generation pipeline combining speech recognition, prompt optimisation, text-to-image, and image-to-3D designed to integrate with Unity and the Ubiq framework and able to return
 a complete asset in less than 2 minutes on consumer hardware.
 </p>
 <p align="center">
