@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="docs/banner.svg" alt="MeshUp Asset Generator — text and voice to textured 3D assets" width="100%">
-</p>
+<h1 align="center">Asset Generator Server</h1>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat" alt="Python 3.11">
@@ -9,15 +7,7 @@
 </p>
 
 <p align="center">
-  A local API that turns written or spoken descriptions into textured GLB models.<br>
-  Powered by <strong>FLUX.2 Klein</strong> and <strong>TRELLIS.2</strong>.
-</p>
-
-<p align="center">
-  <a href="#docker-compose">Get started</a> ·
-  <a href="#generate">Generate an asset</a> ·
-  <a href=".env.example">Configuration</a> ·
-  <a href="THIRD_PARTY_NOTICES.md">Model licenses</a>
+  A local API that turns written or spoken descriptions into textured GLB models.
 </p>
 
 ---
@@ -27,11 +17,10 @@
 | Requirement | Supported setup |
 | --- | --- |
 | Host | x86-64 Linux or Windows with WSL 2 |
-| GPU | Ampere-or-newer NVIDIA GPU with **10 GiB+ VRAM** |
+| GPU | Ampere-or-newer NVIDIA GPU with **12 GiB+ VRAM** |
 | Docker | Compose **2.24+** with GPU access |
 
-Use the NVIDIA Container Toolkit on Linux, or Docker Desktop with WSL 2 on
-Windows. macOS is unsupported.
+Use the NVIDIA Container Toolkit on Linux, or Docker Desktop with WSL 2 on Windows. macOS is unsupported.
 
 Run all Docker commands from the **repository root**.
 
@@ -40,9 +29,6 @@ Run all Docker commands from the **repository root**.
 ```bash
 cp asset_generator_server/.env.example asset_generator_server/.env
 ```
-
-Set `PUBLIC_BASE_URL` in that file to the server's LAN URL
-(e.g. `http://192.168.1.10:8000`) for Quest or remote clients.
 
 ### 2. Build
 
@@ -54,14 +40,14 @@ docker compose build asset-generator
 
 Read the [model licenses](THIRD_PARTY_NOTICES.md), including FLUX.2 Klein's
 non-commercial terms, before installing. Replace `<n_cpu_threads>` with the
-number of CPU threads to use for compilation (for example, `2`):
+number of CPU threads to use for compilation (for example, `8`):
 
 ```bash
 docker compose run --rm -e MAX_JOBS=<n_cpu_threads> asset-generator python scripts/install_models.py --accept-licenses
 ```
 
 The first install downloads large checkpoints and compiles native runtimes.
-Reduce `MAX_JOBS` to `1` if compilation runs out of memory.
+Reduce `MAX_JOBS` if compilation runs out of memory.
 Models persist in the `asset-models` volume; outputs are saved in
 `asset_generator_server/generated_assets`.
 
@@ -86,31 +72,7 @@ curl --fail http://127.0.0.1:8000/generate_asset \
 
 ```bash
 curl --fail http://127.0.0.1:8000/generate_asset_from_audio \
-  -F 'audio=@description.m4a'
+  -F 'audio=@description.wav'
 ```
 
-The response includes the GLB download `url`. Audio accepts WAV, MP3, FLAC,
-OGG/Vorbis, or M4A/AAC, up to **10 MiB / 60 seconds**.
-
-## Manage the service
-
-Follow logs:
-
-```bash
-docker compose logs -f asset-generator
-```
-
-Stop the service:
-
-```bash
-docker compose stop asset-generator
-```
-
-Show CLI options:
-
-```bash
-docker compose run --rm asset-generator python -m app.cli --help
-```
-
-See [.env.example](.env.example) for all settings and
-[third-party notices](THIRD_PARTY_NOTICES.md) for model licenses.
+The response includes the GLB download `url`. Audio accepts WAV, MP3, FLAC, OGG/Vorbis, or M4A/AAC, up to **10 MiB / 60 seconds**.
