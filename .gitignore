@@ -1,5 +1,4 @@
 .DS_Store
-/art/
 # Imported Unity samples
 /meshup-game/Assets/Samples/
 /meshup-game/Assets/Samples.meta
@@ -9,8 +8,3 @@
 
 # Unity build output
 /builds
-/.workbuddy-ai/
-
-
-# Local report draft
-/output/reports/meshup_implementation_draft.md
