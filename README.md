@@ -1,14 +1,44 @@
-# MeshUp
+<p align="center">
+  <img src="readme-assets/banner.svg" alt="MeshUp — multiplayer charades with AI-generated props" width="100%">
+</p>
 
-Multiplayer charades in Unity for desktop and Meta Quest, with AI-generated 3D props.
+<p align="center">
+  <img src="https://img.shields.io/badge/Unity-6000.4.5f1-222C37?style=flat&amp;logo=unity&amp;logoColor=white" alt="Unity 6000.4.5f1">
+  <img src="https://img.shields.io/badge/Platform-Desktop-60A5FA?style=flat" alt="Desktop">
+  <img src="https://img.shields.io/badge/VR-Meta_Quest-5EEAD4?style=flat" alt="Meta Quest">
+</p>
+
+<p align="center">
+  Multiplayer charades with AI-generated 3D props.<br>
+  Built in <strong>Unity</strong> for <strong>desktop</strong> and <strong>Meta Quest</strong>.
+</p>
+
+<p align="center">
+  <a href="#install">Get started</a> ·
+  <a href="#run">Run the game</a> ·
+  <a href="asset_generator_server/README.md">Asset generator</a> ·
+  <a href="#controls">Controls</a>
+</p>
+
+---
+
+## In the arena
 
 ![A generated tree appearing in the arena](readme-assets/prop-generation.gif)
+
+*A generated prop comes to life in the arena.*
 
 ![Generated prop in the multiplayer arena](readme-assets/multiplayer.jpg)
 
 ## Install
 
-Install Git LFS and Unity **6000.4.5f1** (add Android Build Support for Quest).
+| Requirement | Setup |
+| --- | --- |
+| Unity | **6000.4.5f1**, installed through Unity Hub |
+| Repository assets | Git LFS |
+| Quest builds | Android Build Support in Unity Hub |
+
+With Git LFS installed, clone the repository and download its assets:
 
 ```bash
 git lfs install
@@ -28,12 +58,23 @@ git lfs pull
 For Quest or other computers, set the server's `PUBLIC_BASE_URL` to its
 LAN address (for example, `http://192.168.1.10:8000`).
 
-To build, use Unity's **Build Profiles** for desktop or Android; keep
+## Build
+
+Use Unity's **Build Profiles** for desktop or Android; keep
 `SampleScene` and `GameScene` enabled in that order.
 
-Desktop controls: hold **G** to speak a guess, **M** to mute voice, **Escape**
-for the pause menu. On Quest, hold a controller's primary button to guess
-and use the left controller's menu button to pause. Allow microphone access.
+## Controls
 
+| Action | Desktop | Meta Quest |
+| --- | --- | --- |
+| Speak a guess | Hold **G** | Hold either controller's **primary button** |
+| Pause menu | **Escape** | Left controller's **menu button** |
+| Mute voice | **M** | — |
+
+Allow microphone access to use voice input.
+
+---
+
+[Asset generator](asset_generator_server/README.md) ·
 [Model experiments](model_experiments/README.md) ·
 [Third-party notices](meshup-game/THIRD_PARTY_NOTICES.md)
